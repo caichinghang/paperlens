@@ -4,7 +4,7 @@ A calm PDF reader for Chrome with an AI that can read the page with you, explain
 
 No build step, no account. Bring a [DeepSeek](https://platform.deepseek.com) API key (or any OpenAI-compatible endpoint) and load the folder as an unpacked extension.
 
-![Hold Option and point at a paragraph to get it explained in a bubble](docs/screenshots/explain.png)
+![PaperLens reading a paper](docs/screenshots/hero.png)
 
 ## Why it's different
 
@@ -13,6 +13,8 @@ Most PDF tools with an AI bolt a chatbot onto the side. PaperLens puts the AI on
 ### Point at anything, get it explained
 
 Hold **⌥ Option** and move the pointer over a formula, chart, table or dense paragraph. The area lights up, and after a moment a small bubble explains just that part in plain words. It sends a crop of the region rather than the whole page, so it's fast and cheap. **Ask more in chat** carries the region into the conversation.
+
+![Hold Option and point at a paragraph to get it explained in a bubble](docs/screenshots/explain.png)
 
 ### References that pop out
 

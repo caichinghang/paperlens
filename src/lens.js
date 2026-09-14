@@ -214,7 +214,8 @@ export function createLens(host, { quickAsk, openChat }) {
       left = regionLeft - width - 12;
       top = regionTop;
     } else {
-      left = regionLeft;
+      // No room beside the region: sit under it, centred on it.
+      left = regionLeft + ((regionRight - regionLeft) - width) / 2;
       top = regionBottom + 12;
     }
     element.style.left = `${clamp(left, 12, Math.max(12, stage.width - width - 12))}px`;
