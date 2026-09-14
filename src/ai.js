@@ -44,6 +44,28 @@ const ICONS = {
   jump: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m13 6 6 6-6 6"></path></svg>'
 };
 
+// One icon per kind of tool, so a step log reads at a glance: looked, searched, filled, marked…
+const TOOL_ICONS = {
+  view_pages: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
+  view_region: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><circle cx="12" cy="12" r="3"></circle></svg>',
+  search_document: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>',
+  find_text: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>',
+  get_outline: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>',
+  set_outline: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>',
+  get_page_layout: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18M9 21V9"></path></svg>',
+  list_form_fields: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 10h6M7 14h10"></path></svg>',
+  fill_form_fields: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 12h6"></path><path d="m15 12 2 2 4-4"></path></svg>',
+  add_text: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V4h16v3"></path><path d="M12 4v16"></path><path d="M9 20h6"></path></svg>',
+  add_text_layer: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5z"></path><path d="m3 13 9 5 9-5"></path></svg>',
+  highlight_text: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 11-6 6v2h8l3-3"></path><path d="m21 11-4.6 4.6a2 2 0 0 1-2.8 0l-4.2-4.2a2 2 0 0 1 0-2.8L14 4z"></path></svg>',
+  draw_shape: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3-4.5 5-6 6.5-4.5s-1 4 1 4.5 3.5-5 6-6.5 3 .5 4.5 1.5"></path></svg>',
+  list_markup: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg>',
+  delete_markup: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>',
+  report_items: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12"></path><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"></path></svg>',
+  propose_redactions: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 4.2A10 10 0 0 1 12 4c6.5 0 10 8 10 8a13 13 0 0 1-2.2 3.2"></path><path d="M6.6 6.6A13.5 13.5 0 0 0 2 12s3.5 8 10 8a9.7 9.7 0 0 0 5.4-1.6"></path><path d="m2 2 20 20"></path></svg>',
+  go_to_page: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m13 6 6 6-6 6"></path></svg>'
+};
+
 const SEVERITY_ICONS = {
   error: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4M12 16h.01"></path></svg>',
   warning: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 4.2 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3l-7.9-13.8a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>',
@@ -135,11 +157,12 @@ function renderInline(text) {
     .replace(/(^|[^_\w])_(?!\s)(.+?)_(?!\w)/g, "$1<em>$2</em>")
     .replace(/~~(.+?)~~/g, "<del>$1</del>")
     // Page citations, bracketed ([p. 3], [pp. 3-4]) or bare (p. 3), become jump buttons.
-    .replace(/\[(pp?)\.\s*(\d+)(?:\s*[-–]\s*(\d+))?\]|\b(pp?)\.\s*(\d+)(?:\s*[-–]\s*(\d+))?(?=$|[\s.,;:!?)\]])/gi, (match, prefix, start, end, barePrefix, bareStart, bareEnd) => {
+    .replace(/\[(pp?)\.\s*(\d+)(?:\s*[-–]\s*(\d+))?(?:\s*[,;]\s*([^\]]{1,60}))?\]|\b(pp?)\.\s*(\d+)(?:\s*[-–]\s*(\d+))?(?=$|[\s.,;:!?)\]])/gi, (match, prefix, start, end, extra, barePrefix, bareStart, bareEnd) => {
       const first = start ?? bareStart;
       const last = end ?? bareEnd;
       const label = `${(prefix ?? barePrefix).toLowerCase()}. ${first}${last ? `–${last}` : ""}`;
-      return `<button type="button" class="cite" data-page="${first}" title="Go to page ${first}">${label}</button>`;
+      const detail = extra ? `<span class="cite-extra">, ${extra.trim()}</span>` : "";
+      return `<button type="button" class="cite" data-page="${first}" title="Go to page ${first}">${label}</button>${detail}`;
     })
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
@@ -577,14 +600,23 @@ export function createAssistant({ host, getSelectedText, toast }) {
     }
     return saved.filter(message => message && typeof message === "object").map(message => {
       if (message.role === "assistant" && !message.error) {
-        return {
-          ...message,
-          steps: (message.steps || []).map(step => ({ ...step, undo: null, status: step.status === "running" ? "error" : step.status })),
-          cards: message.cards || [],
-          transcript: Array.isArray(message.transcript) ? message.transcript : [],
-          streaming: false,
-          thinking: false
-        };
+        const fix = step => ({ ...step, undo: null, status: step.status === "running" ? "error" : step.status });
+        const cards = message.cards || [];
+        let timeline;
+        let steps;
+        if (Array.isArray(message.timeline)) {
+          timeline = message.timeline.map(entry => (entry.type === "step" ? { type: "step", step: fix(entry.step) } : entry));
+          steps = timeline.filter(entry => entry.type === "step").map(entry => entry.step);
+        } else {
+          // Older saves: steps, then cards, then the text.
+          steps = (message.steps || []).map(fix);
+          timeline = [
+            ...steps.map(step => ({ type: "step", step })),
+            ...cards.map(card => ({ type: "card", card })),
+            ...(message.content ? [{ type: "text", content: message.content }] : [])
+          ];
+        }
+        return { ...message, steps, cards, timeline, transcript: Array.isArray(message.transcript) ? message.transcript : [], streaming: false, thinking: false };
       }
       return { ...message };
     });
@@ -613,8 +645,11 @@ export function createAssistant({ host, getSelectedText, toast }) {
           role: "assistant",
           content: message.content,
           docKey: message.docKey,
-          steps: message.steps.map(step => ({ label: step.label, status: step.status, undone: Boolean(step.undone) })),
+          steps: message.steps.map(step => ({ tool: step.tool, label: step.label, status: step.status, undone: Boolean(step.undone) })),
           cards: message.cards,
+          timeline: (message.timeline || []).map(entry => entry.type === "step"
+            ? { type: "step", step: { tool: entry.step.tool, label: entry.step.label, status: entry.step.status, undone: Boolean(entry.step.undone) } }
+            : entry),
           transcript: compactTranscript(message.transcript, recentAssistants.includes(message))
         };
       }
@@ -1282,82 +1317,103 @@ export function createAssistant({ host, getSelectedText, toast }) {
     }
   }
 
+  function renderStepGroup(entries, message, node) {
+    const first = entries[0];
+    const steps = entries.map(entry => entry.step);
+    const running = steps.some(step => step.status === "running");
+    // A single step is shown as is; a run of several folds behind a one-line summary.
+    const single = steps.length === 1;
+    const open = single || (first.open ?? (message.streaming && running));
+    const wrapper = document.createElement("div");
+    wrapper.className = `agent-steps${open ? " is-open" : ""}${single ? " is-single" : ""}`;
+
+    const edits = steps.filter(step => step.undo && step.status === "done").length;
+    const failed = steps.filter(step => step.status === "error").length;
+    const summary = running
+      ? "Working…"
+      : `${steps.length} step${steps.length === 1 ? "" : "s"}`
+        + (edits ? ` · ${edits} edit${edits === 1 ? "" : "s"}` : "")
+        + (failed ? ` · ${failed} failed` : "");
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "agent-steps-toggle";
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.innerHTML = `<span>${escapeHtml(summary)}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>`;
+    toggle.addEventListener("click", () => {
+      first.open = !open;
+      fillAssistantMessage(node, message);
+    });
+    if (!single) {
+      wrapper.append(toggle);
+    }
+
+    const list = document.createElement("div");
+    list.className = "agent-steps-list";
+    for (const step of steps) {
+      const row = document.createElement("div");
+      row.className = `agent-step is-${step.status}${step.undone ? " is-undone" : ""}`;
+      const icon = step.status === "running" ? "" : step.status === "error" ? ICONS.error : (TOOL_ICONS[step.tool] || ICONS.check);
+      row.innerHTML = `<span class="agent-step-icon">${icon}</span>`;
+
+      const label = document.createElement("span");
+      label.className = "agent-step-label";
+      label.textContent = step.label;
+      row.append(label);
+
+      if (step.undo && step.status === "done" && !message.streaming) {
+        const undo = document.createElement("button");
+        undo.type = "button";
+        undo.textContent = step.undone ? "Undone" : "Undo";
+        undo.disabled = Boolean(step.undone);
+        undo.addEventListener("click", async () => {
+          try {
+            await step.undo();
+            step.undone = true;
+            toast("Change undone");
+          } catch (error) {
+            toast(`Couldn't undo: ${error.message}`);
+          }
+          persist();
+          fillAssistantMessage(node, message);
+        });
+        row.append(undo);
+      }
+      list.append(row);
+    }
+    wrapper.append(list);
+    return wrapper;
+  }
+
   function fillAssistantMessage(node, message) {
     node.replaceChildren();
 
-    if (message.steps.length) {
-      // Steps read as a quiet activity log: one line each, joined by a thin rail, folded away once
-      // the reply is finished unless the reader opens them.
-      const open = message.stepsOpen ?? message.streaming;
-      const wrapper = document.createElement("div");
-      wrapper.className = `agent-steps${open ? " is-open" : ""}`;
-
-      const edits = message.steps.filter(step => step.undo && step.status === "done").length;
-      const failed = message.steps.filter(step => step.status === "error").length;
-      const summary = message.streaming && message.steps.some(step => step.status === "running")
-        ? "Working…"
-        : `Worked through ${message.steps.length} step${message.steps.length === 1 ? "" : "s"}`
-          + (edits ? ` · ${edits} edit${edits === 1 ? "" : "s"}` : "")
-          + (failed ? ` · ${failed} failed` : "");
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "agent-steps-toggle";
-      toggle.setAttribute("aria-expanded", String(open));
-      toggle.innerHTML = `<span>${escapeHtml(summary)}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>`;
-      toggle.addEventListener("click", () => {
-        message.stepsOpen = !(message.stepsOpen ?? message.streaming);
-        fillAssistantMessage(node, message);
-      });
-      wrapper.append(toggle);
-
-      const list = document.createElement("div");
-      list.className = "agent-steps-list";
-
-      for (const step of message.steps) {
-        const row = document.createElement("div");
-        row.className = `agent-step is-${step.status}${step.undone ? " is-undone" : ""}`;
-        row.innerHTML = `<span class="agent-step-icon">${step.status === "done" ? ICONS.check : step.status === "error" ? ICONS.error : ""}</span>`;
-
-        const label = document.createElement("span");
-        label.className = "agent-step-label";
-        label.textContent = step.label;
-        row.append(label);
-
-        if (step.undo && step.status === "done" && !message.streaming) {
-          const undo = document.createElement("button");
-          undo.type = "button";
-          undo.textContent = step.undone ? "Undone" : "Undo";
-          undo.disabled = Boolean(step.undone);
-          undo.addEventListener("click", async () => {
-            try {
-              await step.undo();
-              step.undone = true;
-              toast("Change undone");
-            } catch (error) {
-              toast(`Couldn't undo: ${error.message}`);
-            }
-            persist();
-            fillAssistantMessage(node, message);
-          });
-          row.append(undo);
+    const timeline = message.timeline || [];
+    let index = 0;
+    while (index < timeline.length) {
+      const entry = timeline[index];
+      if (entry.type === "step") {
+        const group = [];
+        while (index < timeline.length && timeline[index].type === "step") {
+          group.push(timeline[index]);
+          index += 1;
         }
-
-        list.append(row);
+        node.append(renderStepGroup(group, message, node));
+        continue;
       }
-      wrapper.append(list);
-      node.append(wrapper);
+      if (entry.type === "card") {
+        node.append(renderCard(entry.card, message));
+      } else if (entry.type === "text" && entry.content.trim()) {
+        const body = document.createElement("div");
+        body.className = "msg-body";
+        body.innerHTML = renderMarkdown(entry.content);
+        node.append(body);
+      }
+      index += 1;
     }
 
-    for (const card of message.cards || []) {
-      node.append(renderCard(card, message));
-    }
-
-    if (message.content) {
-      const body = document.createElement("div");
-      body.className = "msg-body";
-      body.innerHTML = renderMarkdown(message.content);
-      node.append(body);
-    } else if (message.streaming && !message.steps.some(step => step.status === "running")) {
+    const last = timeline.at(-1);
+    const busy = message.streaming && !message.steps.some(step => step.status === "running");
+    if (busy && (!last || last.type !== "text" || !last.content.trim())) {
       const thinking = document.createElement("div");
       thinking.className = "thinking";
       thinking.innerHTML = `<i></i><i></i><i></i><span>${message.thinking ? "Thinking…" : "Working…"}</span>`;
@@ -1654,6 +1710,7 @@ export function createAssistant({ host, getSelectedText, toast }) {
           if (!turn.content && reply.content) {
             reply.content += "\n\n";
           }
+          appendText(reply, delta.content, !turn.content);
           turn.content += delta.content;
           reply.content += delta.content;
         }
@@ -1729,8 +1786,9 @@ export function createAssistant({ host, getSelectedText, toast }) {
         const attachRegions = [];
         for (const call of assistantMessage.tool_calls) {
           signal.throwIfAborted();
-          const view = { label: TOOL_LABELS[call.function.name] || `Running ${call.function.name}…`, status: "running" };
+          const view = { tool: call.function.name, label: TOOL_LABELS[call.function.name] || `Running ${call.function.name}…`, status: "running" };
           reply.steps.push(view);
+          reply.timeline.push({ type: "step", step: view });
           scheduleUpdate(reply);
 
           let content;
@@ -1743,6 +1801,7 @@ export function createAssistant({ host, getSelectedText, toast }) {
             attachRegions.push(...(outcome.attachRegions || []));
             if (outcome.card) {
               reply.cards.push(outcome.card);
+              reply.timeline.push({ type: "card", card: outcome.card });
             }
             content = JSON.stringify(outcome.result ?? { ok: true });
           } catch (error) {
@@ -1771,11 +1830,15 @@ export function createAssistant({ host, getSelectedText, toast }) {
 
       if (!reply.content && !reply.steps.length) {
         reply.content = "*No response.*";
+        appendText(reply, reply.content, true);
       }
     } catch (error) {
       sanitizeTranscript(reply);
       if (error.name === "AbortError") {
-        reply.content ||= "*Stopped.*";
+        if (!reply.content) {
+          reply.content = "*Stopped.*";
+          appendText(reply, reply.content, true);
+        }
       } else {
         const message = error instanceof TypeError
           ? "Couldn't reach the API. Check your connection and the base URL in settings."
@@ -1803,7 +1866,21 @@ export function createAssistant({ host, getSelectedText, toast }) {
   }
 
   function newReply() {
-    return { role: "assistant", content: "", steps: [], cards: [], transcript: [], streaming: true, thinking: false, docKey };
+    return { role: "assistant", content: "", steps: [], cards: [], timeline: [], transcript: [], streaming: true, thinking: false, docKey };
+  }
+
+  // The reply is kept as a timeline (text, tool steps, cards in the order they happened), so the
+  // model's short notes between tool calls stay next to the calls they introduce.
+  function appendText(reply, text, startNew) {
+    if (!reply.timeline) {
+      return;
+    }
+    const last = reply.timeline.at(-1);
+    if (startNew || !last || last.type !== "text") {
+      reply.timeline.push({ type: "text", content: text });
+    } else {
+      last.content += text;
+    }
   }
 
   async function send(text) {

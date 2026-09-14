@@ -1729,6 +1729,18 @@ svg {
   text-decoration-color: var(--accent);
 }
 
+.msg .cite-extra {
+  color: var(--soft);
+  font-size: 0.92em;
+}
+
+/* Text that follows a step group or a card gets a little air. */
+.msg-body + .agent-steps,
+.agent-steps + .msg-body,
+.ai-card + .msg-body {
+  margin-top: 6px;
+}
+
 .msg.error {
   padding: 8px 12px;
   border-radius: 10px;
@@ -1894,7 +1906,7 @@ svg {
 
 /* Activity log: plain lines on a thin rail, no boxes, folded once the reply is done. */
 .agent-steps {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
 }
 
 .agent-steps-toggle {
@@ -3205,10 +3217,10 @@ svg {
 }
 
 /* Tables and richer blocks in replies */
-/* Tables: hairlines only, a quiet header, no box around them. */
+/* Tables: hairlines only, a quiet header, no box around them, and room before what follows. */
 .msg .table-wrap {
   max-width: 100%;
-  margin: 0.2em 0 1em;
+  margin: 0.4em 0 1.5em;
   overflow-x: auto;
 }
 
@@ -3273,12 +3285,11 @@ svg {
 
 /* Result cards: a labelled table with hairlines, actions as quiet text buttons. */
 .ai-card {
-  margin: 0 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  margin: 4px 0 20px;
+  border: 0;
+  border-radius: 0;
   background: transparent;
   font-size: 13px;
-  overflow: hidden;
 }
 
 .ai-card-head {
@@ -3286,7 +3297,7 @@ svg {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 14px 8px;
+  padding: 0 0 8px;
   border-bottom: 1px solid var(--line-strong);
 }
 
@@ -3309,7 +3320,8 @@ svg {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  padding: 6px 8px;
+  padding: 6px 0 0;
+  margin-left: -8px;
   border-top: 1px solid var(--line);
 }
 
@@ -3335,7 +3347,7 @@ svg {
 
 .ai-card-note {
   margin: 0;
-  padding: 8px 14px 10px;
+  padding: 8px 0 0;
   border-top: 1px solid var(--line);
   color: var(--soft);
   font-size: 12px;
@@ -3354,7 +3366,7 @@ svg {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 7px 10px 7px 12px;
+  padding: 8px 0;
   border-top: 1px solid var(--line);
   line-height: 1.45;
 }
@@ -3462,7 +3474,7 @@ svg {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px 7px 14px;
+  padding: 8px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -3512,7 +3524,7 @@ svg {
 }
 
 .flashcard-list {
-  padding: 0 12px 4px;
+  padding: 0;
   counter-reset: card;
 }
 
@@ -3534,6 +3546,5 @@ svg {
 }
 
 .ai-card.csv .table-wrap {
-  margin: 0 10px;
-  border-radius: 8px;
+  margin: 0 0 4px;
 }
