@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PaperLens</title>
+    <link rel="icon" href="icons/icon32.png">
+    <link rel="stylesheet" href="src/viewer.css">
+  </head>
+  <body>
+    <div id="appShell" class="app-shell no-document">
+      <!-- Left panel -->
+      <aside id="sidebar" class="sidebar" aria-label="Document navigation">
+        <div class="panel-inner sidebar-inner">
+          <div class="sidebar-header">
+            <button id="sidebarClose" class="panel-icon-button" type="button" title="Hide sidebar" aria-label="Hide sidebar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M9 3v18"></path></svg>
+            </button>
+            <div id="sidebarTabs" class="segmented" role="tablist" aria-label="Sidebar view">
+              <button type="button" role="tab" data-panel="thumbnails" class="is-active" title="Thumbnails" aria-label="Thumbnails">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>
+              </button>
+              <button type="button" role="tab" data-panel="outline" title="Table of contents" aria-label="Table of contents">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>
+              </button>
+              <button type="button" role="tab" data-panel="annotations" title="Markup list" aria-label="Markup list">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg>
+              </button>
+            </div>
+          </div>
+          <div class="doc-info">
+            <h1 id="documentTitle">PaperLens</h1>
+            <p id="documentUrl">No document loaded</p>
+          </div>
+          <div class="sidebar-body">
+            <div id="thumbnailList" class="thumbnail-list" data-panel-body="thumbnails">
+              <div class="sidebar-empty">No document loaded</div>
+            </div>
+            <nav id="outlineList" class="outline-list" data-panel-body="outline" hidden>
+              <div class="sidebar-empty">No table of contents</div>
+            </nav>
+            <div id="annotationList" class="annotation-list" data-panel-body="annotations" hidden>
+              <div class="sidebar-empty">No markup yet</div>
+            </div>
+          </div>
+        </div>
+        <div id="sidebarResizer" class="resize-handle resize-handle-x" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0"></div>
+      </aside>
+
+      <!-- Reading area -->
+      <section id="viewerStage" class="viewer-stage" aria-label="PDF preview">
+        <button id="sidebarOpen" class="corner-button corner-left glass" type="button" title="Show sidebar" aria-label="Show sidebar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M9 3v18"></path></svg>
+        </button>
+        <button id="aiToggle" class="corner-button corner-right glass" type="button" title="Show AI assistant" aria-label="Show AI assistant" aria-expanded="false" aria-controls="aiPanel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M15 3v18"></path></svg>
+        </button>
+
+        <div id="markupBar" class="markup-bar glass" role="toolbar" aria-label="Markup tools" hidden>
+          <div class="tool-group">
+            <button type="button" data-tool="select" class="is-active" title="Select text / move markup (V)" aria-label="Select">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.6 12.6 19 19"></path><path d="M3.7 3a.5.5 0 0 0-.7.7l6.5 16a.5.5 0 0 0 1-.1l1.5-6a2 2 0 0 1 1.5-1.5l6.1-1.6a.5.5 0 0 0 .1-.9z"></path></svg>
+            </button>
+            <button type="button" data-tool="highlight" title="Highlight text (H)" aria-label="Highlight">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 11-6 6v2h8l3-3"></path><path d="m21 11-4.6 4.6a2 2 0 0 1-2.8 0l-4.2-4.2a2 2 0 0 1 0-2.8L14 4z"></path><path d="M4 22h16" class="tool-color-line"></path></svg>
+            </button>
+            <button type="button" data-tool="underline" title="Underline text (U)" aria-label="Underline">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v6a6 6 0 0 0 12 0V4"></path><path d="M4 21h16" class="tool-color-line"></path></svg>
+            </button>
+            <button type="button" data-tool="strike" title="Strike through text (S)" aria-label="Strikethrough">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4H9a3 3 0 0 0-2.8 4"></path><path d="M14 12a4 4 0 0 1 0 8H6"></path><path d="M4 12h16" class="tool-color-line"></path></svg>
+            </button>
+          </div>
+          <span class="tool-divider"></span>
+          <div class="tool-group">
+            <button type="button" data-tool="pen" title="Draw (P)" aria-label="Draw">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3-4.5 5-6 6.5-4.5s-1 4 1 4.5 3.5-5 6-6.5 3 .5 4.5 1.5"></path></svg>
+            </button>
+            <button type="button" data-tool="rect" title="Rectangle (R)" aria-label="Rectangle">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect></svg>
+            </button>
+            <button type="button" data-tool="ellipse" title="Oval (O)" aria-label="Oval">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"></ellipse></svg>
+            </button>
+            <button type="button" data-tool="arrow" title="Arrow (A)" aria-label="Arrow">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7"></path><path d="M8 7h9v9"></path></svg>
+            </button>
+            <button type="button" data-tool="line" title="Line (L)" aria-label="Line">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5"></path></svg>
+            </button>
+            <button type="button" data-tool="text" title="Text box (T)" aria-label="Text box">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V4h16v3"></path><path d="M12 4v16"></path><path d="M9 20h6"></path></svg>
+            </button>
+            <button type="button" data-tool="signature" title="Signature (click again to redraw)" aria-label="Signature">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16c2.5 0 4-9 6.5-9S9 16 11 16s2.5-4 4-4 1 3 2.5 3 2-1 3.5-1"></path><path d="M3 21h18"></path></svg>
+            </button>
+          </div>
+          <span class="tool-divider"></span>
+          <div id="colorGroup" class="tool-group colors" aria-label="Color">
+            <button type="button" data-color="#fcc419" class="swatch is-active" style="--swatch:#fcc419" title="Yellow" aria-label="Yellow"></button>
+            <button type="button" data-color="#51cf66" class="swatch" style="--swatch:#51cf66" title="Green" aria-label="Green"></button>
+            <button type="button" data-color="#4dabf7" class="swatch" style="--swatch:#4dabf7" title="Blue" aria-label="Blue"></button>
+            <button type="button" data-color="#f783ac" class="swatch" style="--swatch:#f783ac" title="Pink" aria-label="Pink"></button>
+            <button type="button" data-color="#e03131" class="swatch" style="--swatch:#e03131" title="Red" aria-label="Red"></button>
+            <button type="button" data-color="#1f1f1f" class="swatch" style="--swatch:#1f1f1f" title="Black" aria-label="Black"></button>
+          </div>
+          <span class="tool-divider"></span>
+          <div id="widthGroup" class="tool-group" aria-label="Line width">
+            <button type="button" data-width="1" title="Thin" aria-label="Thin line"><span class="width-dot" style="--dot:3px"></span></button>
+            <button type="button" data-width="2" class="is-active" title="Medium" aria-label="Medium line"><span class="width-dot" style="--dot:6px"></span></button>
+            <button type="button" data-width="4" title="Thick" aria-label="Thick line"><span class="width-dot" style="--dot:9px"></span></button>
+          </div>
+          <span class="tool-divider"></span>
+          <div class="tool-group">
+            <button id="undoBtn" type="button" title="Undo (⌘Z)" aria-label="Undo" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg>
+            </button>
+            <button id="redoBtn" type="button" title="Redo (⇧⌘Z)" aria-label="Redo" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"></path><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"></path></svg>
+            </button>
+            <button id="deleteBtn" type="button" title="Delete selected markup (⌫)" aria-label="Delete selected" disabled>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M10 11v6M14 11v6"></path></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+          <div class="empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg>
+          </div>
+          <h2>Open a PDF</h2>
+          <p>Browse to a PDF on the web and it opens here — or drop a file anywhere in this window.</p>
+          <button id="emptyOpenFile" class="text-button" type="button">Choose a file…</button>
+        </div>
+
+        <div id="pdfShell" class="pdf-shell" hidden>
+          <div id="pdfPages" class="pdf-pages" aria-label="Rendered PDF pages"></div>
+        </div>
+
+        <!-- Vertical tool dock: find · edit · zoom · file -->
+        <div id="toolDock" class="tool-dock glass" role="toolbar" aria-orientation="vertical" aria-label="PDF tools">
+          <button id="searchToggle" class="dock-button" type="button" title="Search (⌘F)" aria-label="Search" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>
+          </button>
+          <button id="pageToggle" class="dock-button" type="button" title="Go to page" aria-label="Go to page" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M8 13h8M8 17h5"></path></svg>
+          </button>
+          <span class="dock-divider"></span>
+          <button id="markupToggle" class="dock-button" type="button" title="Show markup toolbar" aria-label="Markup" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg>
+          </button>
+          <span class="dock-divider"></span>
+          <button id="zoomIn" class="dock-button" type="button" title="Zoom in (⌘+)" aria-label="Zoom in">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </button>
+          <button id="zoomReset" class="dock-button" type="button" title="Zoom options" aria-label="Zoom options" aria-haspopup="menu">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+          <button id="zoomOut" class="dock-button" type="button" title="Zoom out (⌘−)" aria-label="Zoom out">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
+          </button>
+          <span class="dock-divider"></span>
+          <button id="openFile" class="dock-button" type="button" title="Open a local PDF" aria-label="Open a local PDF">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 19H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V9"></path><path d="m2 19 2.6-7a2 2 0 0 1 1.9-1.3H22l-2.7 7.3A2 2 0 0 1 17.4 19"></path></svg>
+          </button>
+          <button id="downloadPdf" class="dock-button" type="button" title="Download PDF (includes markup)" aria-label="Download PDF" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M21 15v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"></path></svg>
+          </button>
+          <span class="dock-divider"></span>
+          <button id="themeToggle" class="dock-button" type="button" title="Switch to dark mode" aria-label="Switch to dark mode">
+            <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path></svg>
+            <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+          </button>
+          <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden>
+        </div>
+
+        <div id="searchBox" class="search-flyout glass" role="search" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>
+          <input id="searchInput" type="search" placeholder="Search document" aria-label="Search document" autocomplete="off" spellcheck="false">
+          <span id="searchCount" class="search-count"></span>
+          <button id="searchPrev" class="flyout-button" type="button" title="Previous match (⇧↩)" aria-label="Previous match">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg>
+          </button>
+          <button id="searchNext" class="flyout-button" type="button" title="Next match (↩)" aria-label="Next match">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+          </button>
+          <button id="searchClose" class="flyout-button" type="button" title="Close (Esc)" aria-label="Close search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+          </button>
+        </div>
+
+        <div id="pageBox" class="page-flyout glass" role="group" aria-label="Go to page" hidden>
+          <span>Page</span>
+          <input id="pageInput" type="text" inputmode="numeric" value="–" aria-label="Page number">
+          <span id="pageCount">of –</span>
+          <span class="flyout-divider"></span>
+          <button id="pagePrev" class="flyout-button" type="button" title="Previous page" aria-label="Previous page">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg>
+          </button>
+          <button id="pageNext" class="flyout-button" type="button" title="Next page" aria-label="Next page">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+          </button>
+        </div>
+
+        <div id="zoomMenu" class="menu glass" role="menu" hidden>
+          <div id="zoomMenuLabel" class="menu-label">Zoom · 100%</div>
+          <button type="button" role="menuitem" data-zoom="fit-width">Fit width</button>
+          <button type="button" role="menuitem" data-zoom="fit-page">Fit page</button>
+          <hr>
+          <button type="button" role="menuitem" data-zoom="0.5">50%</button>
+          <button type="button" role="menuitem" data-zoom="1">Actual size</button>
+          <button type="button" role="menuitem" data-zoom="1.5">150%</button>
+          <button type="button" role="menuitem" data-zoom="2">200%</button>
+          <button type="button" role="menuitem" data-zoom="4">400%</button>
+        </div>
+
+        <div id="selectionPopover" class="selection-popover glass" role="toolbar" aria-label="Selection actions" hidden>
+          <button type="button" data-action="highlight" title="Highlight"><span class="swatch-inline"></span>Highlight</button>
+          <button type="button" data-action="underline" title="Underline" aria-label="Underline">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v6a6 6 0 0 0 12 0V4"></path><path d="M4 21h16"></path></svg>
+          </button>
+          <button type="button" data-action="strike" title="Strikethrough" aria-label="Strikethrough">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4H9a3 3 0 0 0-2.8 4"></path><path d="M14 12a4 4 0 0 1 0 8H6"></path><path d="M4 12h16"></path></svg>
+          </button>
+          <button type="button" data-action="copy" title="Copy" aria-label="Copy">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="13" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg>
+          </button>
+          <span class="tool-divider"></span>
+          <button type="button" data-action="explain" class="ask-action" title="Explain this in a bubble">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+            Explain
+          </button>
+          <button type="button" data-action="translate" class="ask-action" title="Translate this in a bubble" aria-label="Translate">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 8 6 6"></path><path d="m4 14 6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="m22 22-5-10-5 10"></path><path d="M14 18h6"></path></svg>
+          </button>
+          <button type="button" data-action="ask" class="ask-action" title="Ask AI about this">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 15.5A2 2 0 0 0 8.5 14l-6.1-1.6a.5.5 0 0 1 0-1L8.5 10a2 2 0 0 0 1.4-1.5l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1A2 2 0 0 0 15.5 10l6.1 1.6a.5.5 0 0 1 0 1L15.5 14a2 2 0 0 0-1.4 1.5l-1.6 6.1a.5.5 0 0 1-1 0z"></path></svg>
+            Ask AI
+          </button>
+        </div>
+
+        <div id="layerPill" class="layer-pill glass" role="group" aria-label="Layers" hidden></div>
+
+        <div id="dropOverlay" class="drop-overlay" hidden>
+          <div>Drop PDF to open</div>
+        </div>
+      </section>
+
+      <!-- Right panel: AI assistant -->
+      <aside id="aiPanel" class="ai-panel" aria-label="AI assistant">
+        <div id="aiResizerX" class="resize-handle resize-handle-x resize-handle-left" role="separator" aria-orientation="vertical" aria-label="Resize AI panel width" tabindex="0"></div>
+        <div id="aiResizerY" class="resize-handle resize-handle-y" role="separator" aria-orientation="horizontal" aria-label="Resize AI panel height" tabindex="0"></div>
+        <div class="panel-inner ai-inner">
+          <header class="ai-header">
+            <div class="menu-anchor">
+              <button id="aiTitleButton" class="ai-title-button" type="button" aria-haspopup="menu" data-menu-trigger>
+                <span id="aiTitle">New chat</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              </button>
+              <div id="aiTitleMenu" class="menu ai-menu glass menu-below" role="menu" hidden>
+                <button type="button" role="menuitem" data-ai-action="new">New chat</button>
+                <button type="button" role="menuitem" data-ai-action="settings">Settings…</button>
+              </div>
+            </div>
+            <div class="ai-header-actions">
+              <button id="aiNewChat" class="panel-icon-button" type="button" title="New chat" aria-label="New chat" data-ai-action="new">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.4 2.6a2.1 2.1 0 0 1 3 3L12.4 14.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg>
+              </button>
+              <button id="aiClose" class="panel-icon-button" type="button" title="Close" aria-label="Close AI assistant">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+              </button>
+            </div>
+          </header>
+          <div id="aiModes" class="ai-modes" role="tablist" aria-label="Assistant mode"></div>
+
+          <form id="aiSettings" class="ai-settings" hidden>
+            <div class="settings-head">
+              <button id="aiSettingsCancel" class="panel-icon-button" type="button" title="Back to chat" aria-label="Back to chat">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+              </button>
+              <h2>Settings</h2>
+            </div>
+
+            <div class="settings-body">
+              <section class="settings-group">
+                <h3>Connection</h3>
+                <div class="settings-card">
+                  <label class="settings-row">
+                    <span class="settings-label">DeepSeek API key</span>
+                    <span class="settings-field">
+                      <input id="aiKey" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false">
+                      <button id="aiKeyToggle" type="button" class="field-button" title="Show key" aria-label="Show key" aria-pressed="false">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                      </button>
+                    </span>
+                  </label>
+                  <p class="settings-help">Get one at platform.deepseek.com. It stays in this browser and is only sent to the API base URL below.</p>
+                  <label class="settings-row">
+                    <span class="settings-label">API base URL</span>
+                    <span class="settings-field">
+                      <input id="aiBaseUrl" type="url" placeholder="https://api.deepseek.com" spellcheck="false">
+                    </span>
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <h3>Model</h3>
+                <div class="settings-card">
+                  <label class="settings-row">
+                    <span class="settings-label">Model</span>
+                    <span class="settings-field">
+                      <input id="aiModel" type="text" list="aiModelOptions" placeholder="deepseek-flash" spellcheck="false">
+                      <datalist id="aiModelOptions">
+                        <option value="deepseek-flash"></option>
+                      </datalist>
+                    </span>
+                  </label>
+                  <p class="settings-help">DeepSeek Flash reads page images and uses tools. Any OpenAI-compatible model ID works with a matching base URL.</p>
+                  <div class="settings-row">
+                    <span class="settings-label">Send pages as</span>
+                    <div id="aiPageFormat" class="settings-segmented" role="radiogroup" aria-label="Send pages as">
+                      <button type="button" role="radio" data-format="auto" aria-checked="true" class="is-active">Automatic</button>
+                      <button type="button" role="radio" data-format="image" aria-checked="false">Images</button>
+                      <button type="button" role="radio" data-format="text" aria-checked="false">Text only</button>
+                    </div>
+                  </div>
+                  <p class="settings-help">Automatic sends images when the model can read them. Choose Text only for text-only models.</p>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <h3>Editing</h3>
+                <div class="settings-card">
+                  <label class="settings-switch">
+                    <span>
+                      <strong>Let the AI edit the PDF</strong>
+                      <small>Fill forms, add markup and text layers, propose redactions. Off means answers only.</small>
+                    </span>
+                    <input id="aiAllowEdits" type="checkbox" class="switch">
+                  </label>
+                </div>
+              </section>
+            </div>
+
+            <div class="ai-settings-actions">
+              <button class="text-button primary" type="submit">Save</button>
+            </div>
+          </form>
+
+          <div id="aiConversation" class="ai-conversation">
+            <div id="aiMessages" class="ai-messages" aria-live="polite"></div>
+
+            <div class="ai-footer">
+              <div id="aiMentionMenu" class="menu ai-menu glass mention-menu" role="listbox" aria-label="Attach page" hidden></div>
+              <div id="aiCommandMenu" class="menu ai-menu glass mention-menu command-menu" role="listbox" aria-label="Actions" hidden></div>
+              <div id="aiQuickActions" class="ai-quick-actions" aria-label="Quick actions" hidden></div>
+              <div id="aiAttachments" class="ai-attachments" hidden></div>
+
+              <form id="aiForm" class="ai-composer">
+                <div class="menu-anchor">
+                  <button id="aiAttach" class="composer-icon" type="button" title="Add context" aria-label="Add context" aria-haspopup="menu" data-menu-trigger>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+                  </button>
+                  <div id="aiAttachMenu" class="menu ai-menu glass menu-above" role="menu" hidden></div>
+                </div>
+                <textarea id="aiInput" rows="1" placeholder="Ask AI · @ pages · / actions"></textarea>
+                <button id="aiMic" class="composer-icon" type="button" title="Dictate" aria-label="Dictate">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
+                </button>
+                <button id="aiSend" class="ai-send" type="submit" title="Send" aria-label="Send">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
+                </button>
+              </form>
+
+              <div class="ai-meta-row">
+                <div class="ai-meta-left">
+                  <button id="aiSettingsBtn" class="meta-button" type="button" title="Settings" aria-label="Settings">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 5h-6M11 5H3M21 12h-9M8 12H3M21 19h-5M12 19H3"></path><path d="M15 3v4M8 10v4M16 17v4"></path></svg>
+                  </button>
+                  <span id="aiDocLabel" class="meta-label">No PDF open</span>
+                </div>
+                <div class="menu-anchor">
+                  <button id="aiModelButton" class="meta-button model-button" type="button" aria-haspopup="menu" data-menu-trigger>
+                    <img class="deepseek-logo" src="icons/deepseek.svg" alt="" aria-hidden="true">
+                    <span id="aiModelLabel">DeepSeek Flash</span>
+                    <span id="aiModelEffort" class="model-effort"></span>
+                    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                  </button>
+                  <div id="aiModelMenu" class="menu ai-menu glass menu-above menu-right" role="menu" hidden></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <dialog id="signatureDialog" class="signature-dialog">
+      <form method="dialog">
+        <h2>Draw your signature</h2>
+        <p>Use your trackpad or mouse. It's saved in this browser for next time.</p>
+        <canvas id="signaturePad" width="520" height="200"></canvas>
+        <div class="dialog-actions">
+          <button id="signatureClear" class="text-button" type="button">Clear</button>
+          <span class="spacer"></span>
+          <button class="text-button" value="cancel">Cancel</button>
+          <button id="signatureSave" class="text-button primary" type="button">Use signature</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" hidden></div>
+
+    <script type="module" src="src/viewer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+.DS_Store
+.playwright-mcp/
+canvas/
+.claude/
+node_modules/
+*.log

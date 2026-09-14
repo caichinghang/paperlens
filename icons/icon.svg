@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 1000" role="img" aria-labelledby="title desc">
+  <title id="title">PDF</title>
+  <desc id="desc">A red folded document with white PDF lettering.</desc>
+
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f43838"/>
+      <stop offset="1" stop-color="#ed242b"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff8d8f"/>
+      <stop offset="1" stop-color="#f47b7e"/>
+    </linearGradient>
+  </defs>
+
+  <path
+    fill="url(#page)"
+    d="M146 18h492l260 262v578c0 74-60 121-134 121H146c-74 0-128-57-128-131V151c0-74 54-133 128-133Z"
+  />
+
+  <path
+    fill="url(#fold)"
+    d="M638 18v131c0 72 58 131 130 131h130L638 18Z"
+  />
+
+  <path
+    fill="#fff"
+    fill-rule="evenodd"
+    d="M156 459c0-10 8-18 18-18h73c60 0 97 29 97 82 0 57-37 84-97 84h-33v63c0 10-8 18-18 18h-22c-10 0-18-8-18-18V459Zm58 30v62h31c21 0 33-12 33-28 0-22-12-34-33-34h-31Z"
+  />
+
+  <path
+    fill="#fff"
+    fill-rule="evenodd"
+    d="M397 441h64c73 0 116 47 116 124s-43 123-116 123h-64c-10 0-18-8-18-18V459c0-10 8-18 18-18Zm42 48v151h18c31 0 50-26 50-75s-19-76-50-76h-18Z"
+  />
+
+  <path
+    fill="#fff"
+    d="M626 459c0-10 8-18 18-18h128c10 0 18 8 18 18v26c0 10-8 18-18 18h-84v43h77c10 0 18 8 18 18v26c0 10-8 18-18 18h-77v66c0 10-8 18-18 18h-26c-10 0-18-8-18-18V459Z"
+  />
+</svg>
