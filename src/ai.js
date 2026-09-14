@@ -1180,7 +1180,7 @@ export function createAssistant({ host, getSelectedText, toast }) {
         row.innerHTML = `
           <button type="button" class="check-toggle" title="Mark as done"><span class="check-icon">${SEVERITY_ICONS[item.severity] || SEVERITY_ICONS.info}</span></button>
           <span class="check-text">${renderInline(item.text)}</span>
-          <button type="button" class="check-jump" title="Go to page ${item.page}">${ICONS.jump}<span>p. ${item.page}</span></button>`;
+          <button type="button" class="check-jump" title="Go to page ${item.page}"><span>p. ${item.page}</span>${ICONS.jump}</button>`;
         row.querySelector(".check-toggle").addEventListener("click", () => {
           item.done = !item.done;
           row.classList.toggle("is-done", item.done);
@@ -1286,8 +1286,32 @@ export function createAssistant({ host, getSelectedText, toast }) {
     node.replaceChildren();
 
     if (message.steps.length) {
+      // Steps read as a quiet activity log: one line each, joined by a thin rail, folded away once
+      // the reply is finished unless the reader opens them.
+      const open = message.stepsOpen ?? message.streaming;
+      const wrapper = document.createElement("div");
+      wrapper.className = `agent-steps${open ? " is-open" : ""}`;
+
+      const edits = message.steps.filter(step => step.undo && step.status === "done").length;
+      const failed = message.steps.filter(step => step.status === "error").length;
+      const summary = message.streaming && message.steps.some(step => step.status === "running")
+        ? "Working…"
+        : `Worked through ${message.steps.length} step${message.steps.length === 1 ? "" : "s"}`
+          + (edits ? ` · ${edits} edit${edits === 1 ? "" : "s"}` : "")
+          + (failed ? ` · ${failed} failed` : "");
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "agent-steps-toggle";
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.innerHTML = `<span>${escapeHtml(summary)}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>`;
+      toggle.addEventListener("click", () => {
+        message.stepsOpen = !(message.stepsOpen ?? message.streaming);
+        fillAssistantMessage(node, message);
+      });
+      wrapper.append(toggle);
+
       const list = document.createElement("div");
-      list.className = "agent-steps";
+      list.className = "agent-steps-list";
 
       for (const step of message.steps) {
         const row = document.createElement("div");
@@ -1320,7 +1344,8 @@ export function createAssistant({ host, getSelectedText, toast }) {
 
         list.append(row);
       }
-      node.append(list);
+      wrapper.append(list);
+      node.append(wrapper);
     }
 
     for (const card of message.cards || []) {
