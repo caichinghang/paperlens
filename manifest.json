@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PaperLens",
   "description": "Open web and local PDFs in a modern viewer with markup, search, smooth zoom, and an AI assistant.",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "permissions": [
     "storage",
     "unlimitedStorage",
