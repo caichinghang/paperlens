@@ -139,79 +139,91 @@
 
         <!-- Vertical tool dock: find · edit · zoom · file -->
         <div id="toolDock" class="tool-dock glass" role="toolbar" aria-orientation="vertical" aria-label="PDF tools">
-          <button id="searchToggle" class="dock-button" type="button" title="Search (⌘F)" aria-label="Search" aria-pressed="false">
+          <button id="searchToggle" class="dock-button" type="button" title="Search and go to page (⌘F)" aria-label="Search and go to page" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>
           </button>
-          <button id="pageToggle" class="dock-button" type="button" title="Go to page" aria-label="Go to page" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M8 13h8M8 17h5"></path></svg>
-          </button>
-          <span class="dock-divider"></span>
           <button id="markupToggle" class="dock-button" type="button" title="Show markup toolbar" aria-label="Markup" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg>
-          </button>
-          <span class="dock-divider"></span>
-          <button id="zoomIn" class="dock-button" type="button" title="Zoom in (⌘+)" aria-label="Zoom in">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
           </button>
           <button id="zoomReset" class="dock-button" type="button" title="Zoom options" aria-label="Zoom options" aria-haspopup="menu">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><circle cx="12" cy="12" r="3"></circle></svg>
           </button>
-          <button id="zoomOut" class="dock-button" type="button" title="Zoom out (⌘−)" aria-label="Zoom out">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
-          </button>
-          <span class="dock-divider"></span>
           <button id="openFile" class="dock-button" type="button" title="Open a local PDF" aria-label="Open a local PDF">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 19H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V9"></path><path d="m2 19 2.6-7a2 2 0 0 1 1.9-1.3H22l-2.7 7.3A2 2 0 0 1 17.4 19"></path></svg>
           </button>
           <button id="downloadPdf" class="dock-button" type="button" title="Download PDF (includes markup)" aria-label="Download PDF" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M21 15v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"></path></svg>
           </button>
-          <span class="dock-divider"></span>
-          <button id="themeToggle" class="dock-button" type="button" title="Switch to dark mode" aria-label="Switch to dark mode">
-            <svg class="theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"></path></svg>
-            <svg class="theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+          <button id="settingsToggle" class="dock-button" type="button" title="Settings" aria-label="Settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
           </button>
           <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden>
         </div>
 
+        <!-- Search and go to page: two rows on one grid, so the arrow buttons line up. -->
         <div id="searchBox" class="search-flyout glass" role="search" hidden>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>
-          <input id="searchInput" type="search" placeholder="Search document" aria-label="Search document" autocomplete="off" spellcheck="false">
-          <span id="searchCount" class="search-count"></span>
-          <button id="searchPrev" class="flyout-button" type="button" title="Previous match (⇧↩)" aria-label="Previous match">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg>
-          </button>
-          <button id="searchNext" class="flyout-button" type="button" title="Next match (↩)" aria-label="Next match">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-          </button>
-          <button id="searchClose" class="flyout-button" type="button" title="Close (Esc)" aria-label="Close search">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
-          </button>
+          <div class="flyout-row">
+            <span class="flyout-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>
+            </span>
+            <input id="searchInput" class="flyout-input" type="search" placeholder="Search document" aria-label="Search document" autocomplete="off" spellcheck="false">
+            <span id="searchCount" class="search-count"></span>
+            <button id="searchPrev" class="flyout-button" type="button" title="Previous match (⇧↩)" aria-label="Previous match">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg>
+            </button>
+            <button id="searchNext" class="flyout-button" type="button" title="Next match (↩)" aria-label="Next match">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </button>
+            <button id="searchClose" class="flyout-button" type="button" title="Close (Esc)" aria-label="Close search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+            </button>
+          </div>
+          <div class="flyout-row page-row" role="group" aria-label="Go to page">
+            <span class="flyout-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg>
+            </span>
+            <label class="page-field">
+              <span>Page</span>
+              <input id="pageInput" type="text" inputmode="numeric" value="–" aria-label="Page number">
+              <span id="pageCount">of –</span>
+            </label>
+            <button id="pagePrev" class="flyout-button" type="button" title="Previous page" aria-label="Previous page">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg>
+            </button>
+            <button id="pageNext" class="flyout-button" type="button" title="Next page" aria-label="Next page">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </button>
+          </div>
         </div>
 
-        <div id="pageBox" class="page-flyout glass" role="group" aria-label="Go to page" hidden>
-          <span>Page</span>
-          <input id="pageInput" type="text" inputmode="numeric" value="–" aria-label="Page number">
-          <span id="pageCount">of –</span>
-          <span class="flyout-divider"></span>
-          <button id="pagePrev" class="flyout-button" type="button" title="Previous page" aria-label="Previous page">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg>
-          </button>
-          <button id="pageNext" class="flyout-button" type="button" title="Next page" aria-label="Next page">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-          </button>
-        </div>
-
-        <div id="zoomMenu" class="menu glass" role="menu" hidden>
-          <div id="zoomMenuLabel" class="menu-label">Zoom · 100%</div>
-          <button type="button" role="menuitem" data-zoom="fit-width">Fit width</button>
-          <button type="button" role="menuitem" data-zoom="fit-page">Fit page</button>
-          <hr>
-          <button type="button" role="menuitem" data-zoom="0.5">50%</button>
-          <button type="button" role="menuitem" data-zoom="1">Actual size</button>
-          <button type="button" role="menuitem" data-zoom="1.5">150%</button>
-          <button type="button" role="menuitem" data-zoom="2">200%</button>
-          <button type="button" role="menuitem" data-zoom="4">400%</button>
+        <!-- Zoom: a stepper, the two fit modes, then the presets in one row. -->
+        <div id="zoomMenu" class="zoom-flyout glass" role="menu" aria-label="Zoom" hidden>
+          <div class="zoom-stepper">
+            <button id="zoomOut" class="zoom-step" type="button" title="Zoom out (⌘−)" aria-label="Zoom out">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg>
+            </button>
+            <span id="zoomMenuLabel" class="zoom-value">100%</span>
+            <button id="zoomIn" class="zoom-step" type="button" title="Zoom in (⌘+)" aria-label="Zoom in">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+            </button>
+          </div>
+          <div class="zoom-options">
+            <button type="button" role="menuitem" class="zoom-option" data-zoom="fit-width">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18"></path><path d="m7 8-4 4 4 4"></path><path d="m17 8 4 4-4 4"></path></svg>
+              <span>Fit width</span>
+            </button>
+            <button type="button" role="menuitem" class="zoom-option" data-zoom="fit-page">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 8h6M9 12h6"></path></svg>
+              <span>Fit page</span>
+            </button>
+          </div>
+          <div class="zoom-presets" role="group" aria-label="Zoom presets">
+            <button type="button" role="menuitem" data-zoom="0.5">50%</button>
+            <button type="button" role="menuitem" data-zoom="1" title="Actual size">100%</button>
+            <button type="button" role="menuitem" data-zoom="1.5">150%</button>
+            <button type="button" role="menuitem" data-zoom="2">200%</button>
+            <button type="button" role="menuitem" data-zoom="4">400%</button>
+          </div>
         </div>
 
         <div id="selectionPopover" class="selection-popover glass" role="toolbar" aria-label="Selection actions" hidden>
@@ -246,6 +258,29 @@
         </div>
       </section>
 
+      <!-- Workspace beside the assistant: notebook, to-dos, profile -->
+      <aside id="workspace" class="workspace" aria-label="Workspace">
+        <div class="panel-inner workspace-inner">
+          <header class="workspace-header">
+            <div id="workspaceTabs" class="workspace-tabs" role="tablist" aria-label="Workspace">
+              <button type="button" role="tab" data-workspace-tab="notes" class="is-active" aria-selected="true">Notebook</button>
+              <button type="button" role="tab" data-workspace-tab="todos" aria-selected="false">To-do</button>
+              <button type="button" role="tab" data-workspace-tab="profile" aria-selected="false">Profile</button>
+            </div>
+            <div class="workspace-actions">
+              <button id="workspaceExport" class="panel-icon-button" type="button" title="Export" aria-label="Export">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M21 15v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"></path></svg>
+              </button>
+              <button id="workspaceClose" class="panel-icon-button" type="button" title="Close workspace" aria-label="Close workspace">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+              </button>
+            </div>
+          </header>
+          <div id="workspaceBody" class="workspace-body"></div>
+        </div>
+      </aside>
+      <div id="workspaceSplitter" class="workspace-splitter" role="separator" aria-orientation="vertical" aria-label="Resize workspace" tabindex="0"><span></span></div>
+
       <!-- Right panel: AI assistant -->
       <aside id="aiPanel" class="ai-panel" aria-label="AI assistant">
         <div id="aiResizerX" class="resize-handle resize-handle-x resize-handle-left" role="separator" aria-orientation="vertical" aria-label="Resize AI panel width" tabindex="0"></div>
@@ -257,12 +292,12 @@
                 <span id="aiTitle">New chat</span>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
               </button>
-              <div id="aiTitleMenu" class="menu ai-menu glass menu-below" role="menu" hidden>
-                <button type="button" role="menuitem" data-ai-action="new">New chat</button>
-                <button type="button" role="menuitem" data-ai-action="settings">Settings…</button>
-              </div>
+              <div id="aiTitleMenu" class="menu ai-menu menu-below history-menu" role="menu" hidden></div>
             </div>
             <div class="ai-header-actions">
+              <button id="aiWorkspaceToggle" class="panel-icon-button" type="button" title="Workspace" aria-label="Workspace" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M9 3v18"></path><path d="M13 8h4M13 12h4"></path></svg>
+              </button>
               <button id="aiNewChat" class="panel-icon-button" type="button" title="New chat" aria-label="New chat" data-ai-action="new">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.4 2.6a2.1 2.1 0 0 1 3 3L12.4 14.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg>
               </button>
@@ -271,8 +306,6 @@
               </button>
             </div>
           </header>
-          <div id="aiModes" class="ai-modes" role="tablist" aria-label="Assistant mode"></div>
-
           <form id="aiSettings" class="ai-settings" hidden>
             <div class="settings-head">
               <button id="aiSettingsCancel" class="panel-icon-button" type="button" title="Back to chat" aria-label="Back to chat">
@@ -283,7 +316,28 @@
 
             <div class="settings-body">
               <section class="settings-group">
-                <h3>Connection</h3>
+                <h3>General</h3>
+                <div class="settings-card">
+                  <div class="settings-row">
+                    <span class="settings-label">Appearance</span>
+                    <div id="aiTheme" class="settings-segmented" role="radiogroup" aria-label="Appearance">
+                      <button type="button" role="radio" data-appearance="light" aria-checked="true" class="is-active">Light</button>
+                      <button type="button" role="radio" data-appearance="dark" aria-checked="false">Dark</button>
+                    </div>
+                  </div>
+                  <div class="settings-row">
+                    <span class="settings-label">Language</span>
+                    <div id="aiLanguage" class="settings-segmented" role="radiogroup" aria-label="Language">
+                      <button type="button" role="radio" data-language="en" aria-checked="true" class="is-active">English</button>
+                      <button type="button" role="radio" data-language="zh" aria-checked="false">中文</button>
+                    </div>
+                  </div>
+                  <p class="settings-help">The page reloads to apply a new language.</p>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <h3>Model &amp; API</h3>
                 <div class="settings-card">
                   <label class="settings-row">
                     <span class="settings-label">DeepSeek API key</span>
@@ -301,12 +355,6 @@
                       <input id="aiBaseUrl" type="url" placeholder="https://api.deepseek.com" spellcheck="false">
                     </span>
                   </label>
-                </div>
-              </section>
-
-              <section class="settings-group">
-                <h3>Model</h3>
-                <div class="settings-card">
                   <label class="settings-row">
                     <span class="settings-label">Model</span>
                     <span class="settings-field">
@@ -341,6 +389,26 @@
                   </label>
                 </div>
               </section>
+
+              <section class="settings-group">
+                <h3>Web</h3>
+                <div class="settings-card">
+                  <label class="settings-switch">
+                    <span>
+                      <strong>Let the AI search the web</strong>
+                      <small>Searches the web and reads pages when the document isn't enough. Search queries are sent to Bing or DuckDuckGo, or to Tavily if you add a key.</small>
+                    </span>
+                    <input id="aiWebSearch" type="checkbox" class="switch">
+                  </label>
+                  <label class="settings-row">
+                    <span class="settings-label">Tavily API key (optional)</span>
+                    <span class="settings-field">
+                      <input id="aiTavilyKey" type="password" placeholder="tvly-…" autocomplete="off" spellcheck="false">
+                    </span>
+                  </label>
+                  <p class="settings-help">Searches use Bing, then DuckDuckGo. Add a Tavily key (1,000 free searches a month at tavily.com) for more reliable results; it's only sent to Tavily.</p>
+                </div>
+              </section>
             </div>
 
             <div class="ai-settings-actions">
@@ -353,8 +421,7 @@
 
             <div class="ai-footer">
               <div id="aiMentionMenu" class="menu ai-menu glass mention-menu" role="listbox" aria-label="Attach page" hidden></div>
-              <div id="aiCommandMenu" class="menu ai-menu glass mention-menu command-menu" role="listbox" aria-label="Actions" hidden></div>
-              <div id="aiQuickActions" class="ai-quick-actions" aria-label="Quick actions" hidden></div>
+              <div id="aiCommandMenu" class="menu ai-menu glass mention-menu command-menu" role="listbox" aria-label="Skills" hidden></div>
               <div id="aiAttachments" class="ai-attachments" hidden></div>
 
               <form id="aiForm" class="ai-composer">
@@ -364,7 +431,7 @@
                   </button>
                   <div id="aiAttachMenu" class="menu ai-menu glass menu-above" role="menu" hidden></div>
                 </div>
-                <textarea id="aiInput" rows="1" placeholder="Ask AI · @ pages · / actions"></textarea>
+                <textarea id="aiInput" rows="1" placeholder="Ask AI · @ pages · / skills"></textarea>
                 <button id="aiMic" class="composer-icon" type="button" title="Dictate" aria-label="Dictate">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
                 </button>
@@ -375,10 +442,10 @@
 
               <div class="ai-meta-row">
                 <div class="ai-meta-left">
-                  <button id="aiSettingsBtn" class="meta-button" type="button" title="Settings" aria-label="Settings">
+                  <button id="aiSettingsBtn" class="meta-button" type="button">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 5h-6M11 5H3M21 12h-9M8 12H3M21 19h-5M12 19H3"></path><path d="M15 3v4M8 10v4M16 17v4"></path></svg>
+                    <span>API Settings</span>
                   </button>
-                  <span id="aiDocLabel" class="meta-label">No PDF open</span>
                 </div>
                 <div class="menu-anchor">
                   <button id="aiModelButton" class="meta-button model-button" type="button" aria-haspopup="menu" data-menu-trigger>

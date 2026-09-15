@@ -40,7 +40,7 @@ Translation goes over the page as a layer that keeps the original layout. A pill
 
 ### Study with it
 
-Study mode turns the document and your own highlights into notes, key-term tables, flashcards (with Anki export) and quizzes that ask one question at a time and grade your answers with page citations.
+Study skills turn the document and your own highlights into notes, key-term tables, flashcards (with Anki export) and quizzes that ask one question at a time and grade your answers with page citations.
 
 ![Quiz me: one question at a time, graded with a citation](docs/screenshots/quiz.png)
 
@@ -50,11 +50,9 @@ Ask it to find personal information. It proposes boxes you approve one by one or
 
 ![Proposed redactions on a form, approved](docs/screenshots/redact.png)
 
-### Three modes, one slash menu
+### Skills
 
-The panel groups everything by what you're doing: **Read**, **Study**, **Work**. Each mode shows its actions as cards, and typing `/` lists every action from every mode with a one-line description. Prompts land in the composer first so you can adjust them before sending.
-
-![Study mode with its action cards](docs/screenshots/modes.png)
+Type `/` in the composer to pick a skill: brief, explain, quiz, flashcards, key facts, redact and more, each with a one-line description. The skill appears as a chip above the composer next to any attached pages; add details if you like and send.
 
 If a PDF has no table of contents, the outline tab offers **Ask AI to build one** and fills the sidebar from the headings.
 

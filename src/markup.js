@@ -1,4 +1,5 @@
 import * as pdfjsLib from "../vendor/pdfjs/pdf.mjs";
+import { t } from "./i18n.js";
 import { getItem, removeItem, setItem } from "./store.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -11,17 +12,17 @@ const WIDTH_TO_FONT_SIZE = { 1: 11, 2: 14, 4: 20 };
 const TEXT_LINE_HEIGHT = 1.25;
 const HISTORY_LIMIT = 100;
 const LABELS = {
-  highlight: "Highlight",
-  underline: "Underline",
-  strike: "Strikethrough",
-  ink: "Drawing",
-  signature: "Signature",
-  rect: "Rectangle",
-  ellipse: "Oval",
-  arrow: "Arrow",
-  line: "Line",
-  text: "Text",
-  redact: "Redaction"
+  highlight: t("Highlight"),
+  underline: t("Underline"),
+  strike: t("Strikethrough"),
+  ink: t("Drawing"),
+  signature: t("Signature"),
+  rect: t("Rectangle"),
+  ellipse: t("Oval"),
+  arrow: t("Arrow"),
+  line: t("Line"),
+  text: t("Text"),
+  redact: t("Redaction")
 };
 const FONT_STEPS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48];
 const SWATCHES = ["#1f1f1f", "#e03131", "#4dabf7", "#51cf66", "#fcc419", "#f783ac"];
@@ -627,7 +628,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
   function renderList() {
     if (!annotations.length) {
-      list.innerHTML = '<div class="sidebar-empty">No markup yet. Select some text, or open the markup toolbar to draw.</div>';
+      list.innerHTML = `<div class="sidebar-empty">${t("No markup yet. Select some text, or open the markup toolbar to draw.")}</div>`;
       return;
     }
 
@@ -639,7 +640,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       toggle.checked = entry.visible;
       toggle.addEventListener("change", () => setLayerVisible(entry.name, toggle.checked));
       const name = document.createElement("span");
-      name.textContent = `${entry.label} layer`;
+      name.textContent = t("{layer} layer", { layer: entry.label });
       const count = document.createElement("em");
       count.textContent = `${entry.count}`;
       row.append(toggle, name, count);
@@ -661,10 +662,10 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       meta.className = "ann-meta";
       const label = document.createElement("strong");
       label.textContent = annotation.type === "redact" && annotation.status !== "approved"
-        ? "Proposed redaction"
-        : annotation.layer ? `${layerLabel(annotation.layer)}` : LABELS[annotation.kind || annotation.type] || "Markup";
+        ? t("Proposed redaction")
+        : annotation.layer ? `${layerLabel(annotation.layer)}` : LABELS[annotation.kind || annotation.type] || t("Markup");
       const pageLabel = document.createElement("em");
-      pageLabel.textContent = `p. ${annotation.page}`;
+      pageLabel.textContent = t("p. {page}", { page: annotation.page });
       meta.append(label, pageLabel);
       item.append(swatch, meta);
 
@@ -678,8 +679,8 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "ann-delete";
-      remove.title = "Delete";
-      remove.setAttribute("aria-label", "Delete markup");
+      remove.title = t("Delete");
+      remove.setAttribute("aria-label", t("Delete markup"));
       remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
       remove.addEventListener("click", event => {
         event.stopPropagation();
@@ -728,7 +729,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   // ---------- Layers (e.g. translations) ----------
 
   function layerLabel(name) {
-    return name.charAt(0).toUpperCase() + name.slice(1);
+    return t(name.charAt(0).toUpperCase() + name.slice(1));
   }
 
   function getLayers() {
@@ -764,13 +765,13 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     bar.className = "markup-mini glass";
     bar.setAttribute("role", "toolbar");
     bar.innerHTML = `
-      <button type="button" data-mini="edit" title="Edit text (Enter)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg></button>
-      <button type="button" data-mini="smaller" title="Smaller text">A−</button>
-      <button type="button" data-mini="larger" title="Larger text">A+</button>
+      <button type="button" data-mini="edit" title="${t("Edit text (Enter)")}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg></button>
+      <button type="button" data-mini="smaller" title="${t("Smaller text")}">A−</button>
+      <button type="button" data-mini="larger" title="${t("Larger text")}">A+</button>
       <span class="mini-divider"></span>
       ${SWATCHES.map(color => `<button type="button" class="mini-swatch" data-mini="color" data-color="${color}" style="--swatch:${color}" title="${color}"></button>`).join("")}
       <span class="mini-divider"></span>
-      <button type="button" data-mini="delete" title="Delete (⌫)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
+      <button type="button" data-mini="delete" title="${t("Delete (⌫)")}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
     bar.addEventListener("pointerdown", event => event.preventDefault());
     bar.addEventListener("click", event => {
       const button = event.target.closest("button");
@@ -985,7 +986,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       }
       setTool(nextTool);
       if (nextTool === "signature") {
-        toast("Click on the page to place your signature");
+        toast(t("Click on the page to place your signature"));
       }
       return;
     }
@@ -1368,7 +1369,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
   signatureDialog.querySelector("#signatureSave").addEventListener("click", () => {
     if (!padStrokes.length) {
-      toast("Draw your signature first");
+      toast(t("Draw your signature first"));
       return;
     }
 
@@ -1393,7 +1394,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     setItem("signature", signature);
     signatureDialog.close();
     setTool("signature");
-    toast("Click on the page to place your signature");
+    toast(t("Click on the page to place your signature"));
   });
 
   function placeSignature(entry, point) {
@@ -1420,6 +1421,32 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     });
     setTool("select");
     select(annotation.id);
+  }
+
+  // The assistant proposes a box (page units) and the reader approves it; the saved signature is
+  // fitted inside the box. Without a saved signature the pad opens and nothing is placed.
+  function placeSignatureInBox(pageNumber, box) {
+    if (!signature) {
+      openSignaturePad();
+      return null;
+    }
+    const width = Math.max(10, Math.min(box.width, box.height / signature.aspect));
+    const height = width * signature.aspect;
+    const left = box.x + (box.width - width) / 2;
+    const top = box.y + (box.height - height) / 2;
+    const annotation = {
+      id: uid(),
+      type: "ink",
+      kind: "signature",
+      page: pageNumber,
+      color: colors.signature,
+      width: 1.4,
+      paths: signature.paths.map(path => path.map((value, i) => round((i % 2 === 0 ? left : top) + value * width)))
+    };
+    commit(() => {
+      annotations.push(annotation);
+    });
+    return annotation.id;
   }
 
   // ---------- Keyboard ----------
@@ -1773,6 +1800,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     isOpen: () => open,
     isTextTool: () => open && TEXT_TOOLS.has(tool),
     listAnnotations,
+    placeSignatureInBox,
     removeAnnotations,
     revealAnnotation,
     setDocument,

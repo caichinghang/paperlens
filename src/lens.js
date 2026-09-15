@@ -3,6 +3,7 @@
 // that area is sent to the model and a small bubble explains it, without opening the chat.
 
 import { renderMarkdown } from "./ai.js";
+import { replyLanguageName, t } from "./i18n.js";
 
 const DWELL_MS = 650;
 const OUTLINE_PAD = 4;
@@ -11,14 +12,6 @@ const FALLBACK_HEIGHT = 0.22;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
-}
-
-function languageName() {
-  try {
-    return new Intl.DisplayNames([navigator.language], { type: "language" }).of(navigator.language.split("-")[0]) || navigator.language;
-  } catch {
-    return navigator.language;
-  }
 }
 
 export function createLens(host, { quickAsk, openChat }) {
@@ -158,23 +151,23 @@ export function createLens(host, { quickAsk, openChat }) {
     bubble.innerHTML = `
       <div class="lens-head">
         <span class="lens-kind"></span>
-        <button type="button" class="lens-close panel-icon-button" aria-label="Close">
+        <button type="button" class="lens-close panel-icon-button" aria-label="${t("Close")}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
         </button>
       </div>
       <div class="lens-body msg assistant"></div>
       <div class="lens-actions">
-        <button type="button" class="text-button" data-lens="chat">Ask more in chat</button>
-        <button type="button" class="text-button" data-lens="copy">Copy</button>
+        <button type="button" class="text-button" data-lens="chat">${t("Ask more in chat")}</button>
+        <button type="button" class="text-button" data-lens="copy">${t("Copy")}</button>
       </div>`;
     bubble.addEventListener("pointerdown", event => event.stopPropagation());
     bubble.querySelector(".lens-close").addEventListener("click", closeBubble);
     bubble.querySelector('[data-lens="copy"]').addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(bubbleContext?.answer || "");
-        host.toast("Copied");
+        host.toast(t("Copied"));
       } catch {
-        host.toast("Couldn't copy");
+        host.toast(t("Couldn't copy"));
       }
     });
     bubble.querySelector('[data-lens="chat"]').addEventListener("click", () => {
@@ -183,9 +176,9 @@ export function createLens(host, { quickAsk, openChat }) {
       }
       const { page, box, text, answer } = bubbleContext;
       openChat({
-        region: { page: page.number, box: host.toGrid(page.number, box), label: `${page.number}: ${text ? text.slice(0, 40) : "region"}` },
+        region: { page: page.number, box: host.toGrid(page.number, box), label: `${page.number}: ${text ? text.slice(0, 40) : t("region")}` },
         quote: text ? text.slice(0, 600) : "",
-        draft: answer ? "" : "Explain this in more detail."
+        draft: answer ? "" : t("Explain this in more detail.")
       });
       closeBubble();
     });
@@ -233,7 +226,7 @@ export function createLens(host, { quickAsk, openChat }) {
   // ---------- Asking ----------
 
   function promptFor(kind, found, hint) {
-    const language = languageName();
+    const language = replyLanguageName();
     if (kind === "translate") {
       return `Translate the text in this cropped part of page ${found.page.number} into ${language}. Keep the meaning and formatting (paragraphs, lists). Return only the translation.`;
     }
@@ -253,9 +246,9 @@ export function createLens(host, { quickAsk, openChat }) {
     clearTimeout(dwellTimer);
     const element = ensureBubble();
     element.hidden = false;
-    element.querySelector(".lens-kind").textContent = kind === "translate" ? "Translation" : "Explanation";
+    element.querySelector(".lens-kind").textContent = kind === "translate" ? t("Translation") : t("Explanation");
     const body = element.querySelector(".lens-body");
-    body.innerHTML = '<div class="thinking"><i></i><i></i><i></i><span>Looking…</span></div>';
+    body.innerHTML = `<div class="thinking"><i></i><i></i><i></i><span>${t("Looking…")}</span></div>`;
     placeBubble(found);
 
     bubbleContext = { page: found.page, box: found.box, text: hint, answer: "" };
@@ -278,7 +271,7 @@ export function createLens(host, { quickAsk, openChat }) {
         }
       });
       if (!answer) {
-        body.innerHTML = "<p><em>No answer.</em></p>";
+        body.innerHTML = `<p><em>${t("No answer.")}</em></p>`;
       }
     } catch (error) {
       if (error?.name === "AbortError") {
@@ -286,7 +279,7 @@ export function createLens(host, { quickAsk, openChat }) {
       }
       const paragraph = document.createElement("p");
       paragraph.className = "lens-error";
-      paragraph.textContent = error.message || "Couldn't explain this.";
+      paragraph.textContent = error.message || t("Couldn't explain this.");
       body.replaceChildren(paragraph);
       placeBubble(found);
     } finally {

@@ -2,6 +2,8 @@
 // clickable, and open a floating card with the target (a crop of the figure/table, the section text,
 // or the reference entry) so the reader doesn't lose their place. Heuristic, no AI needed.
 
+import { t } from "./i18n.js";
+
 const REF_PATTERN = /\b(Fig(?:ure|s)?\.?|Figs?\.|Table|Tab\.|Section|Sec\.|§|Eq(?:uation|s)?\.?|Appendix|Algorithm|Theorem|Lemma|Chapter)\s*~?\(?(\d+(?:\.\d+)*[a-z]?)\)?/gi;
 const CITE_PATTERN = /\[(\d{1,3})(?:\s*[,;–-]\s*\d{1,3})*\]/g;
 const MAX_REFS_PER_PAGE = 120;
@@ -136,7 +138,7 @@ export function createReferences(host, { onExplain } = {}) {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "ref-hit";
-        button.title = `Open ${ref.label}`;
+        button.title = t("Open {label}", { label: ref.label });
         button.style.left = `${(box.x / page.width) * 100}%`;
         button.style.top = `${(box.y / page.height) * 100}%`;
         button.style.width = `${(box.width / page.width) * 100}%`;
@@ -210,7 +212,7 @@ export function createReferences(host, { onExplain } = {}) {
         const bottom = Math.min(below ? below.box.y - 3 : page.height, box.y + page.height * 0.6);
         region = { x: page.width * 0.04, y: Math.max(0, box.y - box.height * 0.4), width: page.width * 0.92, height: bottom - box.y + box.height * 0.4 };
       }
-      return { page: page.number, region, title: `${ref.kind === "figure" ? "Figure" : "Table"} ${ref.number}` };
+      return { page: page.number, region, title: t(ref.kind === "figure" ? "Figure {number}" : "Table {number}", { number: ref.number }) };
     }
 
     if (ref.kind === "equation") {
@@ -224,7 +226,7 @@ export function createReferences(host, { onExplain } = {}) {
       return {
         page: page.number,
         region: { x: page.width * 0.06, y: Math.max(0, box.y - pad), width: page.width * 0.88, height: box.height + pad * 2 },
-        title: `Equation (${ref.number})`
+        title: t("Equation ({number})", { number: ref.number })
       };
     }
 
@@ -238,7 +240,7 @@ export function createReferences(host, { onExplain } = {}) {
       }
       const start = hit.data.starts[hit.index];
       const text = hit.data.text.slice(start, start + 420).replace(/\s+/g, " ");
-      return { page: hit.page.number, box: hit.box, text: text.length >= 420 ? `${text}…` : text, title: `Reference [${ref.number}]` };
+      return { page: hit.page.number, box: hit.box, text: text.length >= 420 ? `${text}…` : text, title: t("Reference [{number}]", { number: ref.number }) };
     }
 
     // Sections, appendices, theorems: try the outline first, then a heading in the text.
@@ -275,15 +277,15 @@ export function createReferences(host, { onExplain } = {}) {
     card.innerHTML = `
       <div class="ref-card-head">
         <strong class="ref-card-title"></strong>
-        <button type="button" class="ref-card-page" title="Go to page"></button>
-        <button type="button" class="ref-card-close panel-icon-button" aria-label="Close">
+        <button type="button" class="ref-card-page" title="${t("Go to page")}"></button>
+        <button type="button" class="ref-card-close panel-icon-button" aria-label="${t("Close")}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
         </button>
       </div>
       <div class="ref-card-body"></div>
       <div class="ref-card-actions">
-        <button type="button" class="text-button" data-ref="go">Go there</button>
-        <button type="button" class="text-button" data-ref="explain">Explain</button>
+        <button type="button" class="text-button" data-ref="go">${t("Go there")}</button>
+        <button type="button" class="text-button" data-ref="explain">${t("Explain")}</button>
       </div>`;
     card.addEventListener("pointerdown", event => event.stopPropagation());
     card.querySelector(".ref-card-close").addEventListener("click", close);
@@ -331,7 +333,7 @@ export function createReferences(host, { onExplain } = {}) {
     element.hidden = false;
     element.querySelector(".ref-card-title").textContent = ref.label;
     element.querySelector(".ref-card-page").textContent = "";
-    element.querySelector(".ref-card-body").innerHTML = '<div class="ref-card-loading">Looking for it…</div>';
+    element.querySelector(".ref-card-body").innerHTML = `<div class="ref-card-loading">${t("Looking for it…")}</div>`;
     element.querySelector(".ref-card-actions").hidden = true;
     position(anchor);
 
@@ -347,14 +349,14 @@ export function createReferences(host, { onExplain } = {}) {
 
     const body = element.querySelector(".ref-card-body");
     if (!result) {
-      body.innerHTML = `<div class="ref-card-loading">Couldn't find ${escape(ref.label)} in this document.</div>`;
+      body.innerHTML = `<div class="ref-card-loading">${t("Couldn't find {label} in this document.", { label: escape(ref.label) })}</div>`;
       position(anchor);
       return;
     }
 
     current = { ...current, ...result };
     element.querySelector(".ref-card-title").textContent = result.title || ref.label;
-    element.querySelector(".ref-card-page").textContent = `p. ${result.page}`;
+    element.querySelector(".ref-card-page").textContent = t("p. {page}", { page: result.page });
     element.querySelector(".ref-card-actions").hidden = false;
 
     if (result.region) {
@@ -370,7 +372,7 @@ export function createReferences(host, { onExplain } = {}) {
         image.addEventListener("load", () => position(anchor), { once: true });
         body.replaceChildren(image);
       } catch {
-        body.innerHTML = '<div class="ref-card-loading">Couldn\'t render that part of the page.</div>';
+        body.innerHTML = `<div class="ref-card-loading">${t("Couldn't render that part of the page.")}</div>`;
       }
     } else {
       const text = document.createElement("p");

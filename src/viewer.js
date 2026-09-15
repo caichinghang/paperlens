@@ -1,13 +1,17 @@
 import * as pdfjsLib from "../vendor/pdfjs/pdf.mjs";
 import { createAssistant } from "./ai.js";
+import { t, translateDom } from "./i18n.js";
 import { createLens } from "./lens.js";
 import { createMarkup } from "./markup.js";
 import { buildImagePdf, dataUrlToBytes } from "./pdf-writer.js";
 import { createReferences } from "./references.js";
 import { getItem, removeItem, setItem } from "./store.js";
+import { createWorkspace } from "./workspace.js";
 
 const params = new URLSearchParams(window.location.search);
 const initialPdfUrl = params.get("src") || "";
+
+translateDom();
 
 const $ = selector => document.querySelector(selector);
 
@@ -30,11 +34,9 @@ const elements = {
   openFile: $("#openFile"),
   outlineList: $("#outlineList"),
   pageCount: $("#pageCount"),
-  pageBox: $("#pageBox"),
   pageInput: $("#pageInput"),
   pageNext: $("#pageNext"),
   pagePrev: $("#pagePrev"),
-  pageToggle: $("#pageToggle"),
   pdfPages: $("#pdfPages"),
   pdfShell: $("#pdfShell"),
   searchBox: $("#searchBox"),
@@ -53,10 +55,11 @@ const elements = {
   sidebarTabs: $("#sidebarTabs"),
   signatureDialog: $("#signatureDialog"),
   thumbnailList: $("#thumbnailList"),
-  themeToggle: $("#themeToggle"),
+  settingsToggle: $("#settingsToggle"),
   toast: $("#toast"),
   toolDock: $("#toolDock"),
   viewerStage: $("#viewerStage"),
+  workspaceSplitter: $("#workspaceSplitter"),
   zoomIn: $("#zoomIn"),
   zoomMenu: $("#zoomMenu"),
   zoomMenuLabel: $("#zoomMenuLabel"),
@@ -105,11 +108,7 @@ const zoomAnimation = { frame: 0, target: 1, focalX: 0, focalY: 0, last: 0 };
 const search = { query: "", matches: [], index: -1, token: 0, timer: 0, pendingScroll: false };
 
 function applyTheme(theme) {
-  const dark = theme === "dark";
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
-  const label = dark ? "Switch to light mode" : "Switch to dark mode";
-  elements.themeToggle.setAttribute("aria-label", label);
-  elements.themeToggle.title = label;
+  document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
 }
 
 let pageObserver = null;
@@ -129,6 +128,23 @@ let contentRevision = 0;
 const formEdits = new Map();
 const fieldIndex = new Map();
 
+// Notebook, to-dos and profile beside the assistant. While it's open, it and the assistant cover the page.
+const workspace = createWorkspace({
+  toast,
+  host: {
+    goToPage: number => scrollToPage(number),
+    listHighlights: () => (state.doc ? markup.listAnnotations(0) : [])
+      .filter(item => item.text && ["highlight", "underline", "strike"].includes(item.type))
+      .map(item => ({ page: item.page, text: item.text, color: item.color }))
+  },
+  onToggle: open => {
+    elements.appShell.classList.toggle("workspace-open", open);
+    if (open && !assistant.isOpen()) {
+      assistant.open();
+    }
+  }
+});
+
 const markup = createMarkup({
   pdfPages: elements.pdfPages,
   bar: elements.markupBar,
@@ -140,16 +156,18 @@ const markup = createMarkup({
   onChange: () => {
     contentRevision += 1;
     syncLayerPill();
+    workspace.markupChanged();
   },
   onVisibilityChange: visible => {
     elements.markupToggle.setAttribute("aria-pressed", String(visible));
-    elements.markupToggle.title = visible ? "Hide markup toolbar" : "Show markup toolbar";
+    elements.markupToggle.title = visible ? t("Hide markup toolbar") : t("Show markup toolbar");
   }
 });
 
 const assistant = createAssistant({
   getSelectedText: () => lastSelectedText,
   toast,
+  onClose: () => workspace.close(),
   // Everything the assistant can see or change goes through this host (see "AI agent host" below).
   host: {
     getDocumentInfo: () => ({
@@ -181,7 +199,18 @@ const assistant = createAssistant({
     resolveRedactions: agentResolveRedactions,
     getLayers: () => markup.getLayers(),
     setLayerVisible: (name, visible) => markup.setLayerVisible(name, visible),
-    goToPage: number => scrollToPage(agentPage(number).number)
+    goToPage: number => scrollToPage(agentPage(number).number),
+    workspace,
+    placeSignature: (number, gridBox) => {
+      const page = agentPage(number);
+      return markup.placeSignatureInBox(page.number, gridToUnits(page, gridBox));
+    },
+    // Appearance lives in the assistant's settings sheet, the one settings page in the viewer.
+    getTheme: () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light"),
+    setTheme: theme => {
+      applyTheme(theme);
+      setItem("theme", theme);
+    }
   }
 });
 
@@ -227,7 +256,7 @@ function formatHost(url) {
   try {
     return new URL(url).host;
   } catch {
-    return "this site";
+    return t("this site");
   }
 }
 
@@ -239,7 +268,7 @@ function isTypingTarget(target) {
   return Boolean(target?.closest?.("input, textarea, select") || target?.isContentEditable);
 }
 
-function toast(message) {
+function toast(message, duration = 2400) {
   clearTimeout(toastTimer);
   elements.toast.hidden = true;
   elements.toast.textContent = message;
@@ -247,7 +276,7 @@ function toast(message) {
   elements.toast.hidden = false;
   toastTimer = window.setTimeout(() => {
     elements.toast.hidden = true;
-  }, 2400);
+  }, duration);
 }
 
 function currentScale() {
@@ -296,12 +325,12 @@ function showEmptyState(title, message) {
   elements.emptyState.hidden = false;
   elements.emptyState.querySelector("h2").textContent = title;
   elements.emptyState.querySelector("p").textContent = message;
-  elements.thumbnailList.innerHTML = '<div class="sidebar-empty">No document loaded</div>';
-  elements.outlineList.innerHTML = '<div class="sidebar-empty">No table of contents</div>';
+  elements.thumbnailList.innerHTML = `<div class="sidebar-empty">${t("No document loaded")}</div>`;
+  elements.outlineList.innerHTML = `<div class="sidebar-empty">${t("No table of contents")}</div>`;
   elements.documentTitle.textContent = "PaperLens";
-  elements.documentUrl.textContent = "No document loaded";
+  elements.documentUrl.textContent = t("No document loaded");
   elements.pageInput.value = "–";
-  elements.pageCount.textContent = "of –";
+  elements.pageCount.textContent = t("of –");
   elements.downloadPdf.disabled = true;
   elements.appShell.classList.add("no-document");
   closeFlyouts();
@@ -314,17 +343,17 @@ function prepareLoading(name, status) {
   elements.documentTitle.textContent = name;
   document.title = name;
   elements.documentUrl.textContent = status;
-  elements.thumbnailList.innerHTML = '<div class="sidebar-empty">Loading…</div>';
-  elements.outlineList.innerHTML = '<div class="sidebar-empty">Loading…</div>';
+  elements.thumbnailList.innerHTML = `<div class="sidebar-empty">${t("Loading…")}</div>`;
+  elements.outlineList.innerHTML = `<div class="sidebar-empty">${t("Loading…")}</div>`;
   elements.downloadPdf.disabled = true;
 }
 
 function describeLoadError(error, fallback) {
   if (error?.name === "PasswordException") {
-    return "This PDF is password-protected, which this viewer doesn't support yet.";
+    return t("This PDF is password-protected, which this viewer doesn't support yet.");
   }
   if (error?.name === "InvalidPDFException") {
-    return "This file doesn't look like a valid PDF.";
+    return t("This file doesn't look like a valid PDF.");
   }
   return fallback;
 }
@@ -332,7 +361,7 @@ function describeLoadError(error, fallback) {
 async function loadFromUrl(url) {
   const token = resetViewer();
   const name = formatFileName(url);
-  prepareLoading(name, `Loading from ${formatHost(url)}…`);
+  prepareLoading(name, t("Loading from {host}…", { host: formatHost(url) }));
 
   try {
     const response = await fetch(url, { credentials: "include" });
@@ -352,13 +381,13 @@ async function loadFromUrl(url) {
     }
     console.error(error);
     resetViewer();
-    showEmptyState("Couldn't open this PDF", describeLoadError(error, `The file from ${formatHost(url)} couldn't be loaded (${error.message}). Some sites block access to their files.`));
+    showEmptyState(t("Couldn't open this PDF"), describeLoadError(error, t("The file from {host} couldn't be loaded ({error}). Some sites block access to their files.", { host: formatHost(url), error: error.message })));
   }
 }
 
 async function loadFromFile(file) {
   const token = resetViewer();
-  prepareLoading(file.name, "Opening…");
+  prepareLoading(file.name, t("Opening…"));
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -377,7 +406,7 @@ async function loadFromFile(file) {
     }
     console.error(error);
     resetViewer();
-    showEmptyState("Couldn't open this PDF", describeLoadError(error, "Something went wrong while reading this file."));
+    showEmptyState(t("Couldn't open this PDF"), describeLoadError(error, t("Something went wrong while reading this file.")));
   }
 }
 
@@ -415,7 +444,7 @@ async function openDocument(bytes, { token, name, key }) {
     markup.attachPage(page);
   }
 
-  elements.pageCount.textContent = `of ${doc.numPages}`;
+  elements.pageCount.textContent = t("of {count}", { count: doc.numPages });
   elements.downloadPdf.disabled = false;
 
   state.zoomMode = "auto";
@@ -428,6 +457,7 @@ async function openDocument(bytes, { token, name, key }) {
   observePages();
   observeThumbnails();
   assistant.setDocument(key);
+  workspace.setDocument(key, state.fileName);
   buildOutline(token);
   loadPageSizes(token);
 
@@ -442,7 +472,7 @@ function createPage(number, viewport) {
   const shell = document.createElement("div");
   shell.className = "pdf-page-shell";
   shell.dataset.pageNumber = String(number);
-  shell.setAttribute("aria-label", `Page ${number}`);
+  shell.setAttribute("aria-label", t("Page {page}", { page: number }));
 
   const page = {
     number,
@@ -965,7 +995,7 @@ function buildThumbnail(number) {
   button.type = "button";
   button.className = "thumbnail-item";
   button.dataset.pageNumber = String(number);
-  button.setAttribute("aria-label", `Go to page ${number}`);
+  button.setAttribute("aria-label", t("Go to page {page}", { page: number }));
 
   const preview = document.createElement("span");
   preview.className = "thumbnail-preview";
@@ -1033,7 +1063,7 @@ function outlineButton(title, depth, onClick) {
   button.type = "button";
   button.className = "outline-item";
   button.style.setProperty("--depth", String(depth));
-  button.textContent = title || "Untitled";
+  button.textContent = title || t("Untitled");
   button.title = title || "";
   button.addEventListener("click", onClick);
   return button;
@@ -1043,10 +1073,10 @@ function outlineButton(title, depth, onClick) {
 function renderOutlineEmpty() {
   elements.outlineList.innerHTML = `
     <div class="sidebar-empty outline-empty">
-      <span>This PDF has no table of contents</span>
+      <span>${t("This PDF has no table of contents")}</span>
       <button type="button" class="text-button" data-outline-action="generate">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path></svg>
-        Ask AI to build one
+        ${t("Ask AI to build one")}
       </button>
     </div>`;
 }
@@ -1056,7 +1086,7 @@ function renderAiOutline(entries) {
   const items = entries.map(entry => outlineButton(entry.title, entry.depth || 0, () => scrollToPage(entry.page)));
   const note = document.createElement("div");
   note.className = "outline-note";
-  note.innerHTML = '<span>Built by AI from the text</span><button type="button" data-outline-action="generate">Rebuild</button>';
+  note.innerHTML = `<span>${t("Built by AI from the text")}</span><button type="button" data-outline-action="generate">${t("Rebuild")}</button>`;
   elements.outlineList.replaceChildren(note, ...items);
 }
 
@@ -1155,7 +1185,7 @@ async function goToDestination(dest) {
     const offset = typeof top === "number" ? page.viewport.convertToViewportPoint(0, top)[1] : 0;
     scrollToPage(pageIndex + 1, Math.max(0, offset));
   } catch {
-    toast("Couldn't follow that link");
+    toast(t("Couldn't follow that link"));
   }
 }
 
@@ -1175,22 +1205,7 @@ function setCurrentPage(number) {
   if (document.activeElement !== elements.pageInput) {
     elements.pageInput.value = String(number);
   }
-  elements.documentUrl.textContent = `Page ${number} of ${state.pages.length}`;
-  revealThumbnail(page.thumbnail);
-}
-
-function revealThumbnail(thumbnail) {
-  if (elements.appShell.classList.contains("sidebar-collapsed")) {
-    return;
-  }
-
-  const body = elements.sidebarBody.getBoundingClientRect();
-  const rect = thumbnail.getBoundingClientRect();
-  if (rect.top < body.top) {
-    elements.sidebarBody.scrollBy({ top: rect.top - body.top - 8, behavior: "smooth" });
-  } else if (rect.bottom > body.bottom) {
-    elements.sidebarBody.scrollBy({ top: rect.bottom - body.bottom + 8, behavior: "smooth" });
-  }
+  elements.documentUrl.textContent = t("Page {page} of {total}", { page: number, total: state.pages.length });
 }
 
 function scrollToPage(number, offsetInPoints = 0, behavior = "smooth") {
@@ -1253,9 +1268,9 @@ function updateCurrentPageFromScroll() {
 
 function updateZoomLabel(value) {
   const percent = `${Math.round(value * 100)}%`;
-  elements.zoomMenuLabel.textContent = `Zoom · ${percent}`;
-  elements.zoomReset.title = `Zoom options (${percent})`;
-  elements.zoomReset.setAttribute("aria-label", `Zoom options, currently ${percent}`);
+  elements.zoomMenuLabel.textContent = percent;
+  elements.zoomReset.title = t("Zoom options ({percent})", { percent });
+  elements.zoomReset.setAttribute("aria-label", t("Zoom options, currently {percent}", { percent }));
 
   for (const option of elements.zoomMenu.querySelectorAll("[data-zoom]")) {
     const preset = Number(option.dataset.zoom);
@@ -1409,9 +1424,6 @@ function closeFlyouts(except = null) {
   if (except !== elements.searchBox && !elements.searchBox.hidden) {
     closeSearch();
   }
-  if (except !== elements.pageBox) {
-    closePageBox();
-  }
   if (except !== elements.zoomMenu) {
     elements.zoomMenu.hidden = true;
   }
@@ -1421,33 +1433,8 @@ function repositionFlyouts() {
   if (!elements.searchBox.hidden) {
     positionFlyout(elements.searchBox, elements.searchToggle);
   }
-  if (!elements.pageBox.hidden) {
-    positionFlyout(elements.pageBox, elements.pageToggle);
-  }
   if (!elements.zoomMenu.hidden) {
     positionFlyout(elements.zoomMenu, elements.zoomReset);
-  }
-}
-
-function openPageBox() {
-  if (elements.appShell.classList.contains("no-document")) {
-    return;
-  }
-  closeFlyouts(elements.pageBox);
-  elements.pageBox.hidden = false;
-  positionFlyout(elements.pageBox, elements.pageToggle);
-  elements.pageToggle.setAttribute("aria-pressed", "true");
-  elements.pageInput.focus();
-}
-
-function closePageBox() {
-  if (elements.pageBox.hidden) {
-    return;
-  }
-  elements.pageBox.hidden = true;
-  elements.pageToggle.setAttribute("aria-pressed", "false");
-  if (elements.pageBox.contains(document.activeElement)) {
-    document.activeElement.blur();
   }
 }
 
@@ -2472,7 +2459,7 @@ function syncLayerPill() {
     button.type = "button";
     button.className = layer.visible ? "is-on" : "";
     button.setAttribute("aria-pressed", String(layer.visible));
-    button.title = layer.visible ? `Hide the ${layer.label.toLowerCase()} layer` : `Show the ${layer.label.toLowerCase()} layer`;
+    button.title = t(layer.visible ? "Hide the {layer} layer" : "Show the {layer} layer", { layer: layer.label.toLowerCase() });
     const dot = document.createElement("span");
     dot.className = "pill-dot";
     button.append(dot, layer.label);
@@ -2518,10 +2505,10 @@ async function downloadPdf() {
     if (markup.countRedactions("approved") > 0) {
       try {
         bytes = await flattenToImagePdf();
-        toast("Downloaded as an image-only PDF so the redacted text is really removed.");
+        toast(t("Downloaded as an image-only PDF so the redacted text is really removed."));
       } catch (error) {
         console.error(error);
-        toast("Couldn't apply the redactions — download cancelled.");
+        toast(t("Couldn't apply the redactions — download cancelled."));
         return;
       }
     } else if (markup.count() > 0 || formEdits.size > 0) {
@@ -2529,7 +2516,7 @@ async function downloadPdf() {
         bytes = await markup.exportPdf(state.doc);
       } catch (error) {
         console.error(error);
-        toast("Couldn't save your changes into the PDF — downloaded the original file.");
+        toast(t("Couldn't save your changes into the PDF — downloaded the original file."));
       }
     }
 
@@ -2583,6 +2570,9 @@ const AI_TOP_DEFAULT = 8;
 const SIDEBAR_WIDTH_BOUNDS = { min: () => 180, max: () => Math.min(480, window.innerWidth * 0.5) };
 const AI_WIDTH_BOUNDS = { min: () => 300, max: () => Math.min(720, window.innerWidth * 0.6) };
 const AI_TOP_BOUNDS = { min: () => 8, max: () => Math.max(8, window.innerHeight - 8 - 240) };
+// With the workspace open, the assistant and the workspace share the window; neither gets too narrow.
+const AI_SPLIT_BOUNDS = { min: () => 300, max: () => Math.max(300, window.innerWidth - 24 - 360) };
+const halfSplit = () => Math.round((window.innerWidth - 24) / 2);
 // How close a drag has to land to the default size before it locks onto it.
 const SNAP_ZONE = 10;
 
@@ -2613,9 +2603,10 @@ function initResizeHandle(handle, { axis, bounds, cssVar, storageKey, invert = f
     const delta = (client - startClient) * (invert ? -1 : 1);
     let next = clampToBounds(startValue + delta, bounds);
 
-    const isSnapped = snapTo != null && Math.abs(next - snapTo) <= SNAP_ZONE;
+    const target = typeof snapTo === "function" ? snapTo() : snapTo;
+    const isSnapped = target != null && Math.abs(next - target) <= SNAP_ZONE;
     if (isSnapped) {
-      next = snapTo;
+      next = target;
     }
     if (isSnapped && !snapped) {
       handle.classList.remove("is-snapped");
@@ -2678,6 +2669,20 @@ initResizeHandle(elements.aiResizerY, {
   snapTo: AI_TOP_DEFAULT
 });
 
+// The bar between the workspace and the assistant; it snaps to an even split, and a double-click sets one.
+initResizeHandle(elements.workspaceSplitter, {
+  axis: "x",
+  invert: true,
+  bounds: AI_SPLIT_BOUNDS,
+  cssVar: "--ai-split-width",
+  storageKey: "aiSplitWidth",
+  snapTo: halfSplit
+});
+elements.workspaceSplitter.addEventListener("dblclick", () => {
+  setCssVarPx("--ai-split-width", clampToBounds(halfSplit(), AI_SPLIT_BOUNDS));
+  setItem("aiSplitWidth", cssVarPx("--ai-split-width"));
+});
+
 // ---------- Events ----------
 
 elements.sidebarClose.addEventListener("click", () => setSidebarCollapsed(true));
@@ -2737,7 +2742,10 @@ window.addEventListener("wheel", event => {
   }
 }, { passive: false });
 
-new ResizeObserver(() => {
+// Keeps a fitted zoom fitted when the reading area changes: the window resizing, and side panels
+// opening or closing. Panels change the page's padding rather than the container's size, which a
+// ResizeObserver doesn't reliably report, so class changes on the shell trigger a refit too.
+function refitZoom() {
   repositionFlyouts();
   if (!state.pages.length || !state.zoomMode || zoomAnimation.frame) {
     return;
@@ -2750,7 +2758,10 @@ new ResizeObserver(() => {
 
   const rect = elements.pdfShell.getBoundingClientRect();
   setZoom(next, { animate: false, mode: state.zoomMode, focalX: rect.left + rect.width / 2, focalY: rect.top + 1 });
-}).observe(elements.pdfShell);
+}
+
+new ResizeObserver(refitZoom).observe(elements.pdfShell);
+new MutationObserver(() => requestAnimationFrame(refitZoom)).observe(elements.appShell, { attributes: true, attributeFilter: ["class"] });
 
 elements.zoomIn.addEventListener("click", () => zoomStep(1));
 elements.zoomOut.addEventListener("click", () => zoomStep(-1));
@@ -2784,25 +2795,14 @@ elements.pageInput.addEventListener("keydown", event => {
     if (Number.isFinite(number)) {
       scrollToPage(number);
     }
-    closePageBox();
+    elements.pageInput.select();
   } else if (event.key === "Escape") {
     event.preventDefault();
-    closePageBox();
+    closeSearch();
   }
 });
-elements.pageToggle.addEventListener("click", () => (elements.pageBox.hidden ? openPageBox() : closePageBox()));
 elements.pagePrev.addEventListener("click", () => scrollToPage(state.currentPage - 1));
 elements.pageNext.addEventListener("click", () => scrollToPage(state.currentPage + 1));
-elements.pageBox.addEventListener("focusout", event => {
-  if (event.relatedTarget === elements.pageToggle) {
-    return;
-  }
-  window.setTimeout(() => {
-    if (!elements.pageBox.contains(document.activeElement)) {
-      closePageBox();
-    }
-  }, 150);
-});
 elements.pageInput.addEventListener("blur", () => {
   elements.pageInput.value = state.pages.length ? String(state.currentPage) : "–";
 });
@@ -2848,11 +2848,7 @@ elements.searchNext.addEventListener("click", () => goToMatch(search.index + 1))
 
 elements.markupToggle.addEventListener("click", () => markup.setOpen(!markup.isOpen()));
 elements.downloadPdf.addEventListener("click", downloadPdf);
-elements.themeToggle.addEventListener("click", () => {
-  const theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-  applyTheme(theme);
-  setItem("theme", theme);
-});
+elements.settingsToggle.addEventListener("click", () => assistant.openSettings());
 
 for (const button of [elements.openFile, elements.emptyOpenFile]) {
   button.addEventListener("click", () => elements.fileInput.click());
@@ -2900,9 +2896,9 @@ elements.selectionPopover.addEventListener("click", async event => {
   if (action === "copy") {
     try {
       await navigator.clipboard.writeText(text);
-      toast("Copied");
+      toast(t("Copied"));
     } catch {
-      toast("Couldn't copy");
+      toast(t("Couldn't copy"));
     }
     window.getSelection()?.removeAllRanges();
   } else if (action === "ask") {
@@ -2914,7 +2910,7 @@ elements.selectionPopover.addEventListener("click", async event => {
     if (region) {
       lens.explainBox(region.page, region.box, text, action);
     } else {
-      assistant.open({ quote: text, draft: action === "translate" ? "Translate this passage." : "Explain this passage." });
+      assistant.open({ quote: text, draft: action === "translate" ? t("Translate this passage.") : t("Explain this passage.") });
     }
   } else {
     markup.addTextMarkup(action, range);
@@ -2982,7 +2978,7 @@ window.addEventListener("drop", event => {
   if (file) {
     loadFromFile(file);
   } else {
-    toast("That isn't a PDF file");
+    toast(t("That isn't a PDF file"));
   }
 });
 
@@ -3032,7 +3028,10 @@ document.addEventListener("keydown", event => {
   }
 });
 
-window.addEventListener("pagehide", () => markup.flush());
+window.addEventListener("pagehide", () => {
+  markup.flush();
+  workspace.flush();
+});
 
 // ---------- Start ----------
 
@@ -3041,8 +3040,12 @@ getItem("theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "da
 Promise.all([
   getItem("sidebarWidth", null),
   getItem("aiWidth", null),
-  getItem("aiTop", null)
-]).then(([sidebarWidth, aiWidth, aiTop]) => {
+  getItem("aiTop", null),
+  getItem("aiSplitWidth", null)
+]).then(([sidebarWidth, aiWidth, aiTop, aiSplitWidth]) => {
+  if (aiSplitWidth != null) {
+    setCssVarPx("--ai-split-width", clampToBounds(aiSplitWidth, AI_SPLIT_BOUNDS));
+  }
   if (sidebarWidth != null) {
     setCssVarPx("--sidebar-width", clampToBounds(sidebarWidth, SIDEBAR_WIDTH_BOUNDS));
   }
@@ -3065,5 +3068,5 @@ updateZoomLabel(1);
 if (initialPdfUrl) {
   loadFromUrl(initialPdfUrl);
 } else {
-  showEmptyState("Open a PDF", "Browse to a PDF on the web and it opens here — or drop a file anywhere in this window.");
+  showEmptyState(t("Open a PDF"), t("Browse to a PDF on the web and it opens here — or drop a file anywhere in this window."));
 }
