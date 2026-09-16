@@ -321,7 +321,7 @@ const DEFINITIONS = [
   },
   {
     name: "add_todos",
-    description: "Add items to the reader's to-do list in the workspace for this document: deadlines, obligations, risks to follow up, documents to prepare, revision tasks. Each item is one short action.",
+    description: "Add items to the reader's to-do list in the workspace for this document: obligations, risks to follow up, documents to prepare, revision tasks. Each item is one short action; if it has a deadline, say so in the text (for example \"Submit the form by 30 Sep\"). Link the page it comes from.",
     parameters: {
       type: "object",
       properties: {
@@ -330,9 +330,8 @@ const DEFINITIONS = [
           items: {
             type: "object",
             properties: {
-              text: { type: "string", description: "The action, in a few words." },
-              due: { type: "string", description: "Optional due date as YYYY-MM-DD." },
-              page: { type: "integer", minimum: 1, description: "Optional page it comes from." }
+              text: { type: "string", description: "The action, in a few words, including any deadline." },
+              page: { type: "integer", minimum: 1, description: "The page it comes from." }
             },
             required: ["text"]
           }

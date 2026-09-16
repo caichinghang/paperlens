@@ -2,16 +2,21 @@
 // to-dos belong to the open document; the profile is shared by every document and never leaves
 // this browser. The assistant writes into it with tools; the reader can edit everything by hand.
 
-import { checklistSummary, expandTable, renderInline, renderMarkdown, runBlockAction, SEVERITY_ICONS } from "./ai.js";
-import { buildCalendar, isCalendarDate } from "./ics.js";
+import { checklistSummary, expandTable, renderInline, SEVERITY_ICONS } from "./ai.js";
+import { blocksToMarkdown, markdownToBlocks } from "./blocks.js";
+import { attachSortable, createBlockEditor, EDITOR_ICONS } from "./editor.js";
 import { t, tn, uiLanguage } from "./i18n.js";
+import { moveOutline, normalizeOutline, outlineChildren, outlineItem as findOutlineItem, outlineParent } from "./outline.js";
+import { applyDetail, emptyProfile, loadProfile, PROFILE_SECTIONS, profileAge, profileEntries } from "./profile.js";
 import { getItem, setItem } from "./store.js";
 
 const PROFILE_KEY = "profile";
-const TABS = ["notes", "todos", "profile"];
+const TABS = ["notes", "profile"];
 const MAX_NOTES = 300;
 const MAX_TODOS = 300;
 const MAX_NOTE_LENGTH = 20_000;
+const MAX_NOTE_TITLE = 50;
+const HIGHLIGHTS = "highlights";
 
 const KIND_LABELS = {
   note: "Note",
@@ -24,12 +29,28 @@ const KIND_LABELS = {
   figures: "Key figures"
 };
 
+const svg = body => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
+
 const ICONS = {
-  back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>',
-  book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg>',
-  copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="13" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg>',
-  plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>',
-  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>'
+  ...EDITOR_ICONS,
+  back: svg('<path d="m15 18-6-6 6-6"></path>'),
+  book: svg('<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>'),
+  sparkle: svg('<path d="M12 3.5c.5 3.9 2.6 6 6.5 6.5-3.9.5-6 2.6-6.5 6.5-.5-3.9-2.6-6-6.5-6.5 3.9-.5 6-2.6 6.5-6.5Z"></path><path d="M18.5 15.5c.2 1.5 1 2.3 2.5 2.5-1.5.2-2.3 1-2.5 2.5-.2-1.5-1-2.3-2.5-2.5 1.5-.2 2.3-1 2.5-2.5Z"></path>'),
+  sidebar: svg('<rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path>'),
+  page: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path>'),
+  note: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path>'),
+  quiz: svg('<circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.5a2.5 2.5 0 0 1 4.9.7c0 1.7-2.4 2.1-2.4 3.6M12 17h.01"></path>'),
+  glossary: svg('<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path><path d="m9 13 2.5-6 2.5 6M9.8 11h3.4"></path>'),
+  summary: svg('<path d="M4 6h16M4 10h16M4 14h10M4 18h7"></path>'),
+  "paper-card": svg('<rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 9h5M7 13h10M7 16h7"></path>'),
+  plan: svg('<rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18"></path>'),
+  figures: svg('<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"></path>'),
+  highlighter: svg('<path d="m9 11-6 6v3h9l3-3"></path><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path>'),
+  eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle>'),
+  eyeOff: svg('<path d="M9.9 4.2A10.9 10.9 0 0 1 12 4c6.5 0 10 8 10 8a18.5 18.5 0 0 1-2.2 3.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"></path><path d="m2 2 20 20M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>'),
+  done: svg('<circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 3 3 5-6"></path>'),
+  list: svg('<path d="M9 6h11M9 12h11M9 18h11"></path><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"></path>'),
+  user: svg('<circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path>')
 };
 
 function uid(prefix) {
@@ -57,31 +78,12 @@ function downloadFile(name, text, type) {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-function locale() {
-  return uiLanguage === "zh" ? "zh-CN" : undefined;
-}
-
 function formatDay(time) {
   try {
-    return new Date(time).toLocaleDateString(locale(), { month: "short", day: "numeric" });
+    return new Date(time).toLocaleDateString(uiLanguage === "zh" ? "zh-CN" : undefined, { year: "numeric", month: "short", day: "numeric" });
   } catch {
     return "";
   }
-}
-
-function formatDue(date) {
-  try {
-    const day = new Date(`${date}T00:00:00`);
-    const sameYear = day.getFullYear() === new Date().getFullYear();
-    return day.toLocaleDateString(locale(), sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
-  } catch {
-    return date;
-  }
-}
-
-function today() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 function pageNumber(value) {
@@ -89,15 +91,47 @@ function pageNumber(value) {
   return Number.isInteger(number) && number > 0 ? number : null;
 }
 
+function shortTitle(value) {
+  return Array.from(String(value ?? "").replace(/\n/g, " ")).slice(0, MAX_NOTE_TITLE).join("");
+}
+
 function safeColor(value) {
   return /^#[0-9a-f]{3,8}$/i.test(String(value ?? "")) ? value : "#fcc419";
+}
+
+// Notes saved before the block editor kept Markdown in `content`.
+function normalizeNote(note) {
+  if (!note || typeof note !== "object") {
+    return null;
+  }
+  const blocks = (Array.isArray(note.blocks) ? note.blocks : markdownToBlocks(note.content || ""))
+    .map(block => block?.type === "page" ? { id: block.id, type: "paragraph", text: `[p. ${pageNumber(block.page) || 1}]` } : block);
+  const { content, ...rest } = note;
+  return { ...rest, id: note.id || uid("note"), title: shortTitle(note.title), blocks, createdAt: note.createdAt || Date.now() };
+}
+
+function normalizeTodo(todo) {
+  if (!todo || typeof todo !== "object" || !String(todo.text ?? "").trim()) {
+    return null;
+  }
+  return {
+    id: todo.id || uid("todo"),
+    text: String(todo.text),
+    page: pageNumber(todo.page),
+    done: Boolean(todo.done),
+    source: todo.source === "ai" || todo.source === "user" ? todo.source : undefined,
+    createdAt: todo.createdAt || Date.now()
+  };
 }
 
 export function createWorkspace({ host, toast, onToggle }) {
   const $ = selector => document.querySelector(selector);
   const el = {
     panel: $("#workspace"),
+    head: $("#workspaceHead"),
     tabs: $("#workspaceTabs"),
+    copyButton: $("#workspaceCopy"),
+    deleteButton: $("#workspaceDelete"),
     body: $("#workspaceBody"),
     exportButton: $("#workspaceExport"),
     close: $("#workspaceClose"),
@@ -108,24 +142,38 @@ export function createWorkspace({ host, toast, onToggle }) {
   let tab = "notes";
   let docKey = "";
   let docName = "";
-  let data = { notes: [], todos: [] };
-  let profile = [];
-  let editingId = null;
+  let data = { notes: [], todos: [], folders: [] };
+  let profile = emptyProfile();
+  let selectedNoteId = null;
+  let navOpen = false;
+  let navCollapsed = false;
+  let addMenuOpen = false;
+  let folderNameOpen = false;
+  let draggedItemId = null;
+  let dropProposal = null;
+  let dropKey = "";
+  let folderOpenTimer = 0;
+  let autoScrollFrame = 0;
+  const collapsedFolders = new Set();
+  let editor = null;
   // A table or checklist opened from the chat, shown full-size in place of the tabs until the reader goes back.
   let view = null;
-  // Set when something changed while the reader was typing in a note; the page re-renders once they stop.
-  let pendingRender = false;
   let returnTab = "notes";
   let loadToken = 0;
   let saveTimer = 0;
   let pendingSave = null;
   let profileTimer = 0;
+  let attachPage = false;
+  let editingPageFor = null;
+  let showDone = false;
+  const revealed = new Set();
 
   el.panel.inert = true;
-  const profileReady = getItem(PROFILE_KEY, []).then(saved => {
-    profile = (Array.isArray(saved) ? saved : [])
-      .filter(field => field && typeof field.label === "string")
-      .map(field => ({ id: field.id || uid("field"), label: field.label, value: String(field.value ?? "") }));
+  const profileReady = getItem(PROFILE_KEY, null).then(saved => {
+    profile = loadProfile(saved);
+    if (Array.isArray(saved)) {
+      setItem(PROFILE_KEY, profile);
+    }
   });
 
   // ---------- Storage ----------
@@ -136,7 +184,7 @@ export function createWorkspace({ host, toast, onToggle }) {
     }
     pendingSave = { key: `workspace:${docKey}`, value: data };
     clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(flush, 250);
+    saveTimer = window.setTimeout(flush, 300);
   }
 
   function flush() {
@@ -154,14 +202,16 @@ export function createWorkspace({ host, toast, onToggle }) {
 
   async function setDocument(key, name = "") {
     flush();
+    destroyEditor();
     docKey = key || "";
     docName = name || "";
-    editingId = null;
+    selectedNoteId = null;
+    editingPageFor = null;
     if (view) {
       view = null;
       tab = returnTab;
     }
-    data = { notes: [], todos: [] };
+    data = { notes: [], todos: [], folders: [] };
     const token = ++loadToken;
     if (docKey) {
       const saved = await getItem(`workspace:${docKey}`, null);
@@ -169,10 +219,13 @@ export function createWorkspace({ host, toast, onToggle }) {
         return;
       }
       data = {
-        notes: Array.isArray(saved?.notes) ? saved.notes : [],
-        todos: Array.isArray(saved?.todos) ? saved.todos : []
+        notes: (Array.isArray(saved?.notes) ? saved.notes : []).map(normalizeNote).filter(Boolean),
+        todos: (Array.isArray(saved?.todos) ? saved.todos : []).map(normalizeTodo).filter(Boolean),
+        folders: (Array.isArray(saved?.folders) ? saved.folders : []).filter(folder => folder && typeof folder.id === "string" && typeof folder.name === "string")
       };
+      initializeOutline();
     }
+    syncHighlights();
     render();
   }
 
@@ -195,6 +248,8 @@ export function createWorkspace({ host, toast, onToggle }) {
     if (open) {
       el.toggle?.classList.remove("has-update");
       render();
+    } else {
+      destroyEditor();
     }
   }
 
@@ -209,6 +264,16 @@ export function createWorkspace({ host, toast, onToggle }) {
 
   // ---------- Rendering ----------
 
+  function destroyEditor() {
+    editor?.destroy();
+    editor = null;
+  }
+
+  function isEditingNote() {
+    const active = document.activeElement;
+    return Boolean(active && el.body.querySelector(".nb-main")?.contains(active) && (active.isContentEditable || active.matches("input, textarea")));
+  }
+
   function render() {
     for (const button of el.tabs.querySelectorAll("[data-workspace-tab]")) {
       const active = button.dataset.workspaceTab === tab;
@@ -216,99 +281,85 @@ export function createWorkspace({ host, toast, onToggle }) {
       button.setAttribute("aria-selected", String(active));
     }
     el.exportButton.hidden = tab === "profile" || tab === "view";
+    el.body.dataset.tab = tab;
+    renderHeader();
     if (!isShown) {
       return;
     }
+    if (tab === "notes" && editor && isEditingNote()) {
+      // Never pull a page out from under the reader's cursor; the page list is safe to refresh.
+      renderNoteNav();
+      return;
+    }
+    destroyEditor();
     if (tab === "view" && view) {
       renderView();
     } else if (tab === "notes") {
-      if (isTypingInNotes()) {
-        pendingRender = true;
-        return;
-      }
       renderNotes();
-    } else if (tab === "todos") {
-      renderTodos();
     } else {
       renderProfile();
     }
   }
 
-  function pageButton(page) {
-    return page ? `<button type="button" class="ws-page" data-ws="page" data-page="${page}">${escapeHtml(t("p. {page}", { page }))}</button>` : "";
+  function emptyState(icon, title, text, action = "") {
+    return `<div class="ws-blank">
+      <div class="ws-blank-icon">${ICONS[icon]}</div>
+      <strong>${escapeHtml(title)}</strong>
+      <p>${escapeHtml(text)}</p>
+      ${action}
+    </div>`;
+  }
+
+  function pageChip(page, extraClass = "") {
+    return page
+      ? `<button type="button" class="ws-chip${extraClass}" data-ws="page" data-page="${page}" title="${escapeHtml(t("Go to page {page}", { page }))}">${ICONS.page}<span>${escapeHtml(t("p. {page}", { page }))}</span></button>`
+      : "";
+  }
+
+  function goToPdfPage(page) {
+    const number = pageNumber(page);
+    if (!number) return;
+    setOpen(false);
+    requestAnimationFrame(() => host.goToPage(number));
   }
 
   // ---------- Notebook ----------
-  // One Notion-like page per document. Titles are always editable; clicking a note's text turns it into
-  // its Markdown source, which saves as you type and renders again when you click away.
+  // Pages on the left, one page open on the right, edited in place like Notion.
 
-  function noteBodyHtml(note) {
-    return note.content.trim()
-      ? renderMarkdown(note.content)
-      : `<p class="nb-placeholder">${escapeHtml(t("Click to write…"))}</p>`;
+  function sortedNotes() {
+    return data.notes.filter(note => note.id !== HIGHLIGHTS).sort((a, b) => b.createdAt - a.createdAt);
   }
 
-  function renderNote(note) {
-    const meta = [t(KIND_LABELS[note.kind] || "Note"), formatDay(note.createdAt)].filter(Boolean).join(" · ");
-    return `
-      <section class="nb-note" data-note="${escapeHtml(note.id)}">
-        <div class="nb-note-tools">
-          <button type="button" class="ws-icon-button" data-ws="copy-note" title="${escapeHtml(t("Copy"))}" aria-label="${escapeHtml(t("Copy"))}">${ICONS.copy}</button>
-          <button type="button" class="ws-icon-button" data-ws="delete-note" title="${escapeHtml(t("Delete"))}" aria-label="${escapeHtml(t("Delete"))}">${ICONS.trash}</button>
-        </div>
-        <input class="nb-note-title" type="text" value="${escapeHtml(note.title)}" placeholder="${escapeHtml(t("Untitled"))}" aria-label="${escapeHtml(t("Title"))}">
-        <div class="nb-note-meta"><span>${escapeHtml(meta)}</span>${pageButton(note.page)}</div>
-        <div class="nb-note-body msg assistant" data-note-body>${noteBodyHtml(note)}</div>
-      </section>`;
+  function outlineItem(id) {
+    return findOutlineItem(data, id);
   }
 
-  function isTypingInNotes() {
-    const active = document.activeElement;
-    return Boolean(active && el.body.contains(active) && active.matches(".nb-editor, .nb-note-title"));
+  function itemParent(item) {
+    return outlineParent(item);
   }
 
-  function autoGrow(editor) {
-    editor.style.height = "auto";
-    editor.style.height = `${editor.scrollHeight}px`;
+  function orderedChildren(parentId = null) {
+    return outlineChildren(data, parentId);
   }
 
-  function startEditing(body) {
-    const note = findNote(body);
-    if (!note) {
-      return;
-    }
-    const editor = document.createElement("textarea");
-    editor.className = "nb-editor";
-    editor.value = note.content;
-    editor.placeholder = t("Write in Markdown…");
-    editor.dataset.noteEditor = note.id;
-    editingId = note.id;
-    body.replaceWith(editor);
-    autoGrow(editor);
-    editor.focus({ preventScroll: true });
-    editor.setSelectionRange(editor.value.length, editor.value.length);
+  function initializeOutline() {
+    normalizeOutline(data, HIGHLIGHTS);
   }
 
-  function finishEditing(editor) {
-    const note = data.notes.find(entry => entry.id === editor.dataset.noteEditor);
-    editingId = null;
-    if (note && editor.isConnected) {
-      const body = document.createElement("div");
-      body.className = "nb-note-body msg assistant";
-      body.dataset.noteBody = "";
-      body.innerHTML = noteBodyHtml(note);
-      editor.replaceWith(body);
-    }
+  function nextOrder(parentId = null) {
+    return orderedChildren(parentId).length;
   }
 
-  // Deferred refresh once focus has settled somewhere outside the note being typed in.
-  function flushPendingRender() {
-    window.setTimeout(() => {
-      if (pendingRender && !isTypingInNotes()) {
-        pendingRender = false;
-        render();
-      }
-    }, 0);
+  function moveOutlineItem(id, parentId, beforeId = null) {
+    if (!moveOutline(data, id, parentId, beforeId)) return false;
+    if (parentId) collapsedFolders.delete(parentId);
+    save();
+    renderNoteNav();
+    return true;
+  }
+
+  function findNoteById(id) {
+    return data.notes.find(note => note.id === id);
   }
 
   function highlights() {
@@ -319,91 +370,330 @@ export function createWorkspace({ host, toast, onToggle }) {
     }
   }
 
-  function renderNotes() {
-    if (!docKey) {
-      el.body.innerHTML = `<p class="ws-empty">${escapeHtml(t("Open a PDF to keep notes next to it."))}</p>`;
+  function ensureSelection() {
+    if (selectedNoteId === HIGHLIGHTS || findNoteById(selectedNoteId)) {
       return;
     }
-    // Oldest first, like a document: what the assistant saves next lands at the bottom.
-    const notes = data.notes.slice().sort((a, b) => a.createdAt - b.createdAt);
-    const marks = highlights();
-    let html = `
-      <header class="nb-header">
-        <div class="nb-icon" aria-hidden="true">${ICONS.book}</div>
-        <h1 class="nb-title">${escapeHtml(baseName())}</h1>
-        <p class="nb-meta">${escapeHtml(t("Notebook"))} · ${escapeHtml(tn(notes.length, "{count} note", "{count} notes"))}</p>
-      </header>`;
-    if (!notes.length) {
-      html += `<p class="nb-empty">${escapeHtml(t("Notes, flashcards, quizzes and summaries the assistant saves appear here, next to this document."))}</p>`;
-    }
-    html += notes.map(renderNote).join("");
-    html += `<button type="button" class="nb-add" data-ws="new-note">${ICONS.plus}<span>${escapeHtml(t("Add a note"))}</span></button>`;
-    if (marks.length) {
-      html += `<h2 class="nb-section-title">${escapeHtml(t("Your highlights"))}<span>${marks.length}</span></h2><ul class="nb-highlights">`;
-      html += marks.map(mark => `
-        <li>
-          <button type="button" class="nb-highlight" data-ws="page" data-page="${mark.page}" style="--c:${safeColor(mark.color)}">
-            <span>${escapeHtml(mark.text)}</span>
-            <em>${escapeHtml(t("p. {page}", { page: mark.page }))}</em>
-          </button>
-        </li>`).join("");
-      html += "</ul>";
-    }
-    el.body.innerHTML = html;
+    selectedNoteId = sortedNotes()[0]?.id || null;
   }
 
-  function sortedTodos() {
-    return data.todos.slice().sort((a, b) =>
-      Number(a.done) - Number(b.done)
-      || (a.due || "9999").localeCompare(b.due || "9999")
-      || a.createdAt - b.createdAt);
+  function renderNotes() {
+    if (!docKey) {
+      el.body.innerHTML = emptyState("book", t("No document open"), t("Open a PDF to keep notes next to it."));
+      return;
+    }
+    ensureSelection();
+    el.body.innerHTML = `
+      <div class="nb${navOpen ? " is-nav-open" : ""}${navCollapsed ? " is-nav-collapsed" : ""}">
+        <div class="nb-side">
+          <nav class="nb-nav" aria-label="${escapeHtml(t("Pages"))}"></nav>
+        </div>
+        <button type="button" class="nb-scrim" data-ws="toggle-nav" tabindex="-1" aria-label="${escapeHtml(t("Close"))}"></button>
+        <div class="nb-main"></div>
+        <button type="button" class="nb-nav-expand ws-icon-button" data-ws="collapse-nav" title="${escapeHtml(t("Pages"))}" aria-label="${escapeHtml(t("Pages"))}">${ICONS.sidebar}</button>
+      </div>`;
+    renderNoteNav();
+    renderNotePage();
+  }
+
+  function renderNoteNav() {
+    const nav = el.body.querySelector(".nb-nav");
+    if (!nav) {
+      return;
+    }
+    const marks = highlights();
+    const outlineHtml = (parentId = null) => orderedChildren(parentId).map(item => {
+      if (data.folders.includes(item)) {
+        return `<li class="nb-entry nb-folder" data-outline-id="${escapeHtml(item.id)}"><div class="nb-folder-head"><button type="button" draggable="true" class="nb-nav-item nb-folder-button" data-ws="toggle-folder" data-folder-id="${escapeHtml(item.id)}" title="${escapeHtml(item.name)}" aria-expanded="${!collapsedFolders.has(item.id)}"><span class="nb-nav-icon">${ICONS.book}</span><span class="nb-nav-title">${escapeHtml(item.name)}</span></button></div>${collapsedFolders.has(item.id) ? "" : `<ul class="nb-nav-list nb-folder-pages">${outlineHtml(item.id)}</ul>`}</li>`;
+      }
+      const label = item.id === HIGHLIGHTS ? item.title || `${baseName()} Highlights` : item.title || t("Untitled");
+      return `<li class="nb-entry nb-note" data-outline-id="${escapeHtml(item.id)}"><button type="button" draggable="true" class="nb-nav-item${item.id === selectedNoteId ? " is-active" : ""}" data-ws="select-note" data-note-id="${escapeHtml(item.id)}" title="${escapeHtml(label)}"><span class="nb-nav-icon">${item.id === HIGHLIGHTS ? ICONS.highlighter : ICONS[item.kind] || ICONS.note}</span><span class="nb-nav-title${item.title ? "" : " is-untitled"}">${escapeHtml(label)}</span>${item.id === HIGHLIGHTS && marks.length ? `<span class="nb-nav-count">${marks.length}</span>` : item.source === "ai" ? `<span class="nb-nav-badge">${ICONS.sparkle}</span>` : ""}</button></li>`;
+    }).join("");
+    nav.innerHTML = `
+      <div class="nb-nav-head">
+        <button type="button" class="ws-icon-button" data-ws="collapse-nav" title="${escapeHtml(t("Collapse sidebar"))}" aria-label="${escapeHtml(t("Collapse sidebar"))}">${ICONS.sidebar}</button>
+        <button type="button" class="ws-icon-button" data-ws="toggle-add-menu" aria-expanded="${addMenuOpen}" title="${escapeHtml(t("Add"))}" aria-label="${escapeHtml(t("Add"))}">${ICONS.plus}</button>
+      </div>
+      ${addMenuOpen ? `<div class="nb-add-popover glass" role="dialog" aria-label="${escapeHtml(t("Add to Pages"))}">${folderNameOpen ? `<form data-ws-form="folder"><div class="nb-add-field"><span aria-hidden="true">${ICONS.book}</span><input id="nb-folder-name" class="flyout-input" name="folderName" maxlength="80" autocomplete="off" placeholder="${escapeHtml(t("Folder name"))}" aria-label="${escapeHtml(t("Folder name"))}" required></div><div class="nb-popover-actions"><button type="button" data-ws="cancel-add">${escapeHtml(t("Cancel"))}</button><button type="submit">${escapeHtml(t("Create"))}</button></div></form>` : `<button type="button" data-ws="new-note">${ICONS.note}<span>${escapeHtml(t("New page"))}</span></button><button type="button" data-ws="new-folder">${ICONS.book}<span>${escapeHtml(t("New folder"))}</span></button>`}</div>` : ""}
+      <div class="nb-nav-scroll">
+        ${data.notes.length || data.folders.length ? `<ul class="nb-nav-list nb-root-list" data-outline-root>${outlineHtml()}</ul>` : `<p class="nb-nav-empty" data-outline-root>${escapeHtml(t("No pages yet"))}</p>`}
+      </div>`;
+  }
+
+  // The workspace has one bar, so the open page's actions live in it beside the tabs.
+  function renderHeader() {
+    const onNotes = tab === "notes" && Boolean(docKey);
+    const note = onNotes && selectedNoteId !== HIGHLIGHTS ? findNoteById(selectedNoteId) : null;
+    el.copyButton.hidden = !note;
+    el.deleteButton.hidden = !note;
+  }
+
+  function renderNotePage() {
+    const main = el.body.querySelector(".nb-main");
+    if (!main) {
+      return;
+    }
+    destroyEditor();
+    // The page is picked by now, so the bar can show the actions that belong to it.
+    renderHeader();
+    if (selectedNoteId === HIGHLIGHTS) {
+      syncHighlights();
+      renderHighlightsPage(main);
+      return;
+    }
+    const note = findNoteById(selectedNoteId);
+    if (!note) {
+      main.innerHTML = emptyState(
+        "book",
+        t("No pages yet"),
+        t("Notes, flashcards, quizzes and summaries the assistant saves appear here as pages. You can also start your own."),
+        `<button type="button" class="ws-button" data-ws="new-note">${ICONS.plus}<span>${escapeHtml(t("New page"))}</span></button>`
+      );
+      return;
+    }
+    const meta = [
+      `<span class="nb-meta-kind">${ICONS[note.kind] || ICONS.note}${escapeHtml(t(KIND_LABELS[note.kind] || "Note"))}</span>`,
+      note.source === "ai" ? `<span class="nb-meta-ai">${ICONS.sparkle}${escapeHtml(t("Saved by the assistant"))}</span>` : "",
+      `<span>${escapeHtml(formatDay(note.createdAt))}</span>`,
+      pageChip(note.page)
+    ].filter(Boolean).join('<span class="nb-meta-dot" aria-hidden="true"></span>');
+    main.innerHTML = `
+      <article class="nb-page">
+        <h1 class="nb-page-title" contenteditable="plaintext-only" spellcheck="false" data-note-title data-placeholder="${escapeHtml(t("Untitled"))}">${escapeHtml(note.title)}</h1>
+        <div class="nb-page-meta">${meta}</div>
+        <div class="nb-editor"></div>
+      </article>`;
+    editor = createBlockEditor({
+      root: main.querySelector(".nb-editor"),
+      blocks: note.blocks,
+      toast,
+      onCite: goToPdfPage,
+      getCurrentPage: () => host.getCurrentPage?.(),
+      onExitTop: () => focusTitle(false),
+      onChange: blocks => {
+        note.blocks = blocks;
+        note.updatedAt = Date.now();
+        save();
+      }
+    });
+  }
+
+  function focusTitle(atStart = true) {
+    const title = el.body.querySelector("[data-note-title]");
+    if (!title) {
+      return;
+    }
+    title.focus();
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    range.collapse(atStart);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  function renderHighlightsPage(main) {
+    const marks = highlights();
+    const note = data.notes.find(entry => entry.id === HIGHLIGHTS);
+    const title = note?.title || `${baseName()} Highlights`;
+    main.innerHTML = `
+      <article class="nb-page">
+        <h1 class="nb-page-title is-static">${escapeHtml(title)}</h1>
+        <div class="nb-page-meta"><span>${escapeHtml(tn(marks.length, "{count} highlight", "{count} highlights"))}</span></div>
+        <div class="nb-editor"></div>
+      </article>`;
+    editor = createBlockEditor({ root: main.querySelector(".nb-editor"), blocks: note.blocks, toast,
+      onCite: goToPdfPage,
+      getCurrentPage: () => host.getCurrentPage?.(),
+      onChange: blocks => { note.blocks = blocks; note.updatedAt = Date.now(); save(); }
+    });
+  }
+
+  function syncHighlights() {
+    if (!docKey) return;
+    const marks = highlights();
+    let note = data.notes.find(entry => entry.id === HIGHLIGHTS);
+    if (!note) {
+      note = { id: HIGHLIGHTS, kind: "note", title: shortTitle(`${baseName()} Highlights`), blocks: [], source: "user", order: nextOrder(null), createdAt: Date.now() };
+      data.notes.push(note);
+    }
+    // Each PDF mark is imported once. Afterwards its block is freely editable or removable.
+    const known = new Set(note.importedHighlights || []);
+    for (const mark of marks) {
+      const key = `${mark.page}:${mark.text}`;
+      if (known.has(key)) continue;
+      note.blocks.push(...markdownToBlocks(`${mark.text.replace(/\n+/g, " ")} [p. ${mark.page}]`));
+      known.add(key);
+    }
+    note.importedHighlights = [...known];
+    if (marks.length) save();
+  }
+
+  function selectNote(id) {
+    if (id === HIGHLIGHTS) syncHighlights();
+    selectedNoteId = id;
+    navOpen = false;
+    el.body.querySelector(".nb")?.classList.remove("is-nav-open");
+    renderNoteNav();
+    renderNotePage();
+    renderHeader();
+    el.body.querySelector(".nb-main")?.scrollTo(0, 0);
+  }
+
+  // ---------- To-dos ----------
+
+  function todoRow(todo) {
+    const pageControl = editingPageFor === todo.id
+      ? `<input class="td-page-input" type="number" min="1" inputmode="numeric" data-todo-page value="${todo.page || host.getCurrentPage?.() || ""}" aria-label="${escapeHtml(t("Page"))}" placeholder="${escapeHtml(t("Page"))}">`
+      : pageChip(todo.page);
+    return `
+      <li class="td-item${todo.done ? " is-done" : ""}" data-todo="${escapeHtml(todo.id)}">
+        <span class="td-grip" data-todo-grip title="${escapeHtml(t("Drag to reorder"))}">${ICONS.grip}</span>
+        <button type="button" class="td-check" data-ws="toggle-todo" role="checkbox" aria-checked="${todo.done}" aria-label="${escapeHtml(t("Mark as done"))}">${ICONS.check}</button>
+        <span class="td-text" contenteditable="plaintext-only" spellcheck="false" data-todo-text>${escapeHtml(todo.text)}</span>
+        <span class="td-meta">
+          ${todo.source === "ai" ? `<span class="td-source" title="${escapeHtml(t("Added by the assistant"))}">${ICONS.sparkle}</span>` : ""}
+          ${pageControl}
+        </span>
+        <span class="td-actions">
+          <button type="button" class="ws-icon-button" data-ws="edit-todo-page" title="${escapeHtml(todo.page ? t("Change page") : t("Link a page"))}" aria-label="${escapeHtml(todo.page ? t("Change page") : t("Link a page"))}">${ICONS.page}</button>
+          <button type="button" class="ws-icon-button" data-ws="delete-todo" title="${escapeHtml(t("Delete"))}" aria-label="${escapeHtml(t("Delete"))}">${ICONS.trash}</button>
+        </span>
+      </li>`;
   }
 
   function renderTodos() {
     if (!docKey) {
-      el.body.innerHTML = `<p class="ws-empty">${escapeHtml(t("Open a PDF to track to-dos for it."))}</p>`;
+      el.body.innerHTML = emptyState("list", t("No document open"), t("Open a PDF to track to-dos for it."));
       return;
     }
-    const todos = sortedTodos();
-    const done = todos.filter(todo => todo.done).length;
-    const now = today();
-    let html = `
-      <form class="ws-add" data-ws-form="todo">
-        <input name="text" type="text" placeholder="${escapeHtml(t("Add a to-do…"))}" autocomplete="off">
-        <input name="due" type="date" aria-label="${escapeHtml(t("Due date"))}">
-        <button type="submit" class="ws-icon-button" title="${escapeHtml(t("Add"))}" aria-label="${escapeHtml(t("Add"))}">${ICONS.plus}</button>
-      </form>`;
-    if (todos.length) {
-      html += `<div class="ws-toolbar"><span>${escapeHtml(t("{done} of {total} done", { done, total: todos.length }))}</span></div>`;
+    const open = data.todos.filter(todo => !todo.done);
+    const done = data.todos.filter(todo => todo.done);
+    const total = data.todos.length;
+    const current = host.getCurrentPage?.() || 1;
+    const percent = total ? Math.round((done.length / total) * 100) : 0;
+    let list;
+    if (open.length) {
+      list = `<ul class="td-list">${open.map(todoRow).join("")}</ul>`;
+    } else if (total) {
+      list = `<div class="td-all-done">${ICONS.done}<span>${escapeHtml(t("All done"))}</span></div>`;
     } else {
-      html += `<p class="ws-empty">${escapeHtml(t("Deadlines, risks and documents to prepare that the assistant finds are listed here. You can add your own too."))}</p>`;
+      list = emptyState("list", t("Nothing to do yet"), t("When the assistant finds deadlines, risks or documents to prepare, it lists them here. You can add your own too."));
     }
-    html += '<ul class="ws-todos">' + todos.map(todo => {
-      const overdue = todo.due && !todo.done && todo.due < now;
-      const due = todo.due
-        ? `<span class="ws-due${overdue ? " is-overdue" : ""}" title="${overdue ? escapeHtml(t("Overdue")) : ""}">${escapeHtml(formatDue(todo.due))}</span>`
-        : "";
-      return `
-        <li class="ws-todo${todo.done ? " is-done" : ""}" data-todo="${escapeHtml(todo.id)}">
-          <label class="ws-check"><input type="checkbox" data-ws="toggle-todo" ${todo.done ? "checked" : ""}><span>${escapeHtml(todo.text)}</span></label>
-          <span class="ws-todo-meta">${due}${pageButton(todo.page)}</span>
-          <button type="button" class="ws-icon-button ws-delete" data-ws="delete-todo" title="${escapeHtml(t("Delete"))}" aria-label="${escapeHtml(t("Delete"))}">${ICONS.trash}</button>
-        </li>`;
-    }).join("") + "</ul>";
-    el.body.innerHTML = html;
+    el.body.innerHTML = `
+      <div class="td">
+        <header class="ws-head">
+          <div class="ws-head-text">
+            <h1>${escapeHtml(t("To-do"))}</h1>
+            <p>${escapeHtml(baseName())}</p>
+          </div>
+          ${total ? `<div class="td-progress" title="${escapeHtml(t("{done} of {total} done", { done: done.length, total }))}">
+            <span><strong>${done.length}</strong> / ${total}</span>
+            <span class="td-bar"><i style="width:${percent}%"></i></span>
+          </div>` : ""}
+        </header>
+        <section class="td-card">
+          ${list}
+          <form class="td-new" data-ws-form="todo">
+            <span class="td-new-icon">${ICONS.plus}</span>
+            <input name="text" type="text" autocomplete="off" placeholder="${escapeHtml(t("Add a to-do"))}" aria-label="${escapeHtml(t("Add a to-do"))}">
+            <button type="button" class="ws-chip td-attach${attachPage ? " is-on" : ""}" data-ws="toggle-attach" aria-pressed="${attachPage}" title="${escapeHtml(t("Link the page you're reading"))}">${ICONS.page}<span>${escapeHtml(attachPage ? t("p. {page}", { page: current }) : t("Page"))}</span></button>
+          </form>
+        </section>
+        ${done.length ? `
+          <section class="td-done${showDone ? " is-open" : ""}">
+            <div class="td-done-head">
+              <button type="button" class="td-done-toggle" data-ws="toggle-done" aria-expanded="${showDone}">${ICONS.chevron}<span>${escapeHtml(t("Completed"))}</span><em>${done.length}</em></button>
+              <button type="button" class="ws-text-button" data-ws="clear-done">${escapeHtml(t("Clear completed"))}</button>
+            </div>
+            ${showDone ? `<ul class="td-list">${done.map(todoRow).join("")}</ul>` : ""}
+          </section>` : ""}
+      </div>`;
+    const pageInput = el.body.querySelector("[data-todo-page]");
+    if (pageInput) {
+      pageInput.focus();
+      pageInput.select();
+    }
+  }
+
+  function commitTodoPage(input) {
+    const todo = findTodo(input);
+    if (todo && editingPageFor === todo.id) {
+      const value = input.value.trim();
+      todo.page = value ? pageNumber(value) ?? todo.page : null;
+      save();
+    }
+    editingPageFor = null;
+    render();
+  }
+
+  // ---------- Profile ----------
+
+  function profileFieldHtml(field) {
+    const value = String(profile.fields[field.key] ?? "");
+    const id = `pf-${field.key}`;
+    const hidden = field.secret && !revealed.has(field.key);
+    const buttons = [
+      field.secret ? `<button type="button" class="field-button" data-ws="profile-reveal" data-key="${field.key}" aria-pressed="${!hidden}" title="${escapeHtml(hidden ? t("Show") : t("Hide"))}" aria-label="${escapeHtml(hidden ? t("Show") : t("Hide"))}">${hidden ? ICONS.eye : ICONS.eyeOff}</button>` : "",
+      `<button type="button" class="field-button pf-copy" data-ws="profile-copy" data-key="${field.key}" title="${escapeHtml(t("Copy"))}" aria-label="${escapeHtml(t("Copy"))}">${ICONS.copy}</button>`
+    ].join("");
+    const placeholder = field.placeholder ? ` placeholder="${escapeHtml(field.placeholder)}"` : "";
+    const stacked = field.type === "multiline";
+    const control = stacked
+      ? `<textarea id="${id}" rows="2" data-profile-key="${field.key}"${placeholder}>${escapeHtml(value)}</textarea>`
+      : `<input id="${id}" type="${hidden ? "password" : ["date", "choice"].includes(field.type) ? "text" : field.type || "text"}" data-profile-key="${field.key}" value="${escapeHtml(field.key === "gender" ? ({ male: t("Male"), female: t("Female"), other: t("Other") }[value] || value) : value)}" autocomplete="off" spellcheck="false"${field.type === "date" ? ` placeholder="YYYY-MM-DD"` : field.type === "choice" ? ` placeholder="${escapeHtml(t("Enter gender"))}"` : placeholder}>`;
+    const age = field.key === "birthDate" ? profileAge(value) : null;
+    const hint = field.key === "birthDate"
+      ? `<span class="pf-hint" data-age>${age === null ? "" : escapeHtml(tn(age, "{count} year old", "{count} years old"))}</span>`
+      : "";
+    return `
+      <div class="settings-row pf-field${stacked ? " is-stacked" : ""}">
+        <label class="settings-label" for="${id}">${escapeHtml(t(field.label))}</label>
+        <span class="settings-field">${control}${hint}${buttons}</span>
+      </div>`;
   }
 
   function renderProfile() {
-    let html = `<p class="ws-empty">${escapeHtml(t("Saved only in this browser. The assistant reads these details when it fills in forms, and asks before saving anything new."))}</p>`;
-    html += '<div class="ws-profile">' + profile.map(field => `
-      <div class="ws-field" data-field="${escapeHtml(field.id)}">
-        <input class="ws-field-label" type="text" data-ws-input="label" value="${escapeHtml(field.label)}" placeholder="${escapeHtml(t("Label"))}">
-        <input class="ws-field-value" type="text" data-ws-input="value" value="${escapeHtml(field.value)}" placeholder="${escapeHtml(t("Value"))}">
-        <button type="button" class="ws-icon-button ws-delete" data-ws="delete-field" title="${escapeHtml(t("Delete"))}" aria-label="${escapeHtml(t("Delete"))}">${ICONS.trash}</button>
-      </div>`).join("") + "</div>";
-    html += `<button type="button" class="ws-text-button" data-ws="add-field">${ICONS.plus}${escapeHtml(t("Add field"))}</button>`;
+    let html = `
+      <div class="pf">
+        <p class="settings-intro">${escapeHtml(t("Saved only in this browser. The assistant reads these details when it fills in forms, and asks before saving anything new."))}</p>`;
+    for (const section of PROFILE_SECTIONS) {
+      html += `
+        <section class="settings-group pf-group">
+          <h3>${escapeHtml(t(section.title))}</h3>
+          <div class="settings-card">
+            ${section.fields.map(profileFieldHtml).join("")}
+            ${section.id === "basics" ? `<p class="settings-help">${escapeHtml(t("Age is worked out from this date"))}</p>` : ""}
+          </div>
+        </section>`;
+    }
+    html += `
+        <section class="settings-group pf-group">
+          <h3>${escapeHtml(t("Other details"))}</h3>
+          <div class="settings-card">
+            ${profile.custom.map(field => `
+              <div class="settings-row pf-custom-row" data-field="${escapeHtml(field.id)}">
+                <span class="settings-field"><input type="text" data-custom-part="label" value="${escapeHtml(field.label)}" placeholder="${escapeHtml(t("Field name"))}" aria-label="${escapeHtml(t("Field name"))}"></span>
+                <span class="settings-field"><input type="text" data-custom-part="value" value="${escapeHtml(field.value)}" placeholder="${escapeHtml(t("Value"))}" aria-label="${escapeHtml(t("Value"))}" spellcheck="false"></span>
+                <button type="button" class="ws-icon-button" data-ws="delete-field" title="${escapeHtml(t("Delete"))}" aria-label="${escapeHtml(t("Delete"))}">${ICONS.trash}</button>
+              </div>`).join("")}
+            ${profile.custom.length ? "" : `<p class="settings-help">${escapeHtml(t("Anything else forms ask for, such as school, occupation or an emergency contact."))}</p>`}
+            <button type="button" class="pf-add" data-ws="add-field">${ICONS.plus}<span>${escapeHtml(t("Add field"))}</span></button>
+          </div>
+        </section>
+      </div>`;
     el.body.innerHTML = html;
   }
+
+  function updateProfileSummary() {
+    const hint = el.body.querySelector("[data-age]");
+    if (hint) {
+      const age = profileAge(profile.fields.birthDate);
+      hint.textContent = age === null ? "" : tn(age, "{count} year old", "{count} years old");
+    }
+  }
+
+  // ---------- Tables and checklists opened from the chat ----------
 
   function renderView() {
     if (view.type === "checklist") {
@@ -451,7 +741,6 @@ export function createWorkspace({ host, toast, onToggle }) {
       returnTab = tab;
     }
     view = next;
-    editingId = null;
     tab = "view";
     if (isShown) {
       render();
@@ -475,45 +764,42 @@ export function createWorkspace({ host, toast, onToggle }) {
 
   // ---------- Export ----------
 
+  function noteMarkdown(note) {
+    return `# ${note.title || t("Untitled")}\n\n${blocksToMarkdown(note.blocks)}`;
+  }
+
   function exportNotes() {
-    const lines = [`# ${docName || t("Notebook")}`, ""];
+    const parts = [`# ${docName || t("Notebook")}`];
     for (const note of data.notes.slice().sort((a, b) => a.createdAt - b.createdAt)) {
-      const meta = [t(KIND_LABELS[note.kind] || "Note"), note.page ? t("p. {page}", { page: note.page }) : ""].filter(Boolean).join(" · ");
-      lines.push(`## ${note.title || t("Untitled")}`, `*${meta}*`, "", note.content, "");
+      parts.push(`## ${note.title || t("Untitled")}\n\n${blocksToMarkdown(note.blocks).replace(/^(#{1,5}) /gm, "#$1 ")}`);
     }
     const marks = highlights();
     if (marks.length) {
-      lines.push(`## ${t("Your highlights")}`, "", ...marks.map(mark => `- “${mark.text}” (${t("p. {page}", { page: mark.page })})`), "");
+      parts.push(`## ${t("Your highlights")}\n\n${marks.map(mark => `- “${mark.text}” (${t("p. {page}", { page: mark.page })})`).join("\n")}`);
     }
-    downloadFile(`${baseName()} notes.md`, lines.join("\n"), "text/markdown");
+    downloadFile(`${baseName()} notes.md`, `${parts.join("\n\n")}\n`, "text/markdown");
   }
 
   function exportTodos() {
-    const dated = data.todos.filter(todo => isCalendarDate(todo.due) && !todo.done);
-    if (dated.length) {
-      const events = dated.map(todo => ({
-        title: todo.text,
-        date: todo.due,
-        description: [docName, todo.page ? t("p. {page}", { page: todo.page }) : ""].filter(Boolean).join(" · ")
-      }));
-      downloadFile(`${baseName()} to-dos.ics`, buildCalendar(events), "text/calendar");
-      return;
-    }
-    const lines = sortedTodos().map(todo => `- [${todo.done ? "x" : " "}] ${todo.text}${todo.page ? ` (${t("p. {page}", { page: todo.page })})` : ""}`);
-    downloadFile(`${baseName()} to-dos.md`, `${lines.join("\n")}\n`, "text/markdown");
-    toast(t("No dated to-dos — exported a checklist instead."));
+    const ordered = [...data.todos.filter(todo => !todo.done), ...data.todos.filter(todo => todo.done)];
+    const lines = ordered.map(todo => `- [${todo.done ? "x" : " "}] ${todo.text}${todo.page ? ` (${t("p. {page}", { page: todo.page })})` : ""}`);
+    downloadFile(`${baseName()} to-dos.md`, `# ${t("To-do")}: ${baseName()}\n\n${lines.join("\n")}\n`, "text/markdown");
   }
 
   // ---------- Reader actions ----------
 
-  function findNote(target) {
-    const id = target.closest("[data-note]")?.dataset.note;
-    return data.notes.find(note => note.id === id);
-  }
-
   function findTodo(target) {
     const id = target.closest("[data-todo]")?.dataset.todo;
     return data.todos.find(todo => todo.id === id);
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(t("Copied"));
+    } catch {
+      toast(t("Couldn't copy"));
+    }
   }
 
   async function handleAction(button) {
@@ -523,19 +809,9 @@ export function createWorkspace({ host, toast, onToggle }) {
       tab = returnTab;
       render();
     } else if (action === "copy-table") {
-      try {
-        await navigator.clipboard.writeText(expandTable(view).csv);
-        toast(t("Copied"));
-      } catch {
-        toast(t("Couldn't copy"));
-      }
+      copyText(expandTable(view).csv);
     } else if (action === "save-table") {
-      try {
-        addNote({ title: view.title, content: expandTable(view).markdown, kind: "note" });
-        toast(t("Saved to the notebook"));
-      } catch (error) {
-        toast(error.message);
-      }
+      saveFromView(view.title, expandTable(view).markdown);
     } else if (action === "toggle-check") {
       const item = view.card.items[Number(button.dataset.index)];
       if (item) {
@@ -549,167 +825,458 @@ export function createWorkspace({ host, toast, onToggle }) {
         view.onReveal?.(item);
       }
     } else if (action === "copy-checklist") {
-      try {
-        await navigator.clipboard.writeText(`${view.card.title}\n${checklistMarkdown(view.card)}`);
-        toast(t("Copied"));
-      } catch {
-        toast(t("Couldn't copy"));
-      }
+      copyText(`${view.card.title}\n${checklistMarkdown(view.card)}`);
     } else if (action === "checklist-todos") {
       try {
         const items = view.card.items.filter(item => !item.done).map(item => ({ text: item.text, page: item.page }));
-        const added = addTodos(items, { quiet: true });
+        const added = addTodos(items, { quiet: true, source: "ai" });
         toast(tn(added.length, "Added {count} to-do", "Added {count} to-dos"));
       } catch (error) {
         toast(error.message);
       }
     } else if (action === "save-checklist") {
-      try {
-        addNote({ title: view.card.title, content: checklistMarkdown(view.card), kind: "note" });
-        toast(t("Saved to the notebook"));
-      } catch (error) {
-        toast(error.message);
-      }
+      saveFromView(view.card.title, checklistMarkdown(view.card));
     } else if (action === "page") {
-      host.goToPage(Number(button.dataset.page));
+      goToPdfPage(Number(button.dataset.page));
+    } else if (action === "collapse-nav") {
+      // Wide enough for two columns: collapse the list. Narrow: the list is an overlay instead.
+      if (el.body.clientWidth < 640) {
+        navOpen = !navOpen;
+        el.body.querySelector(".nb")?.classList.toggle("is-nav-open", navOpen);
+      } else {
+        navCollapsed = !navCollapsed;
+        el.body.querySelector(".nb")?.classList.toggle("is-nav-collapsed", navCollapsed);
+      }
+    } else if (action === "toggle-add-menu") {
+      addMenuOpen = !addMenuOpen;
+      folderNameOpen = false;
+      renderNoteNav();
+    } else if (action === "new-folder") {
+      folderNameOpen = true;
+      renderNoteNav();
+      el.body.querySelector("#nb-folder-name")?.focus();
+    } else if (action === "cancel-add") {
+      addMenuOpen = false;
+      folderNameOpen = false;
+      renderNoteNav();
+    } else if (action === "toggle-folder") {
+      const id = button.dataset.folderId;
+      collapsedFolders.has(id) ? collapsedFolders.delete(id) : collapsedFolders.add(id);
+      renderNoteNav();
+    } else if (action === "toggle-nav") {
+      navOpen = !navOpen;
+      el.body.querySelector(".nb")?.classList.toggle("is-nav-open", navOpen);
+    } else if (action === "select-note") {
+      selectNote(button.dataset.noteId);
     } else if (action === "new-note") {
-      const note = { id: uid("note"), kind: "note", title: "", content: "", page: null, createdAt: Date.now() };
+      addMenuOpen = false;
+      // A new page joins the folder the open page sits in, so the plus on every folder isn't needed.
+      const open = findNoteById(selectedNoteId);
+      const folderId = open?.folderId && data.folders.some(folder => folder.id === open.folderId) ? open.folderId : null;
+      const note = { id: uid("note"), kind: "note", title: "", blocks: markdownToBlocks(""), folderId, order: folderId ? nextOrder(folderId) : -1, page: null, source: "user", createdAt: Date.now() };
       data.notes.push(note);
+      initializeOutline();
       save();
-      render();
-      el.body.querySelector(`[data-note="${note.id}"] .nb-note-title`)?.focus();
+      selectNote(note.id);
+      focusTitle();
     } else if (action === "copy-note") {
-      const note = findNote(button);
-      try {
-        await navigator.clipboard.writeText(note ? `${note.title}\n\n${note.content}` : "");
-        toast(t("Copied"));
-      } catch {
-        toast(t("Couldn't copy"));
+      const note = findNoteById(selectedNoteId);
+      if (note) {
+        copyText(noteMarkdown(note));
       }
     } else if (action === "delete-note") {
-      const note = findNote(button);
-      data.notes = data.notes.filter(entry => entry !== note);
-      save();
-      render();
-      toast(t("Note deleted"));
+      const note = findNoteById(selectedNoteId);
+      if (note) {
+        data.notes = data.notes.filter(entry => entry !== note);
+        selectedNoteId = null;
+        save();
+        render();
+        toast(t("Page deleted"));
+      }
+    } else if (action === "highlights-to-note") {
+      const marks = highlights();
+      const note = addNote({
+        title: t("Highlights from {name}", { name: baseName() }),
+        content: marks.map(mark => `> ${mark.text.replace(/\n+/g, " ")} [p. ${mark.page}]`).join("\n\n"),
+        kind: "note",
+        source: "user"
+      }, { select: true });
+      if (note) {
+        render();
+      }
+    } else if (action === "toggle-todo") {
+      const todo = findTodo(button);
+      if (todo) {
+        todo.done = !todo.done;
+        const row = button.closest(".td-item");
+        row?.classList.add("is-leaving");
+        save();
+        window.setTimeout(render, 160);
+      }
     } else if (action === "delete-todo") {
       const todo = findTodo(button);
       data.todos = data.todos.filter(entry => entry !== todo);
       save();
       render();
-    } else if (action === "add-field") {
-      profile.push({ id: uid("field"), label: "", value: "" });
+    } else if (action === "edit-todo-page") {
+      const todo = findTodo(button);
+      editingPageFor = todo && editingPageFor !== todo.id ? todo.id : null;
       render();
-      el.body.querySelector(".ws-field:last-child .ws-field-label")?.focus();
+    } else if (action === "toggle-attach") {
+      attachPage = !attachPage;
+      render();
+      el.body.querySelector('.td-new input[name="text"]')?.focus();
+    } else if (action === "toggle-done") {
+      showDone = !showDone;
+      render();
+    } else if (action === "clear-done") {
+      data.todos = data.todos.filter(todo => !todo.done);
+      save();
+      render();
+    } else if (action === "profile-choice") {
+      const { key, value } = button.dataset;
+      profile.fields[key] = profile.fields[key] === value ? "" : value;
+      saveProfile();
+      render();
+    } else if (action === "profile-reveal") {
+      const { key } = button.dataset;
+      if (revealed.has(key)) {
+        revealed.delete(key);
+      } else {
+        revealed.add(key);
+      }
+      render();
+    } else if (action === "profile-copy") {
+      const value = String(profile.fields[button.dataset.key] ?? "").trim();
+      if (value) {
+        copyText(value);
+      }
+    } else if (action === "add-field") {
+      profile.custom.push({ id: uid("field"), label: "", value: "" });
+      render();
+      el.body.querySelector(".pf-custom-row:last-child [data-custom-part='label']")?.focus();
     } else if (action === "delete-field") {
       const id = button.closest("[data-field]")?.dataset.field;
-      profile = profile.filter(field => field.id !== id);
+      profile.custom = profile.custom.filter(field => field.id !== id);
       saveProfile();
       render();
     }
   }
 
-  el.body.addEventListener("click", event => {
-    const noteBody = event.target.closest("[data-note-body]");
-    if (noteBody && !event.target.closest("button, a, input")) {
-      startEditing(noteBody);
-      return;
+  function saveFromView(title, content) {
+    try {
+      addNote({ title, content, kind: "note", source: "user" });
+      toast(t("Saved to the notebook"));
+    } catch (error) {
+      toast(error.message);
     }
+  }
+
+  // The one bar sits outside the workspace body, so its buttons need their own handler.
+  el.head.addEventListener("click", event => {
+    const button = event.target.closest("button[data-ws]");
+    if (button) {
+      handleAction(button);
+    }
+  });
+
+  el.body.addEventListener("click", event => {
     const button = event.target.closest("button");
-    if (!button) {
+    if (!button || button.closest(".be")) {
       return;
     }
     if (button.dataset.ws) {
       handleAction(button);
-    } else if (button.dataset.blockAction) {
-      runBlockAction(button, { baseName: baseName(), toast });
     } else if (button.classList.contains("cite")) {
-      host.goToPage(Number(button.dataset.page));
+      goToPdfPage(Number(button.dataset.page));
     }
   });
 
-  el.body.addEventListener("change", event => {
-    if (event.target.dataset.ws === "toggle-todo") {
-      const todo = findTodo(event.target);
-      if (todo) {
-        todo.done = event.target.checked;
-        save();
+  el.body.addEventListener("keydown", event => {
+    const target = event.target;
+    if (target.matches("[data-note-title]")) {
+      if ((event.key === "Enter" && !event.isComposing) || event.key === "ArrowDown") {
+        event.preventDefault();
+        editor?.focusStart();
+      }
+    } else if (target.matches("[data-todo-text]")) {
+      if (event.key === "Enter" && !event.isComposing) {
+        event.preventDefault();
+        target.blur();
+      } else if (event.key === "Escape") {
+        target.blur();
+      }
+    } else if (target.matches("[data-todo-page]")) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitTodoPage(target);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        editingPageFor = null;
         render();
       }
     }
   });
 
   el.body.addEventListener("focusout", event => {
-    if (event.target.matches(".nb-editor")) {
-      finishEditing(event.target);
-    }
-    if (event.target.matches(".nb-editor, .nb-note-title")) {
-      flushPendingRender();
-    }
-  });
-
-  el.body.addEventListener("keydown", event => {
-    if (event.key === "Escape" && event.target.matches(".nb-editor")) {
-      event.preventDefault();
-      event.target.blur();
-    } else if (event.key === "Enter" && !event.isComposing && event.target.matches(".nb-note-title")) {
-      event.preventDefault();
-      const body = event.target.closest("[data-note]")?.querySelector("[data-note-body]");
-      if (body) {
-        startEditing(body);
+    const target = event.target;
+    if (target.matches("[data-todo-text]")) {
+      const todo = findTodo(target);
+      if (todo && !todo.text.trim()) {
+        data.todos = data.todos.filter(entry => entry !== todo);
+        save();
+        window.setTimeout(render, 0);
       }
+    } else if (target.matches("[data-todo-page]") && target.isConnected && editingPageFor) {
+      commitTodoPage(target);
     }
   });
 
   el.body.addEventListener("input", event => {
-    if (event.target.matches(".nb-editor")) {
-      const note = data.notes.find(entry => entry.id === event.target.dataset.noteEditor);
+    const target = event.target;
+    if (target.matches("[data-note-title]")) {
+      const note = findNoteById(selectedNoteId);
       if (note) {
-        note.content = event.target.value.slice(0, MAX_NOTE_LENGTH);
+        note.title = shortTitle(target.textContent);
+        if (Array.from(target.textContent).length > MAX_NOTE_TITLE) {
+          target.textContent = note.title;
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          range.collapse(false);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
         note.updatedAt = Date.now();
+        if (!target.textContent) {
+          target.innerHTML = "";
+        }
+        const navTitle = el.body.querySelector(`.nb-nav-item[data-note-id="${CSS.escape(note.id)}"] .nb-nav-title`);
+        if (navTitle) {
+          navTitle.textContent = note.title || t("Untitled");
+          navTitle.classList.toggle("is-untitled", !note.title);
+        }
         save();
       }
-      autoGrow(event.target);
-      return;
-    }
-    if (event.target.matches(".nb-note-title")) {
-      const note = findNote(event.target);
-      if (note) {
-        note.title = event.target.value.slice(0, 120);
-        note.updatedAt = Date.now();
+    } else if (target.matches("[data-todo-text]")) {
+      const todo = findTodo(target);
+      if (todo) {
+        todo.text = target.textContent.replace(/\s*\n\s*/g, " ").slice(0, 300);
         save();
       }
-      return;
-    }
-    const key = event.target.dataset.wsInput;
-    const field = profile.find(entry => entry.id === event.target.closest("[data-field]")?.dataset.field);
-    if (key && field) {
-      field[key] = event.target.value;
+    } else if (target.dataset.profileKey) {
+      profile.fields[target.dataset.profileKey] = target.dataset.profileKey === "gender" ? target.value.slice(0, 60) : target.value;
       saveProfile();
+      updateProfileSummary();
+    } else if (target.dataset.customPart) {
+      const field = profile.custom.find(entry => entry.id === target.closest("[data-field]")?.dataset.field);
+      if (field) {
+        field[target.dataset.customPart] = target.value;
+        saveProfile();
+      }
     }
   });
 
   el.body.addEventListener("submit", event => {
+    if (event.target.dataset.wsForm === "folder") {
+      event.preventDefault();
+      const name = event.target.elements.folderName.value.trim().slice(0, 80);
+      if (name) {
+        data.folders.push({ id: uid("folder"), name, parentId: null, order: nextOrder(null), createdAt: Date.now() });
+        save();
+      }
+      addMenuOpen = false;
+      folderNameOpen = false;
+      renderNoteNav();
+      return;
+    }
     if (event.target.dataset.wsForm !== "todo") {
       return;
     }
     event.preventDefault();
-    const form = event.target;
-    const text = form.elements.text.value.trim();
+    const input = event.target.elements.text;
+    const text = input.value.trim();
     if (!text) {
-      form.elements.text.focus();
+      input.focus();
       return;
     }
-    addTodos([{ text, due: form.elements.due.value }], { quiet: true });
+    addTodos([{ text, page: attachPage ? host.getCurrentPage?.() : null }], { quiet: true, source: "user" });
     render();
-    el.body.querySelector('.ws-add input[name="text"]')?.focus();
+    el.body.querySelector('.td-new input[name="text"]')?.focus();
+  });
+
+  // Dragging a page or a folder. The target is recomputed on every pointer move but the indicator
+  // only changes when the target really changes, so nothing flickers under the cursor.
+  function clearDropMarks() {
+    for (const marked of el.body.querySelectorAll(".is-drop-before, .is-drop-after, .is-drop-inside, .is-drop-root")) {
+      marked.classList.remove("is-drop-before", "is-drop-after", "is-drop-inside", "is-drop-root");
+    }
+  }
+
+  function stopDragging() {
+    clearTimeout(folderOpenTimer);
+    cancelAnimationFrame(autoScrollFrame);
+    autoScrollFrame = 0;
+    draggedItemId = null;
+    dropProposal = null;
+    dropKey = "";
+    clearDropMarks();
+    el.body.querySelector(".nb")?.classList.remove("is-sorting");
+    for (const item of el.body.querySelectorAll(".is-dragging")) {
+      item.classList.remove("is-dragging");
+    }
+  }
+
+  // Holding a page near the top or bottom edge keeps the list scrolling.
+  function autoScrollNav(clientY) {
+    const scroller = el.body.querySelector(".nb-nav-scroll");
+    cancelAnimationFrame(autoScrollFrame);
+    autoScrollFrame = 0;
+    if (!scroller || !draggedItemId) {
+      return;
+    }
+    const box = scroller.getBoundingClientRect();
+    const speed = clientY < box.top + 40 ? -9 : clientY > box.bottom - 40 ? 9 : 0;
+    if (!speed) {
+      return;
+    }
+    const step = () => {
+      scroller.scrollTop += speed;
+      autoScrollFrame = requestAnimationFrame(step);
+    };
+    autoScrollFrame = requestAnimationFrame(step);
+  }
+
+  el.body.addEventListener("dragstart", event => {
+    const item = event.target.closest(".nb-entry [draggable='true']");
+    if (!item) return;
+    draggedItemId = item.closest(".nb-entry")?.dataset.outlineId;
+    if (!draggedItemId) return;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", draggedItemId);
+    // Carry the row itself, held where it was picked up, instead of a snapshot of the whole entry.
+    event.dataTransfer.setDragImage(item, 14, item.offsetHeight / 2);
+    dropKey = "";
+    item.classList.add("is-dragging");
+    el.body.querySelector(".nb")?.classList.add("is-sorting");
+  });
+
+  el.body.addEventListener("dragover", event => {
+    if (!draggedItemId) return;
+    const entry = event.target.closest(".nb-entry");
+    const root = event.target.closest("[data-outline-root]");
+    if (!entry && !root) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    autoScrollNav(event.clientY);
+
+    let next = null;
+    let key = "none";
+    let mark = null;
+    if (!entry) {
+      next = { parentId: null, beforeId: null };
+      key = "root";
+      mark = { element: root, className: "is-drop-root" };
+    } else {
+      const item = outlineItem(entry.dataset.outlineId);
+      const row = entry.querySelector(":scope > .nb-nav-item, :scope > .nb-folder-head");
+      const rect = row?.getBoundingClientRect();
+      const fraction = rect ? (event.clientY - rect.top) / rect.height : 0.5;
+      if (item && item.id !== draggedItemId) {
+        if (data.folders.includes(item) && fraction >= 0.28 && fraction <= 0.72) {
+          next = { parentId: item.id, beforeId: null };
+          key = `inside:${item.id}`;
+          mark = { element: entry, className: "is-drop-inside" };
+        } else {
+          const parentId = itemParent(item);
+          const siblings = orderedChildren(parentId).filter(sibling => sibling.id !== draggedItemId);
+          const index = siblings.findIndex(sibling => sibling.id === item.id);
+          const before = fraction < 0.5;
+          next = { parentId, beforeId: before ? item.id : siblings[index + 1]?.id || null };
+          key = `${before ? "before" : "after"}:${item.id}`;
+          mark = { element: entry, className: before ? "is-drop-before" : "is-drop-after" };
+        }
+      }
+    }
+    if (key === dropKey) {
+      return;
+    }
+    dropKey = key;
+    dropProposal = next;
+    clearDropMarks();
+    clearTimeout(folderOpenTimer);
+    mark?.element.classList.add(mark.className);
+    // Hold a page over a closed folder and it opens, so it can be dropped straight inside.
+    if (next?.parentId && collapsedFolders.has(next.parentId)) {
+      const folderId = next.parentId;
+      folderOpenTimer = window.setTimeout(() => {
+        collapsedFolders.delete(folderId);
+        renderNoteNav();
+        el.body.querySelector(`.nb-entry[data-outline-id="${CSS.escape(folderId)}"]`)?.classList.add("is-drop-inside");
+      }, 600);
+    }
+  });
+
+  el.body.addEventListener("drop", event => {
+    if (!dropProposal || !draggedItemId) return;
+    event.preventDefault();
+    const movedId = draggedItemId;
+    const { parentId, beforeId } = dropProposal;
+    stopDragging();
+    if (!moveOutlineItem(movedId, parentId, beforeId)) {
+      return;
+    }
+    // A short flash on the row that landed, so the eye can follow where it went.
+    const entry = el.body.querySelector(`.nb-entry[data-outline-id="${CSS.escape(movedId)}"]`);
+    const landed = entry?.querySelector(":scope > .nb-nav-item, :scope > .nb-folder-head");
+    landed?.classList.add("is-just-moved");
+    window.setTimeout(() => landed?.classList.remove("is-just-moved"), 700);
+  });
+
+  el.body.addEventListener("dragend", stopDragging);
+
+  document.addEventListener("pointerdown", event => {
+    if (!addMenuOpen || !isShown) return;
+    if (event.target.closest(".nb-add-popover, [data-ws='toggle-add-menu']")) return;
+    addMenuOpen = false;
+    folderNameOpen = false;
+    renderNoteNav();
+  });
+  el.body.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || !addMenuOpen) return;
+    event.preventDefault();
+    addMenuOpen = false;
+    folderNameOpen = false;
+    renderNoteNav();
+  });
+
+  attachSortable(el.body, {
+    items: ".td-item",
+    handle: "[data-todo-grip]",
+    onMove: (item, before) => {
+      const moved = data.todos.find(todo => todo.id === item.dataset.todo);
+      if (!moved) {
+        return;
+      }
+      const rest = data.todos.filter(todo => todo !== moved);
+      const target = before ? rest.findIndex(todo => todo.id === before.dataset.todo) : -1;
+      if (target < 0) {
+        const lastOfGroup = rest.map(todo => todo.done).lastIndexOf(moved.done);
+        rest.splice(lastOfGroup + 1, 0, moved);
+      } else {
+        rest.splice(target, 0, moved);
+      }
+      data.todos = rest;
+      save();
+      render();
+    }
   });
 
   el.tabs.addEventListener("click", event => {
     const button = event.target.closest("[data-workspace-tab]");
     if (button) {
-      editingId = null;
       view = null;
+      editingPageFor = null;
       setOpen(true, button.dataset.workspaceTab);
     }
   });
@@ -725,7 +1292,7 @@ export function createWorkspace({ host, toast, onToggle }) {
     }
   }
 
-  function addNote({ title, content, kind, page } = {}) {
+  function addNote({ title, content, kind, page, source = "ai" } = {}, { select = false } = {}) {
     requireDocument();
     const text = String(content ?? "").trim();
     if (!text) {
@@ -734,33 +1301,43 @@ export function createWorkspace({ host, toast, onToggle }) {
     const note = {
       id: uid("note"),
       kind: KIND_LABELS[kind] ? kind : "note",
-      title: String(title ?? "").trim().slice(0, 120) || t("Untitled"),
-      content: text.slice(0, MAX_NOTE_LENGTH),
+      title: shortTitle(String(title ?? "").trim()) || t("Untitled"),
+      blocks: markdownToBlocks(text.slice(0, MAX_NOTE_LENGTH)),
       page: pageNumber(page),
+      order: -1,
+      source: source === "user" ? "user" : "ai",
       createdAt: Date.now()
     };
     data.notes = [...data.notes, note].slice(-MAX_NOTES);
+    initializeOutline();
     save();
+    // Show the new page, unless the reader is in the middle of writing on another one.
+    if (select || !(isShown && tab === "notes" && editor && isEditingNote())) {
+      selectedNoteId = note.id;
+    }
     notify("notes");
     return note;
   }
 
-  function addTodos(items, { quiet = false } = {}) {
+  function addTodos(items, { quiet = false, source = "ai" } = {}) {
     requireDocument();
     const added = (Array.isArray(items) ? items : [])
       .map(item => ({
         id: uid("todo"),
         text: String(item?.text ?? "").trim().slice(0, 300),
-        due: isCalendarDate(item?.due) ? item.due : "",
         page: pageNumber(item?.page),
         done: false,
+        source,
         createdAt: Date.now()
       }))
       .filter(item => item.text);
     if (!added.length) {
       throw new Error("Pass at least one to-do with text.");
     }
-    data.todos = [...data.todos, ...added].slice(-MAX_TODOS);
+    const firstDone = data.todos.findIndex(todo => todo.done);
+    const todos = data.todos.slice();
+    todos.splice(firstDone < 0 ? todos.length : firstDone, 0, ...added);
+    data.todos = todos.slice(-MAX_TODOS);
     save();
     if (!quiet) {
       notify("todos");
@@ -771,51 +1348,48 @@ export function createWorkspace({ host, toast, onToggle }) {
   function snapshot() {
     return {
       notes: data.notes.map(({ id, kind, title, page }) => ({ id, kind, title, page })),
-      todos: data.todos.map(({ id, text, due, page, done }) => ({ id, text, due, page, done }))
+      todos: data.todos.map(({ id, text, page, done }) => ({ id, text, page, done }))
     };
   }
 
   async function getProfile() {
     await profileReady;
-    return profile
-      .filter(field => field.label.trim() && field.value.trim())
-      .map(({ label, value }) => ({ label, value }));
+    return profileEntries(profile);
   }
 
   async function saveProfileFields(fields) {
     await profileReady;
     let count = 0;
     for (const entry of Array.isArray(fields) ? fields : []) {
-      const label = String(entry?.label ?? "").trim().slice(0, 80);
-      const value = String(entry?.value ?? "").trim().slice(0, 500);
-      if (!label || !value) {
-        continue;
+      if (String(entry?.label ?? "").trim() && String(entry?.value ?? "").trim()) {
+        applyDetail(profile, entry.label, entry.value);
+        count += 1;
       }
-      const existing = profile.find(field => field.label.trim().toLowerCase() === label.toLowerCase());
-      if (existing) {
-        existing.value = value;
-      } else {
-        profile.push({ id: uid("field"), label, value });
-      }
-      count += 1;
     }
     if (!count) {
       throw new Error("Pass at least one field with a label and a value.");
     }
+    clearTimeout(profileTimer);
     setItem(PROFILE_KEY, profile);
     notify("profile");
     return count;
   }
 
   function markupChanged() {
-    if (isShown && tab === "notes") {
-      render();
+    syncHighlights();
+    if (!isShown || tab !== "notes") {
+      return;
+    }
+    syncHighlights();
+    renderNoteNav();
+    if (selectedNoteId === HIGHLIGHTS) {
+      renderNotePage();
     }
   }
 
   return {
-    addNote,
-    addTodos,
+    addNote: args => addNote(args),
+    addTodos: items => addTodos(items),
     close: () => setOpen(false),
     flush,
     getProfile,

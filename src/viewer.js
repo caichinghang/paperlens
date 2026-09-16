@@ -133,6 +133,7 @@ const workspace = createWorkspace({
   toast,
   host: {
     goToPage: number => scrollToPage(number),
+    getCurrentPage: () => state.currentPage,
     listHighlights: () => (state.doc ? markup.listAnnotations(0) : [])
       .filter(item => item.text && ["highlight", "underline", "strike"].includes(item.type))
       .map(item => ({ page: item.page, text: item.text, color: item.color }))
@@ -329,7 +330,7 @@ function showEmptyState(title, message) {
   elements.outlineList.innerHTML = `<div class="sidebar-empty">${t("No table of contents")}</div>`;
   elements.documentTitle.textContent = "PaperLens";
   elements.documentUrl.textContent = t("No document loaded");
-  elements.pageInput.value = "–";
+  elements.pageInput.value = "";
   elements.pageCount.textContent = t("of –");
   elements.downloadPdf.disabled = true;
   elements.appShell.classList.add("no-document");
@@ -2565,7 +2566,9 @@ function showSidebarPanel(name) {
 // ---------- Panel resizing ----------
 
 const SIDEBAR_WIDTH_DEFAULT = 224;
-const AI_WIDTH_DEFAULT = 380;
+// Matches --ai-split-width, so opening the workspace doesn't resize the assistant.
+const AI_WIDTH_DEFAULT = 440;
+const AI_SPLIT_DEFAULT = 440;
 const AI_TOP_DEFAULT = 8;
 const SIDEBAR_WIDTH_BOUNDS = { min: () => 180, max: () => Math.min(480, window.innerWidth * 0.5) };
 const AI_WIDTH_BOUNDS = { min: () => 300, max: () => Math.min(720, window.innerWidth * 0.6) };
@@ -2603,18 +2606,19 @@ function initResizeHandle(handle, { axis, bounds, cssVar, storageKey, invert = f
     const delta = (client - startClient) * (invert ? -1 : 1);
     let next = clampToBounds(startValue + delta, bounds);
 
-    const target = typeof snapTo === "function" ? snapTo() : snapTo;
-    const isSnapped = target != null && Math.abs(next - target) <= SNAP_ZONE;
-    if (isSnapped) {
-      next = target;
+    // Every handle sticks the same way: land within SNAP_ZONE of one of its presets and the drag
+    // locks onto it. The stickiness is the whole feedback — nothing lights up.
+    const targets = typeof snapTo === "function" ? snapTo() : snapTo;
+    const nearest = (Array.isArray(targets) ? targets : [targets])
+      .filter(value => value != null)
+      .find(value => Math.abs(next - value) <= SNAP_ZONE);
+    if (nearest != null) {
+      next = nearest;
     }
-    if (isSnapped && !snapped) {
-      handle.classList.remove("is-snapped");
-      void handle.offsetWidth; // restart the flash animation even if it just played
-      handle.classList.add("is-snapped");
+    if (nearest != null && !snapped) {
       navigator.vibrate?.(8);
     }
-    snapped = isSnapped;
+    snapped = nearest != null;
 
     setCssVarPx(cssVar, next);
   };
@@ -2669,14 +2673,15 @@ initResizeHandle(elements.aiResizerY, {
   snapTo: AI_TOP_DEFAULT
 });
 
-// The bar between the workspace and the assistant; it snaps to an even split, and a double-click sets one.
+// The bar between the workspace and the assistant sticks at the assistant's default width and at an
+// even split; a double-click sets the even split outright.
 initResizeHandle(elements.workspaceSplitter, {
   axis: "x",
   invert: true,
   bounds: AI_SPLIT_BOUNDS,
   cssVar: "--ai-split-width",
   storageKey: "aiSplitWidth",
-  snapTo: halfSplit
+  snapTo: () => [AI_SPLIT_DEFAULT, halfSplit()]
 });
 elements.workspaceSplitter.addEventListener("dblclick", () => {
   setCssVarPx("--ai-split-width", clampToBounds(halfSplit(), AI_SPLIT_BOUNDS));
@@ -2804,7 +2809,7 @@ elements.pageInput.addEventListener("keydown", event => {
 elements.pagePrev.addEventListener("click", () => scrollToPage(state.currentPage - 1));
 elements.pageNext.addEventListener("click", () => scrollToPage(state.currentPage + 1));
 elements.pageInput.addEventListener("blur", () => {
-  elements.pageInput.value = state.pages.length ? String(state.currentPage) : "–";
+  elements.pageInput.value = state.pages.length ? String(state.currentPage) : "";
 });
 
 elements.searchToggle.addEventListener("click", () => {

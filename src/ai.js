@@ -855,6 +855,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     return MODEL_PRESETS.find(preset => preset.id === settings.model)?.vision === false ? "text" : "image";
   }
 
+  let settingsTimer = 0;
+
   async function saveSettings(patch) {
     settings = { ...settings, ...patch };
     await setItem(SETTINGS_KEY, settings);
@@ -1119,6 +1121,11 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   function showSettings(visible) {
+    // Closing an open sheet flushes whatever the debounce still holds; never write from a sheet
+    // that was never filled in.
+    if (!visible && !el.settings.hidden) {
+      commitSettings();
+    }
     closeMenus();
     el.settings.hidden = !visible;
     el.conversation.hidden = visible;
@@ -2688,6 +2695,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     const button = event.target.closest("[data-format]");
     if (button) {
       setPageFormatChoice(button.dataset.format);
+      commitSettings();
     }
   });
   // General options apply as soon as they're picked. A new language needs a reload (chats and
@@ -2699,6 +2707,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     }
     setLanguageChoice(button.dataset.language);
     if (setLanguagePreference(button.dataset.language)) {
+      // The reload is about to drop anything half-typed, so write it first.
+      await commitSettings();
       await flushChats();
       try {
         sessionStorage.setItem(REOPEN_SETTINGS_KEY, "1");
@@ -2778,8 +2788,11 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     }
   });
 
-  el.settings.addEventListener("submit", async event => {
-    event.preventDefault();
+  // Settings keep themselves: typing lands after a short pause, switches and choices at once, and
+  // anything still pending is written before the sheet closes or the page reloads.
+  async function commitSettings() {
+    clearTimeout(settingsTimer);
+    settingsTimer = 0;
     await saveSettings({
       apiKey: el.key.value.trim(),
       model: el.model.value.trim() || DEFAULT_SETTINGS.model,
@@ -2789,10 +2802,18 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       webSearch: el.webSearch.checked,
       tavilyKey: el.tavilyKey.value.trim()
     });
-    showSettings(false);
     renderMessages();
-    toast(settings.apiKey ? t("AI settings saved") : t("API key removed"));
-    el.input.focus();
+  }
+
+  el.settings.addEventListener("input", () => {
+    clearTimeout(settingsTimer);
+    settingsTimer = window.setTimeout(commitSettings, 500);
+  });
+  el.settings.addEventListener("change", () => commitSettings());
+  // Enter in a field would submit the form; there is nothing left to submit.
+  el.settings.addEventListener("submit", event => {
+    event.preventDefault();
+    commitSettings();
   });
 
   el.form.addEventListener("submit", event => {

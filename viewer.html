@@ -182,11 +182,8 @@
             <span class="flyout-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg>
             </span>
-            <label class="page-field">
-              <span>Page</span>
-              <input id="pageInput" type="text" inputmode="numeric" value="–" aria-label="Page number">
-              <span id="pageCount">of –</span>
-            </label>
+            <input id="pageInput" class="flyout-input" type="text" inputmode="numeric" placeholder="Go to page" aria-label="Page number" autocomplete="off">
+            <span id="pageCount" class="search-count">of –</span>
             <button id="pagePrev" class="flyout-button" type="button" title="Previous page" aria-label="Previous page">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"></path></svg>
             </button>
@@ -261,15 +258,22 @@
       <!-- Workspace beside the assistant: notebook, to-dos, profile -->
       <aside id="workspace" class="workspace" aria-label="Workspace">
         <div class="panel-inner workspace-inner">
-          <header class="workspace-header">
+          <!-- One bar for the whole workspace: sidebar toggle, tabs, then page and panel actions. -->
+          <header id="workspaceHead" class="workspace-header">
             <div id="workspaceTabs" class="workspace-tabs" role="tablist" aria-label="Workspace">
               <button type="button" role="tab" data-workspace-tab="notes" class="is-active" aria-selected="true">Notebook</button>
-              <button type="button" role="tab" data-workspace-tab="todos" aria-selected="false">To-do</button>
               <button type="button" role="tab" data-workspace-tab="profile" aria-selected="false">Profile</button>
             </div>
+            <span class="workspace-head-spacer"></span>
             <div class="workspace-actions">
+              <button id="workspaceCopy" class="panel-icon-button" type="button" data-ws="copy-note" title="Copy as Markdown" aria-label="Copy as Markdown">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="13" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path></svg>
+              </button>
               <button id="workspaceExport" class="panel-icon-button" type="button" title="Export" aria-label="Export">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M21 15v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"></path></svg>
+              </button>
+              <button id="workspaceDelete" class="panel-icon-button" type="button" data-ws="delete-note" title="Delete page" aria-label="Delete page">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
               </button>
               <button id="workspaceClose" class="panel-icon-button" type="button" title="Close workspace" aria-label="Close workspace">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
@@ -411,9 +415,6 @@
               </section>
             </div>
 
-            <div class="ai-settings-actions">
-              <button class="text-button primary" type="submit">Save</button>
-            </div>
           </form>
 
           <div id="aiConversation" class="ai-conversation">
