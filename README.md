@@ -1,105 +1,238 @@
+<div align="center">
+
+<img src="icons/icon128.png" width="88" alt="PaperLens icon">
+
 # PaperLens
 
-A calm PDF reader for Chrome with an AI that can read the page with you, explain what you point at, fill in forms, translate in place, quiz you, and edit the document, all without leaving the tab.
+**A PDF reader for Chrome with an AI agent that works on the page with you.**
 
-No build step, no account. Bring a [DeepSeek](https://platform.deepseek.com) API key (or any OpenAI-compatible endpoint) and load the folder as an unpacked extension.
+English · [简体中文](README.zh-CN.md)
 
-![PaperLens reading a paper](docs/screenshots/hero.png)
+</div>
 
-## Why it's different
+![PaperLens with every panel collapsed: just the paper, the corner buttons and the tool dock](docs/screenshots/en/hero.png)
 
-Most PDF tools with an AI bolt a chatbot onto the side. PaperLens puts the AI on the page.
+## Contents
 
-### Point at anything, get it explained
+- [Introduction](#introduction)
+- [Highlights](#highlights)
+  - [1. Hold Option to explain anything](#1-hold-option-to-explain-anything)
+  - [2. Figures and references where they're mentioned](#2-figures-and-references-where-theyre-mentioned)
+  - [3. An agent that can work on the PDF](#3-an-agent-that-can-work-on-the-pdf)
+  - [4. Scenarios](#4-scenarios)
+  - [5. Translate in place](#5-translate-in-place)
+  - [6. A notebook beside every document](#6-a-notebook-beside-every-document)
+- [More features](#more-features)
+- [Install](#install)
+- [Privacy](#privacy)
+- [Built with](#built-with)
+- [License](#license)
 
-Hold **⌥ Option** and move the pointer over a formula, chart, table or dense paragraph. The area lights up, and after a moment a small bubble explains just that part in plain words. It sends a crop of the region rather than the whole page, so it's fast and cheap. **Ask more in chat** carries the region into the conversation.
+## Introduction
 
-![Hold Option and point at a paragraph to get it explained in a bubble](docs/screenshots/explain.png)
+PaperLens opens web and local PDFs in its own viewer: a clean reader with markup, search and live form fields, plus an AI assistant that sits beside the page.
 
-### References that pop out
+The assistant doesn't just answer questions about the PDF. It can look at pages, search the document and the web, fill in forms, highlight and annotate, translate a page in place, and save notes to a notebook for that document. You pick a **scenario** — study, research, contracts, forms or reports — and it leans on the skills that fit.
 
-"See Figure 2", "Table 3", "Section 4.1", "Eq. (5)" and "[12]" become clickable. A floating card shows the figure crop, the table, the section text or the reference entry right where you are, so you never lose your place. No AI call needed for this one.
+There's no PaperLens account and no build step. Load the folder into Chrome and add your own DeepSeek key, or point it at any OpenAI-compatible endpoint. The interface is available in English and Chinese.
 
-![Clicking "Figure 1" opens a card with the figure from page 2](docs/screenshots/reference.png)
+## Highlights
 
-### The AI edits the PDF, and you can edit what it did
+### 1. Hold Option to explain anything
 
-The assistant works in steps with real tools. It can open pages, zoom into regions, search the whole document, fill real form fields, add text boxes, highlight, draw tick marks, and check its own work. Every step shows up in the reply with an **Undo** button.
+Hold **⌥ Option** (**Alt** on Windows) and point at a paragraph, formula, table or chart. PaperLens outlines the region under the pointer, sends just that crop to the model, and shows a short explanation in a bubble on the page.
 
-Form fields are live inputs, so you can type into them yourself or fix what the AI typed. Any text box the AI adds can be clicked, edited, moved or recoloured.
+- No screenshots, no copying, no describing where you're looking.
+- Only the crop is sent, so it's quick and cheap.
+- **Ask more in chat** carries the region into the conversation for follow-up questions.
 
-**Review this form** checks a form before you submit it: empty required fields, wrong date formats, missing signatures and contradictory ticks, each with a jump link to the spot.
+![Holding Option over the chart: the whole figure is outlined and explained in a bubble](docs/screenshots/en/explain.png)
 
-![Form review: a checklist with jump links, next to the live form fields](docs/screenshots/review.png)
+### 2. Figures and references where they're mentioned
 
-### Translate in place
+References in the text become clickable: **Figure 2**, **Table 3**, **Section 4.1**, **Eq. (5)** and citations like **[12]**. Click one and a card opens beside the sentence you're reading, showing the figure or table cropped from its page, the section text, or the reference entry.
 
-Translation goes over the page as a layer that keeps the original layout. A pill at the bottom left switches it on and off, and hidden layers are left out of the download.
+- Works straight from the PDF — no AI call.
+- **Go there** jumps to the original; **Explain** asks the assistant about it.
 
-![Page 1 translated into Chinese as a toggleable layer](docs/screenshots/translate.png)
+![Clicking "Figure 1" in the abstract opens a card with the chart from page 2](docs/screenshots/en/reference.png)
 
-### Study with it
+### 3. An agent that can work on the PDF
 
-Study skills turn the document and your own highlights into notes, key-term tables, flashcards (with Anki export) and quizzes that ask one question at a time and grade your answers with page citations.
+The assistant runs as an agent with real tools. It decides which pages to look at, works in steps, and checks its own work. Each step appears in the reply as a collapsible timeline, and every change to the PDF can be undone.
 
-![Quiz me: one question at a time, graded with a citation](docs/screenshots/quiz.png)
-
-### Redact before sharing
-
-Ask it to find personal information. It proposes boxes you approve one by one or all at once. Approved boxes turn black, and the download writes an image-only PDF so the text underneath is really gone, not just covered.
-
-![Proposed redactions on a form, approved](docs/screenshots/redact.png)
-
-### Skills
-
-Type `/` in the composer to pick a skill: brief, explain, quiz, flashcards, key facts, redact and more, each with a one-line description. The skill appears as a chip above the composer next to any attached pages; add details if you like and send.
-
-If a PDF has no table of contents, the outline tab offers **Ask AI to build one** and fills the sidebar from the headings.
-
-![An AI-built table of contents in the sidebar](docs/screenshots/outline.png)
-
-## Everything else
-
-| Area | What you get |
+| It can… | Tools |
 | --- | --- |
-| Opening | Web PDFs open in the viewer automatically; drop a local file anywhere, or use the folder button |
-| Reading | Smooth zoom (pinch, ⌘ scroll, fit width / page), thumbnails, table of contents, clickable links, light and dark themes, resizable panels |
-| Search | ⌘F with every match highlighted, Enter / Shift-Enter to step through |
-| Markup | Highlight, underline, strikethrough, pen, shapes, arrows, text boxes, a reusable signature, undo / redo. Saved per document and written into the PDF on download as standard annotations |
-| Selection menu | Select text for Highlight, Underline, Strike, Copy, Explain, Translate and Ask AI |
-| Chat | Attach pages with `@3` or `@2-4`, quote a passage, dictate with the mic, click any `p. 3` citation to jump. One continuous history across documents and reloads |
-| Export | Download writes markup and form values into the PDF; flashcards export as TSV, tables as CSV |
+| **Read the document** | View pages, zoom into a region, search the whole text, read page layout, find exact text boxes, read the contents |
+| **Search the web** | Web search (Tavily, Bing or DuckDuckGo) and read a result page as clean text |
+| **Mark up the PDF** | Highlight text, add text boxes, draw shapes and tick marks, add a translation layer, list and delete markup |
+| **Work with forms** | List and fill real form fields, propose a signature, propose redactions |
+| **Write to your workspace** | Save notes to the notebook, add actions to its To-do page, read and save your profile (only after you agree) |
+| **Do the practical bits** | Calculate instead of guessing, build a checklist of findings, export deadlines to your calendar (`.ics`), set the sidebar contents |
+
+Skills are ready-made tasks that put these tools together. Type `/` in the composer to pick one. A few that show what the agent can do:
+
+| Skill | What happens |
+| --- | --- |
+| **Fill form** | Reads your saved profile, fills the real fields, and asks only for what's missing |
+| **Sign** | Finds the signature and date lines, proposes your saved signature and adds today's date |
+| **Review form** | Checks for empty required fields, wrong date formats, missing signatures and contradictory ticks |
+| **Find citation** | Looks up a cited work in the reference list, finds it online, and returns a BibTeX entry |
+| **Highlights** | Collects your highlights by topic into notes, with page links, quiz questions and flashcards |
+| **Risk check** | Reads every page of a contract, ranks risky clauses, and adds the serious ones to your to-dos |
+| **Deadlines** | Pulls out dates and notice periods as to-dos and exports them to your calendar |
+| **Redact** | Proposes black boxes over names, ID numbers, contacts and signatures for you to approve |
+
+The full list is under [More features](#all-skills).
+
+![Fill form in the Forms scenario: fields filled from the profile, consent ticked, the signature approved and the date added](docs/screenshots/en/forms.png)
+
+### 4. Scenarios
+
+A scenario tells the assistant what kind of work you're doing. Pick one from the top of the `/` menu and it stays with that chat.
+
+Each scenario adds its own guidance to the system prompt and a set of **preferred skills**. The assistant picks among those by itself — you don't have to name them — and they appear as shortcuts above the composer. Every other skill and tool stays available.
+
+| Scenario | For | Preferred skills | How the assistant behaves |
+| --- | --- | --- | --- |
+| **Study** | Textbooks, lecture notes, exercises | Explain, Notes, Flashcards, Quiz, Step by step, Revision plan, Glossary | Explains step by step in plain words, checks understanding with questions, saves study material to the notebook, adds revision tasks |
+| **Research** | Papers and technical reports | Paper card, Critique, Find citation, Brief, Glossary | Separates what the authors claim from what the evidence shows, keeps exact numbers with pages, searches the web for cited work |
+| **Contracts** | Agreements and terms | Risk check, Plain terms, Deadlines, Suggest changes, Key facts, Redact | Quotes exact wording with its page, flags risky terms as a checklist, puts obligations and deadlines on the to-do list, suggests a lawyer for serious issues |
+| **Forms** | Applications and paperwork | Fill form, Review form, Documents needed, Sign, Redact | Reads your profile before asking for personal details, asks before saving anything new, lists documents to prepare |
+| **Reports** | Financial and business reports | Key figures, Check numbers, One-page summary, CSV, Key facts | Quotes figures with unit, period and page, uses the calculator for every sum and percentage, explains charts by trend and outliers |
+
+![The / menu with the five scenarios above the skills](docs/screenshots/en/scenarios.png)
+
+### 5. Translate in place
+
+The **Translate** skill reads the page layout and lays the translation over the original, block by block, as a separate layer. Headings, paragraphs and positions stay where they were, so you read the translated page rather than a wall of text in the chat.
+
+- Switch the layer on and off from the page; edit or delete it like any markup.
+- Hidden layers are left out when you download the PDF.
+
+![A Chinese paper with an English translation layer laid over page 1](docs/screenshots/en/translate.png)
+
+### 6. A notebook beside every document
+
+Open the workspace next to the chat and each PDF gets its own notebook. The assistant saves notes, glossaries, flashcards, quizzes, paper cards, key-figure tables and plans there instead of leaving them in the chat history.
+
+- **Edit in place** with a block editor: `/` for blocks, Markdown shortcuts, a format bar, tables, flashcards and clickable page citations.
+- **Organise** pages into folders and drag to reorder. Copy a page as Markdown or export the notebook.
+- **To-do page**: actions the assistant finds (deadlines, documents to prepare, revision tasks) land as checkboxes on the notebook's To-do page, each linked to its page. Tick, edit or reorder them like any other block.
+- **Profile** keeps your details for forms: names, date of birth, nationality, ID and passport numbers, contact details and your own fields. It's stored locally, and the assistant only saves to it after you say yes.
+
+![Study notes the assistant saved to the notebook, with a table and page citations, next to the chat](docs/screenshots/en/workspace.png)
+
+## More features
+
+### All skills
+
+| Group | Skills |
+| --- | --- |
+| **Read and understand** | Brief · Explain · Summarize · Define · Contents · Translate |
+| **Study** | Highlights · Notes · Quiz · Glossary · Flashcards · Step by step · Revision plan |
+| **Research** | Paper card · Critique · Find citation |
+| **Contracts** | Risk check · Plain terms · Suggest changes · Deadlines · Key facts |
+| **Forms** | Fill form · Review form · Documents needed · Sign · Redact |
+| **Reports** | Key figures · Check numbers · One-page summary · CSV |
+
+### Reader and tools
+
+| Area | What's included |
+| --- | --- |
+| **Opening PDFs** | PDF links open in PaperLens automatically; local files can be opened or dropped onto the window |
+| **Navigation** | Thumbnails, PDF bookmarks, AI-built contents for PDFs without bookmarks, go to page, clickable links |
+| **Zoom** | Fit width, fit page and smooth zoom with the trackpad or Ctrl + scroll |
+| **Search** | Search the whole document with every match highlighted |
+| **Selection menu** | Highlight, underline, strike through, copy, explain, translate or ask about selected text |
+| **Markup** | Pen, highlighter, underline, strike-through, rectangles, ellipses, lines, arrows and text boxes in any colour and width |
+| **Forms and signatures** | Real form fields you can type into; draw and save a signature |
+| **Chat context** | Attach `@3` or `@2-4` for pages, selected text, or a region you draw |
+| **Chat** | Multiple saved chats, page citations you can click, retry, copy, share and dictation |
+| **Export** | Annotated PDF, image-only redacted PDF, Markdown notes, flashcards as TSV, tables as CSV, BibTeX and `.ics` calendars |
+| **Settings** | English or Chinese, light or dark, model and thinking level, document edits and web search on or off |
 
 ## Install
 
+PaperLens isn't on the Chrome Web Store yet. Load it as an unpacked extension:
+
 1. Download or clone this repository.
-2. Open `chrome://extensions` and turn on **Developer mode** (top right).
-3. Click **Load unpacked** and choose the repository folder.
-4. Open any PDF link, or click the extension icon to open the viewer and drop a file in.
 
-To use the AI:
+   ```bash
+   git clone https://github.com/caichinghang/paperlens.git
+   ```
 
-1. Open the assistant with the button at the top right of the viewer.
-2. Click **Add your DeepSeek API key**, paste a key from [platform.deepseek.com](https://platform.deepseek.com), and save.
-3. The default model is `deepseek-flash`, which reads page images and uses tools. Any OpenAI-compatible model works: set the base URL and model ID in Settings, and choose **Text only** under "Send pages as" for models that can't read images.
+2. Open `chrome://extensions` in Chrome.
+3. Turn on **Developer mode** in the top-right corner.
+4. Click **Load unpacked** and choose the repository folder.
+5. Open any PDF link, or click the PaperLens icon in the toolbar and open a local file.
 
-After changing the code, click **Reload** on the extension's card in `chrome://extensions`.
+### Connect the assistant
+
+Open the assistant and click **API Settings**.
+
+| Setting | Default | Notes |
+| --- | --- | --- |
+| API key | — | Get one from [DeepSeek](https://platform.deepseek.com) |
+| Base URL | `https://api.deepseek.com` | Any OpenAI-compatible endpoint works |
+| Model | `deepseek-flash` | Use a model with tool calling for agent features |
+| Page format | Auto | Choose **Text only** for models that can't read images |
+| Thinking | High | Off, Low, High or Max |
+| Document edits | On | Turn off to stop the assistant changing the PDF |
+| Web search | On | Add a Tavily key for better results; otherwise Bing, then DuckDuckGo |
+
+To update, pull the latest code and click **Reload** on the PaperLens card in `chrome://extensions`.
 
 ## Privacy
 
-The API key stays in your browser's extension storage and is only sent to the base URL you configure. Your messages, the pages you attach (as images or text) and hover-explain crops go to that API. Nothing else leaves the browser. Markup, form values and chat history are stored locally.
-
-## Limitations
-
-- Password-protected PDFs aren't supported yet.
-- Scanned PDFs without a text layer can't be searched, and the AI can't read them (no OCR).
-- Redacted downloads are image-only (150 dpi) by design, so their text can't be selected.
-- Reference pop-outs and the explain lens find figures and paragraphs with simple layout rules; unusual layouts can pick the wrong area. Use **Go there** or attach the page instead.
+- **No account, no analytics.** PaperLens has no server of its own.
+- **Stored locally.** API keys, chats, notebooks, profile, markup, form values, signatures and settings stay in Chrome's extension storage.
+- **Only what's needed is sent.** Each request sends the messages and the page text or images for that request to the AI provider you set. Option explanations send only the cropped region.
+- **Web search is visible.** Search queries go to Tavily, Bing or DuckDuckGo, and a result page may be fetched to read it. You can turn web search off.
+- **Your profile is yours.** The assistant asks before saving personal details, and you can edit or clear them at any time.
+- **Redactions are real.** A redacted download is flattened to images so the covered text is removed, not just hidden.
 
 ## Built with
 
-[PDF.js](https://mozilla.github.io/pdf.js/) (vendored, Apache 2.0) for rendering, text, forms and annotation writing. Everything else is plain HTML, CSS and JavaScript modules with no dependencies.
+PaperLens is plain HTML, CSS and JavaScript modules. There's no framework, no bundler and no `npm install`.
+
+| Layer | What it uses |
+| --- | --- |
+| **Extension** | Chrome Manifest V3. A service worker (`background.js`) and content script send PDF links to `viewer.html` |
+| **PDF engine** | [PDF.js](https://mozilla.github.io/pdf.js/), vendored in `vendor/pdfjs`, for rendering, the text layer, form fields and saving annotations |
+| **AI** | Any OpenAI-compatible Chat Completions API with function calling, streamed; DeepSeek by default |
+| **Agent** | A step loop in `ai.js` over the tools in `agent-tools.js`. Skills and scenarios are prompts layered onto the system prompt |
+| **Storage** | `chrome.storage.local`, falling back to `localStorage` outside the extension |
+
+<details>
+<summary>Source map</summary>
+
+| File | Responsibility |
+| --- | --- |
+| `src/viewer.js` | Viewer shell: loading, rendering, navigation, zoom, search, download |
+| `src/ai.js` | Assistant panel, chats, skills, scenarios, Markdown rendering, agent loop |
+| `src/agent-tools.js` | Tool definitions and handlers the model can call |
+| `src/lens.js` | Hold-Option region detection and explanation bubble |
+| `src/references.js` | Figure, table, section, equation and citation pop-out cards |
+| `src/markup.js` | Drawing, highlights, text boxes, layers, signatures, PDF export |
+| `src/workspace.js` | Notebook (including the To-do page) and profile panel |
+| `src/editor.js`, `src/blocks.js` | Block editor for notebook pages and Markdown conversion |
+| `src/profile.js`, `src/todos.js` | Profile fields for forms; to-do items on the notebook's To-do page |
+| `src/web.js` | Web search and readable-page extraction |
+| `src/rules.js` | Blank lines on a page, so dates and signatures sit on them |
+| `src/pdf-writer.js`, `src/ics.js` | Image-only PDF for redactions; calendar export |
+| `src/i18n.js` | English and Chinese interface strings |
+
+</details>
+
+Run the tests with Node:
+
+```bash
+node --test tests/*.mjs
+```
+
+The screenshots use the demo papers in `docs/samples/` (English and Chinese), built by `python3 docs/make-samples.py`.
 
 ## License
 
-MIT
+PaperLens is released under the [MIT License](LICENSE). PDF.js is licensed under Apache 2.0.
