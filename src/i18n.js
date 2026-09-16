@@ -376,7 +376,6 @@ const ZH = {
   "Revision plan": "复习计划",
   "Key figures": "关键指标",
   "Open a PDF to keep notes next to it.": "打开 PDF 后可以在这里记笔记。",
-  "Open a PDF to track to-dos for it.": "打开 PDF 后可以在这里管理待办。",
   "{done} of {total} done": "已完成 {done}/{total}",
   "Saved only in this browser. The assistant reads these details when it fills in forms, and asks before saving anything new.": "只保存在本浏览器。助手填表时会读取这些信息，保存新信息前会先问你。",
   "Label": "名称",
@@ -458,18 +457,8 @@ const ZH = {
   "Paste a link…": "粘贴链接…",
   "Add link": "添加链接",
 
-  // To-dos
+  // Reordering
   "Drag to reorder": "拖动排序",
-  "Added by the assistant": "由助手添加",
-  "Change page": "修改页码",
-  "Link a page": "关联页码",
-  "All done": "全部完成",
-  "Nothing to do yet": "暂无待办",
-  "When the assistant finds deadlines, risks or documents to prepare, it lists them here. You can add your own too.": "助手发现的期限、风险和需要准备的材料会列在这里，你也可以自己添加。",
-  "Add a to-do": "添加待办",
-  "Link the page you're reading": "关联正在阅读的页面",
-  "Completed": "已完成",
-  "Clear completed": "清除已完成",
 
   // Profile
   "Name": "姓名",
@@ -681,6 +670,7 @@ const ZH = {
   "Saved “{title}” to the notebook": "已把“{title}”存到笔记本",
   "Added {count} to-do": "添加了 {count} 条待办",
   "Added {count} to-dos": "添加了 {count} 条待办",
+  "Already on the to-do page": "已在待办页中",
   "Checked the workspace": "查看了工作区",
   "Read your profile": "读取了个人资料",
   "Saved {count} detail to your profile": "保存了 {count} 项个人资料",

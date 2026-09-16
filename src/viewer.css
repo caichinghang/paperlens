@@ -3644,8 +3644,7 @@ svg {
   line-height: 1.55;
 }
 
-.be-grip svg circle,
-.td-grip svg circle {
+.be-grip svg circle {
   fill: currentColor;
   stroke: none;
 }
@@ -3689,6 +3688,8 @@ svg {
   padding: 4px 0 10px 10px;
 }
 
+/* No plate by default: the list shades in only while the pointer is on it — or while it holds
+   focus, or a page is being dragged — so it reads as part of the panel instead of a grey slab. */
 .nb-nav {
   position: relative;
   display: flex;
@@ -3697,6 +3698,13 @@ svg {
   min-height: 0;
   overflow: hidden;
   border-radius: 12px;
+  background: transparent;
+  transition: background 160ms ease;
+}
+
+.nb-nav:hover,
+.nb-nav:focus-within,
+.nb.is-sorting .nb-nav {
   background: var(--sidebar-hover);
 }
 
@@ -3751,8 +3759,9 @@ svg {
   color: var(--text);
 }
 
+/* A touch stronger than the card's own hover shade, so the open page still reads on top of it. */
 .nb-nav-item.is-active {
-  background: var(--sidebar-selected);
+  background: var(--active);
   color: var(--text);
   font-weight: 550;
   border-radius: 8px;
@@ -4058,6 +4067,13 @@ svg {
     visibility: hidden;
     transform: translateX(-104%);
     transition: transform 240ms var(--ease-panel), visibility 0s linear 240ms;
+  }
+
+  /* As a slide-over it stays opaque, pointer on it or not. */
+  .nb-nav:hover,
+  .nb-nav:focus-within,
+  .nb.is-sorting .nb-nav {
+    background: var(--surface-raised);
   }
 
   .nb.is-nav-collapsed .nb-nav {
@@ -4686,8 +4702,7 @@ body.is-block-sorting .be-gutter {
   cursor: text;
 }
 
-.be-block.is-dragging,
-.td-item.is-dragging {
+.be-block.is-dragging {
   opacity: 0.35;
 }
 
@@ -4903,315 +4918,6 @@ body.is-block-sorting * {
   font-size: 13px;
 }
 
-/* ---------- To-dos ---------- */
-
-.td-progress {
-  display: grid;
-  justify-items: end;
-  gap: 7px;
-  flex: none;
-  color: var(--soft);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.td-progress strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.td-bar {
-  display: block;
-  width: 128px;
-  height: 4px;
-  overflow: hidden;
-  border-radius: 5px;
-  background: var(--line);
-}
-
-.td-bar i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--accent);
-  transition: width 300ms var(--ease-out);
-}
-
-.td-card {
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--bg) 62%, transparent);
-}
-
-.td-list {
-  position: relative;
-  margin: 0;
-  padding: 4px 0;
-  list-style: none;
-}
-
-.td-item {
-  position: relative;
-  display: grid;
-  grid-template-columns: 16px 20px minmax(0, 1fr) auto auto;
-  align-items: start;
-  column-gap: 10px;
-  padding: 9px 10px 9px 6px;
-  transition: opacity 150ms ease;
-}
-
-.td-item + .td-item::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 14px;
-  left: 52px;
-  height: 1px;
-  background: var(--line);
-}
-
-.td-item:hover {
-  background: color-mix(in srgb, var(--text) 2.5%, transparent);
-}
-
-.td-item.is-leaving {
-  opacity: 0.35;
-}
-
-.td-grip {
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 22px;
-  color: var(--soft);
-  cursor: grab;
-  opacity: 0;
-}
-
-.td-grip svg {
-  width: 14px;
-  height: 14px;
-}
-
-.td-item:hover .td-grip {
-  opacity: 1;
-}
-
-.td-check {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  margin-top: 1px;
-  padding: 0;
-  border: 1.5px solid var(--line-strong);
-  border-radius: 50%;
-  background: transparent;
-  color: transparent;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-
-.td-check svg {
-  width: 12px;
-  height: 12px;
-  stroke-width: 2.6;
-}
-
-.td-check:hover {
-  border-color: var(--accent);
-  color: color-mix(in srgb, var(--accent) 55%, transparent);
-}
-
-.td-item.is-done .td-check {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-.td-text {
-  min-width: 0;
-  margin: 0 -4px;
-  padding: 0 4px;
-  border-radius: 5px;
-  outline: none;
-  color: var(--text);
-  font-size: 14px;
-  line-height: 22px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.td-text:focus {
-  background: var(--surface-hover);
-}
-
-.td-item.is-done .td-text {
-  color: var(--soft);
-  text-decoration: line-through;
-}
-
-.td-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 22px;
-}
-
-.td-source {
-  display: grid;
-  color: var(--accent);
-  opacity: 0.7;
-}
-
-.td-source svg {
-  width: 13px;
-  height: 13px;
-}
-
-.td-page-input {
-  width: 76px;
-  height: 24px;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  outline: none;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 12px;
-  box-shadow: 0 1px 4px var(--field-focus-shadow);
-}
-
-.td-actions {
-  display: flex;
-  margin: -2px 0;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.td-item:hover .td-actions,
-.td-item:focus-within .td-actions {
-  opacity: 1;
-}
-
-.td-actions .ws-icon-button {
-  width: 26px;
-  height: 26px;
-}
-
-.td-new {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 10px;
-  padding: 7px 10px 7px 32px;
-  border-top: 1px solid var(--line);
-}
-
-.td-new-icon {
-  display: grid;
-  place-items: center;
-  color: var(--soft);
-}
-
-.td-new-icon svg {
-  width: 16px;
-  height: 16px;
-}
-
-.td-new input {
-  min-width: 0;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 14px;
-}
-
-.td-new input::placeholder {
-  color: var(--soft);
-}
-
-.td-new:focus-within .td-new-icon {
-  color: var(--text);
-}
-
-.td-all-done {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 20px 16px 32px;
-  color: var(--soft);
-  font-size: 13.5px;
-}
-
-.td-all-done svg {
-  width: 18px;
-  height: 18px;
-  color: var(--accent);
-}
-
-.td-card .ws-blank {
-  padding: 34px 24px 28px;
-}
-
-.td-done {
-  margin-top: 20px;
-}
-
-.td-done-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.td-done-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px 0 4px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.td-done-toggle:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.td-done-toggle svg {
-  width: 14px;
-  height: 14px;
-  transform: rotate(-90deg);
-  transition: transform 160ms var(--ease-out);
-}
-
-.td-done.is-open .td-done-toggle svg {
-  transform: none;
-}
-
-.td-done-toggle em {
-  color: var(--soft);
-  font-style: normal;
-  font-weight: 500;
-}
-
-.td-done .td-list {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--bg) 40%, transparent);
-}
-
 /* ---------- Profile: the same rows, cards and group labels as the settings sheet ---------- */
 
 .workspace-body[data-tab="profile"] { background: transparent; padding: 20px 32px 120px; }
@@ -5304,19 +5010,6 @@ body.is-block-sorting * {
 
   .pf-custom-row .settings-field + .settings-field {
     grid-row: 2;
-  }
-
-  .td-item {
-    grid-template-columns: 20px minmax(0, 1fr) auto;
-    padding-left: 12px;
-  }
-
-  .td-grip {
-    display: none;
-  }
-
-  .td-actions {
-    opacity: 1;
   }
 }
 

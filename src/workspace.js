@@ -1,19 +1,20 @@
-// The workspace beside the assistant: a notebook, a to-do list and a personal profile. Notes and
-// to-dos belong to the open document; the profile is shared by every document and never leaves
-// this browser. The assistant writes into it with tools; the reader can edit everything by hand.
+// The workspace beside the assistant: a notebook and a personal profile. Notes, including the
+// To-do page the assistant adds actions to, belong to the open document; the profile is shared by
+// every document and never leaves this browser. The assistant writes into it with tools; the reader
+// can edit everything by hand.
 
 import { checklistSummary, expandTable, renderInline, SEVERITY_ICONS } from "./ai.js";
 import { blocksToMarkdown, markdownToBlocks } from "./blocks.js";
-import { attachSortable, createBlockEditor, EDITOR_ICONS } from "./editor.js";
+import { createBlockEditor, EDITOR_ICONS } from "./editor.js";
 import { t, tn, uiLanguage } from "./i18n.js";
 import { moveOutline, normalizeOutline, outlineChildren, outlineItem as findOutlineItem, outlineParent } from "./outline.js";
 import { applyDetail, emptyProfile, loadProfile, PROFILE_SECTIONS, profileAge, profileEntries } from "./profile.js";
 import { getItem, setItem } from "./store.js";
+import { mergeTodos, readTodos } from "./todos.js";
 
 const PROFILE_KEY = "profile";
 const TABS = ["notes", "profile"];
 const MAX_NOTES = 300;
-const MAX_TODOS = 300;
 const MAX_NOTE_LENGTH = 20_000;
 const MAX_NOTE_TITLE = 50;
 const HIGHLIGHTS = "highlights";
@@ -26,7 +27,8 @@ const KIND_LABELS = {
   summary: "Summary",
   "paper-card": "Paper card",
   plan: "Revision plan",
-  figures: "Key figures"
+  figures: "Key figures",
+  todos: "To-do list"
 };
 
 const svg = body => `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
@@ -48,8 +50,7 @@ const ICONS = {
   highlighter: svg('<path d="m9 11-6 6v3h9l3-3"></path><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"></path>'),
   eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle>'),
   eyeOff: svg('<path d="M9.9 4.2A10.9 10.9 0 0 1 12 4c6.5 0 10 8 10 8a18.5 18.5 0 0 1-2.2 3.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"></path><path d="m2 2 20 20M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>'),
-  done: svg('<circle cx="12" cy="12" r="9"></circle><path d="m8 12.5 3 3 5-6"></path>'),
-  list: svg('<path d="M9 6h11M9 12h11M9 18h11"></path><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"></path>'),
+  todos: svg('<path d="M9 6h11M9 12h11M9 18h11"></path><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"></path>'),
   user: svg('<circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0 1 16 0"></path>')
 };
 
@@ -110,20 +111,6 @@ function normalizeNote(note) {
   return { ...rest, id: note.id || uid("note"), title: shortTitle(note.title), blocks, createdAt: note.createdAt || Date.now() };
 }
 
-function normalizeTodo(todo) {
-  if (!todo || typeof todo !== "object" || !String(todo.text ?? "").trim()) {
-    return null;
-  }
-  return {
-    id: todo.id || uid("todo"),
-    text: String(todo.text),
-    page: pageNumber(todo.page),
-    done: Boolean(todo.done),
-    source: todo.source === "ai" || todo.source === "user" ? todo.source : undefined,
-    createdAt: todo.createdAt || Date.now()
-  };
-}
-
 export function createWorkspace({ host, toast, onToggle }) {
   const $ = selector => document.querySelector(selector);
   const el = {
@@ -142,7 +129,7 @@ export function createWorkspace({ host, toast, onToggle }) {
   let tab = "notes";
   let docKey = "";
   let docName = "";
-  let data = { notes: [], todos: [], folders: [] };
+  let data = { notes: [], folders: [] };
   let profile = emptyProfile();
   let selectedNoteId = null;
   let navOpen = false;
@@ -163,9 +150,6 @@ export function createWorkspace({ host, toast, onToggle }) {
   let saveTimer = 0;
   let pendingSave = null;
   let profileTimer = 0;
-  let attachPage = false;
-  let editingPageFor = null;
-  let showDone = false;
   const revealed = new Set();
 
   el.panel.inert = true;
@@ -206,12 +190,11 @@ export function createWorkspace({ host, toast, onToggle }) {
     docKey = key || "";
     docName = name || "";
     selectedNoteId = null;
-    editingPageFor = null;
     if (view) {
       view = null;
       tab = returnTab;
     }
-    data = { notes: [], todos: [], folders: [] };
+    data = { notes: [], folders: [] };
     const token = ++loadToken;
     if (docKey) {
       const saved = await getItem(`workspace:${docKey}`, null);
@@ -220,10 +203,10 @@ export function createWorkspace({ host, toast, onToggle }) {
       }
       data = {
         notes: (Array.isArray(saved?.notes) ? saved.notes : []).map(normalizeNote).filter(Boolean),
-        todos: (Array.isArray(saved?.todos) ? saved.todos : []).map(normalizeTodo).filter(Boolean),
         folders: (Array.isArray(saved?.folders) ? saved.folders : []).filter(folder => folder && typeof folder.id === "string" && typeof folder.name === "string")
       };
       initializeOutline();
+      migrateTodos(saved?.todos);
     }
     syncHighlights();
     render();
@@ -236,6 +219,11 @@ export function createWorkspace({ host, toast, onToggle }) {
   // ---------- Opening ----------
 
   function setOpen(open, nextTab) {
+    // "todos" means the notebook's To-do page: the add_todos step's Open button asks for it.
+    if (nextTab === "todos") {
+      nextTab = "notes";
+      selectedNoteId = todoPage()?.id || selectedNoteId;
+    }
     if (nextTab && TABS.includes(nextTab)) {
       tab = nextTab;
     }
@@ -540,93 +528,6 @@ export function createWorkspace({ host, toast, onToggle }) {
     el.body.querySelector(".nb-main")?.scrollTo(0, 0);
   }
 
-  // ---------- To-dos ----------
-
-  function todoRow(todo) {
-    const pageControl = editingPageFor === todo.id
-      ? `<input class="td-page-input" type="number" min="1" inputmode="numeric" data-todo-page value="${todo.page || host.getCurrentPage?.() || ""}" aria-label="${escapeHtml(t("Page"))}" placeholder="${escapeHtml(t("Page"))}">`
-      : pageChip(todo.page);
-    return `
-      <li class="td-item${todo.done ? " is-done" : ""}" data-todo="${escapeHtml(todo.id)}">
-        <span class="td-grip" data-todo-grip title="${escapeHtml(t("Drag to reorder"))}">${ICONS.grip}</span>
-        <button type="button" class="td-check" data-ws="toggle-todo" role="checkbox" aria-checked="${todo.done}" aria-label="${escapeHtml(t("Mark as done"))}">${ICONS.check}</button>
-        <span class="td-text" contenteditable="plaintext-only" spellcheck="false" data-todo-text>${escapeHtml(todo.text)}</span>
-        <span class="td-meta">
-          ${todo.source === "ai" ? `<span class="td-source" title="${escapeHtml(t("Added by the assistant"))}">${ICONS.sparkle}</span>` : ""}
-          ${pageControl}
-        </span>
-        <span class="td-actions">
-          <button type="button" class="ws-icon-button" data-ws="edit-todo-page" title="${escapeHtml(todo.page ? t("Change page") : t("Link a page"))}" aria-label="${escapeHtml(todo.page ? t("Change page") : t("Link a page"))}">${ICONS.page}</button>
-          <button type="button" class="ws-icon-button" data-ws="delete-todo" title="${escapeHtml(t("Delete"))}" aria-label="${escapeHtml(t("Delete"))}">${ICONS.trash}</button>
-        </span>
-      </li>`;
-  }
-
-  function renderTodos() {
-    if (!docKey) {
-      el.body.innerHTML = emptyState("list", t("No document open"), t("Open a PDF to track to-dos for it."));
-      return;
-    }
-    const open = data.todos.filter(todo => !todo.done);
-    const done = data.todos.filter(todo => todo.done);
-    const total = data.todos.length;
-    const current = host.getCurrentPage?.() || 1;
-    const percent = total ? Math.round((done.length / total) * 100) : 0;
-    let list;
-    if (open.length) {
-      list = `<ul class="td-list">${open.map(todoRow).join("")}</ul>`;
-    } else if (total) {
-      list = `<div class="td-all-done">${ICONS.done}<span>${escapeHtml(t("All done"))}</span></div>`;
-    } else {
-      list = emptyState("list", t("Nothing to do yet"), t("When the assistant finds deadlines, risks or documents to prepare, it lists them here. You can add your own too."));
-    }
-    el.body.innerHTML = `
-      <div class="td">
-        <header class="ws-head">
-          <div class="ws-head-text">
-            <h1>${escapeHtml(t("To-do"))}</h1>
-            <p>${escapeHtml(baseName())}</p>
-          </div>
-          ${total ? `<div class="td-progress" title="${escapeHtml(t("{done} of {total} done", { done: done.length, total }))}">
-            <span><strong>${done.length}</strong> / ${total}</span>
-            <span class="td-bar"><i style="width:${percent}%"></i></span>
-          </div>` : ""}
-        </header>
-        <section class="td-card">
-          ${list}
-          <form class="td-new" data-ws-form="todo">
-            <span class="td-new-icon">${ICONS.plus}</span>
-            <input name="text" type="text" autocomplete="off" placeholder="${escapeHtml(t("Add a to-do"))}" aria-label="${escapeHtml(t("Add a to-do"))}">
-            <button type="button" class="ws-chip td-attach${attachPage ? " is-on" : ""}" data-ws="toggle-attach" aria-pressed="${attachPage}" title="${escapeHtml(t("Link the page you're reading"))}">${ICONS.page}<span>${escapeHtml(attachPage ? t("p. {page}", { page: current }) : t("Page"))}</span></button>
-          </form>
-        </section>
-        ${done.length ? `
-          <section class="td-done${showDone ? " is-open" : ""}">
-            <div class="td-done-head">
-              <button type="button" class="td-done-toggle" data-ws="toggle-done" aria-expanded="${showDone}">${ICONS.chevron}<span>${escapeHtml(t("Completed"))}</span><em>${done.length}</em></button>
-              <button type="button" class="ws-text-button" data-ws="clear-done">${escapeHtml(t("Clear completed"))}</button>
-            </div>
-            ${showDone ? `<ul class="td-list">${done.map(todoRow).join("")}</ul>` : ""}
-          </section>` : ""}
-      </div>`;
-    const pageInput = el.body.querySelector("[data-todo-page]");
-    if (pageInput) {
-      pageInput.focus();
-      pageInput.select();
-    }
-  }
-
-  function commitTodoPage(input) {
-    const todo = findTodo(input);
-    if (todo && editingPageFor === todo.id) {
-      const value = input.value.trim();
-      todo.page = value ? pageNumber(value) ?? todo.page : null;
-      save();
-    }
-    editingPageFor = null;
-    render();
-  }
-
   // ---------- Profile ----------
 
   function profileFieldHtml(field) {
@@ -780,18 +681,7 @@ export function createWorkspace({ host, toast, onToggle }) {
     downloadFile(`${baseName()} notes.md`, `${parts.join("\n\n")}\n`, "text/markdown");
   }
 
-  function exportTodos() {
-    const ordered = [...data.todos.filter(todo => !todo.done), ...data.todos.filter(todo => todo.done)];
-    const lines = ordered.map(todo => `- [${todo.done ? "x" : " "}] ${todo.text}${todo.page ? ` (${t("p. {page}", { page: todo.page })})` : ""}`);
-    downloadFile(`${baseName()} to-dos.md`, `# ${t("To-do")}: ${baseName()}\n\n${lines.join("\n")}\n`, "text/markdown");
-  }
-
   // ---------- Reader actions ----------
-
-  function findTodo(target) {
-    const id = target.closest("[data-todo]")?.dataset.todo;
-    return data.todos.find(todo => todo.id === id);
-  }
 
   async function copyText(text) {
     try {
@@ -904,35 +794,6 @@ export function createWorkspace({ host, toast, onToggle }) {
       if (note) {
         render();
       }
-    } else if (action === "toggle-todo") {
-      const todo = findTodo(button);
-      if (todo) {
-        todo.done = !todo.done;
-        const row = button.closest(".td-item");
-        row?.classList.add("is-leaving");
-        save();
-        window.setTimeout(render, 160);
-      }
-    } else if (action === "delete-todo") {
-      const todo = findTodo(button);
-      data.todos = data.todos.filter(entry => entry !== todo);
-      save();
-      render();
-    } else if (action === "edit-todo-page") {
-      const todo = findTodo(button);
-      editingPageFor = todo && editingPageFor !== todo.id ? todo.id : null;
-      render();
-    } else if (action === "toggle-attach") {
-      attachPage = !attachPage;
-      render();
-      el.body.querySelector('.td-new input[name="text"]')?.focus();
-    } else if (action === "toggle-done") {
-      showDone = !showDone;
-      render();
-    } else if (action === "clear-done") {
-      data.todos = data.todos.filter(todo => !todo.done);
-      save();
-      render();
     } else if (action === "profile-choice") {
       const { key, value } = button.dataset;
       profile.fields[key] = profile.fields[key] === value ? "" : value;
@@ -999,36 +860,6 @@ export function createWorkspace({ host, toast, onToggle }) {
         event.preventDefault();
         editor?.focusStart();
       }
-    } else if (target.matches("[data-todo-text]")) {
-      if (event.key === "Enter" && !event.isComposing) {
-        event.preventDefault();
-        target.blur();
-      } else if (event.key === "Escape") {
-        target.blur();
-      }
-    } else if (target.matches("[data-todo-page]")) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        commitTodoPage(target);
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        editingPageFor = null;
-        render();
-      }
-    }
-  });
-
-  el.body.addEventListener("focusout", event => {
-    const target = event.target;
-    if (target.matches("[data-todo-text]")) {
-      const todo = findTodo(target);
-      if (todo && !todo.text.trim()) {
-        data.todos = data.todos.filter(entry => entry !== todo);
-        save();
-        window.setTimeout(render, 0);
-      }
-    } else if (target.matches("[data-todo-page]") && target.isConnected && editingPageFor) {
-      commitTodoPage(target);
     }
   });
 
@@ -1058,12 +889,6 @@ export function createWorkspace({ host, toast, onToggle }) {
         }
         save();
       }
-    } else if (target.matches("[data-todo-text]")) {
-      const todo = findTodo(target);
-      if (todo) {
-        todo.text = target.textContent.replace(/\s*\n\s*/g, " ").slice(0, 300);
-        save();
-      }
     } else if (target.dataset.profileKey) {
       profile.fields[target.dataset.profileKey] = target.dataset.profileKey === "gender" ? target.value.slice(0, 60) : target.value;
       saveProfile();
@@ -1088,21 +913,7 @@ export function createWorkspace({ host, toast, onToggle }) {
       addMenuOpen = false;
       folderNameOpen = false;
       renderNoteNav();
-      return;
     }
-    if (event.target.dataset.wsForm !== "todo") {
-      return;
-    }
-    event.preventDefault();
-    const input = event.target.elements.text;
-    const text = input.value.trim();
-    if (!text) {
-      input.focus();
-      return;
-    }
-    addTodos([{ text, page: attachPage ? host.getCurrentPage?.() : null }], { quiet: true, source: "user" });
-    render();
-    el.body.querySelector('.td-new input[name="text"]')?.focus();
   });
 
   // Dragging a page or a folder. The target is recomputed on every pointer move but the indicator
@@ -1250,37 +1061,14 @@ export function createWorkspace({ host, toast, onToggle }) {
     renderNoteNav();
   });
 
-  attachSortable(el.body, {
-    items: ".td-item",
-    handle: "[data-todo-grip]",
-    onMove: (item, before) => {
-      const moved = data.todos.find(todo => todo.id === item.dataset.todo);
-      if (!moved) {
-        return;
-      }
-      const rest = data.todos.filter(todo => todo !== moved);
-      const target = before ? rest.findIndex(todo => todo.id === before.dataset.todo) : -1;
-      if (target < 0) {
-        const lastOfGroup = rest.map(todo => todo.done).lastIndexOf(moved.done);
-        rest.splice(lastOfGroup + 1, 0, moved);
-      } else {
-        rest.splice(target, 0, moved);
-      }
-      data.todos = rest;
-      save();
-      render();
-    }
-  });
-
   el.tabs.addEventListener("click", event => {
     const button = event.target.closest("[data-workspace-tab]");
     if (button) {
       view = null;
-      editingPageFor = null;
       setOpen(true, button.dataset.workspaceTab);
     }
   });
-  el.exportButton.addEventListener("click", () => (tab === "todos" ? exportTodos() : exportNotes()));
+  el.exportButton.addEventListener("click", exportNotes);
   el.close.addEventListener("click", () => setOpen(false));
   el.toggle?.addEventListener("click", () => setOpen(!isShown));
 
@@ -1319,36 +1107,62 @@ export function createWorkspace({ host, toast, onToggle }) {
     return note;
   }
 
+  // Every document has one To-do page in the notebook; it is made the first time something is added.
+  function todoPage() {
+    return data.notes.find(note => note.kind === "todos") || null;
+  }
+
   function addTodos(items, { quiet = false, source = "ai" } = {}) {
     requireDocument();
-    const added = (Array.isArray(items) ? items : [])
-      .map(item => ({
-        id: uid("todo"),
-        text: String(item?.text ?? "").trim().slice(0, 300),
-        page: pageNumber(item?.page),
-        done: false,
-        source,
-        createdAt: Date.now()
-      }))
-      .filter(item => item.text);
+    let note = todoPage();
+    const { blocks, added } = mergeTodos(note?.blocks, items);
     if (!added.length) {
+      if (Array.isArray(items) && items.some(item => String(item?.text ?? "").trim())) {
+        return added;
+      }
       throw new Error("Pass at least one to-do with text.");
     }
-    const firstDone = data.todos.findIndex(todo => todo.done);
-    const todos = data.todos.slice();
-    todos.splice(firstDone < 0 ? todos.length : firstDone, 0, ...added);
-    data.todos = todos.slice(-MAX_TODOS);
+    if (!note) {
+      note = { id: uid("note"), kind: "todos", title: t("To-do"), blocks: [], page: null, order: -1, source, createdAt: Date.now() };
+      data.notes.push(note);
+      initializeOutline();
+    }
+    note.blocks = blocks;
+    note.updatedAt = Date.now();
     save();
+    if (!isShown || tab !== "notes" || !(editor && isEditingNote())) {
+      selectedNoteId = note.id;
+    }
     if (!quiet) {
-      notify("todos");
+      notify("notes");
+    } else if (isShown && tab === "notes") {
+      render();
     }
     return added;
   }
 
+  // Before to-dos became a notebook page they were a separate list; move any saved ones over once.
+  function migrateTodos(legacy) {
+    const items = (Array.isArray(legacy) ? legacy : [])
+      .filter(todo => todo && String(todo.text ?? "").trim())
+      .map(todo => ({ text: String(todo.text), page: todo.page, done: Boolean(todo.done) }));
+    if (!items.length) {
+      return;
+    }
+    const note = todoPage() || { id: uid("note"), kind: "todos", title: t("To-do"), blocks: [], page: null, order: -1, source: "user", createdAt: Date.now() };
+    note.blocks = mergeTodos(note.blocks, items).blocks;
+    if (!data.notes.includes(note)) {
+      data.notes.push(note);
+      initializeOutline();
+    }
+    save();
+  }
+
   function snapshot() {
+    const page = todoPage();
     return {
-      notes: data.notes.map(({ id, kind, title, page }) => ({ id, kind, title, page })),
-      todos: data.todos.map(({ id, text, page, done }) => ({ id, text, page, done }))
+      notes: data.notes.filter(note => note.kind !== "todos").map(({ id, kind, title, page: notePage }) => ({ id, kind, title, page: notePage })),
+      todo_page: page ? { id: page.id, title: page.title, todos: readTodos(page.blocks) } : null
     };
   }
 

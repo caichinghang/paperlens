@@ -5,6 +5,7 @@ import { createLens } from "./lens.js";
 import { createMarkup } from "./markup.js";
 import { buildImagePdf, dataUrlToBytes } from "./pdf-writer.js";
 import { createReferences } from "./references.js";
+import { collectRules, snapBoxToRule, snapTextToRule } from "./rules.js";
 import { getItem, removeItem, setItem } from "./store.js";
 import { createWorkspace } from "./workspace.js";
 
@@ -182,6 +183,7 @@ const assistant = createAssistant({
     renderRegionImage: agentRenderRegionImage,
     getPageText: async number => (await getPageText(agentPage(number).number)).readable,
     getPageLayout: agentGetPageLayout,
+    getPageRules: agentGetPageRules,
     searchDocument: agentSearchDocument,
     getOutline: agentGetOutline,
     setOutline: agentSetOutline,
@@ -206,6 +208,7 @@ const assistant = createAssistant({
       const page = agentPage(number);
       return markup.placeSignatureInBox(page.number, gridToUnits(page, gridBox));
     },
+    snapSignatureBox: agentSnapSignatureBox,
     // Appearance lives in the assistant's settings sheet, the one settings page in the viewer.
     getTheme: () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light"),
     setTheme: theme => {
@@ -380,7 +383,7 @@ async function loadFromUrl(url) {
     if (token !== state.loadToken) {
       return;
     }
-    console.error(error);
+    // The reader is told on the page; logging it again only fills the extension's error list.
     resetViewer();
     showEmptyState(t("Couldn't open this PDF"), describeLoadError(error, t("The file from {host} couldn't be loaded ({error}). Some sites block access to their files.", { host: formatHost(url), error: error.message })));
   }
@@ -405,7 +408,6 @@ async function loadFromFile(file) {
     if (token !== state.loadToken) {
       return;
     }
-    console.error(error);
     resetViewer();
     showEmptyState(t("Couldn't open this PDF"), describeLoadError(error, t("Something went wrong while reading this file.")));
   }
@@ -413,7 +415,9 @@ async function loadFromFile(file) {
 
 async function openDocument(bytes, { token, name, key }) {
   state.originalBytes = bytes.slice();
-  const doc = await pdfjsLib.getDocument({ data: bytes }).promise;
+  // verbosity 0 (errors only): font quirks in real-world PDFs ("TT: undefined function") are
+  // warnings we can't act on, and in an extension every one of them lands in the error list.
+  const doc = await pdfjsLib.getDocument({ data: bytes, verbosity: 0 }).promise;
 
   if (token !== state.loadToken) {
     doc.loadingTask?.destroy().catch(() => {});
@@ -712,8 +716,8 @@ async function renderPage(page, token) {
     ensureFormLayer(page, token);
   } catch (error) {
     if (error?.name !== "RenderingCancelledException" && token === state.loadToken) {
+      // The page keeps its last good canvas and re-renders on the next scroll or zoom.
       page.failedScale = currentScale();
-      console.error(error);
     }
   } finally {
     if (task && page.renderTask === task) {
@@ -2051,7 +2055,7 @@ async function agentFillFormFields(entries) {
   };
 }
 
-function agentAddText({ page: number, x, y, text, fontSize, color, width, background, layer }) {
+async function agentAddText({ page: number, x, y, text, fontSize, color, width, background, layer }) {
   const page = agentPage(number);
   const content = String(text ?? "").replace(/\\n/g, "\n").trim();
   if (!content) {
@@ -2059,12 +2063,20 @@ function agentAddText({ page: number, x, y, text, fontSize, color, width, backgr
   }
 
   const point = fromGrid(page, x, y);
+  const size = clamp(Number(fontSize) || 11, 6, 48);
+  // One line written on or just above a blank line is set to sit on it, like handwriting would.
+  if (!layer && !background) {
+    const snappedY = snapTextToRule(await pageRules(page), { x: point.x, y: point.y, fontSize: size, lineCount: content.split("\n").length, depth: markup.textDepth(content, size) });
+    if (snappedY !== null) {
+      point.y = Math.max(0, snappedY);
+    }
+  }
   const annotation = {
     type: "text",
     page: page.number,
     x: point.x,
     y: point.y,
-    fontSize: clamp(Number(fontSize) || 11, 6, 48),
+    fontSize: size,
     color: color || markup.defaultColor("text"),
     text: content
   };
@@ -2321,6 +2333,66 @@ async function agentGetPageLayout(number) {
   }));
 }
 
+// Horizontal lines drawn on a page (signature and date lines, table rules), in page units. Forms
+// draw these as strokes, so they aren't in the text layer; they come from the drawing commands.
+function pageRules(page) {
+  page.rules ||= (async () => {
+    page.pdfPage ||= await state.doc.getPage(page.number);
+    const viewport = page.pdfPage.getViewport({ scale: 1 });
+    const { fnArray, argsArray } = await page.pdfPage.getOperatorList({ annotationMode: pdfjsLib.AnnotationMode.DISABLE });
+    const { OPS, Util } = pdfjsLib;
+    const saved = [];
+    let ctm = [1, 0, 0, 1, 0, 0];
+    const boxes = [];
+    for (let index = 0; index < fnArray.length; index += 1) {
+      const fn = fnArray[index];
+      if (fn === OPS.save) {
+        saved.push(ctm);
+      } else if (fn === OPS.restore) {
+        ctm = saved.pop() || ctm;
+      } else if (fn === OPS.transform) {
+        ctm = Util.transform(ctm, argsArray[index]);
+      } else if (fn === OPS.constructPath) {
+        const minMax = argsArray[index][2];
+        if (!minMax || !Number.isFinite(minMax[0]) || minMax[0] > minMax[2]) {
+          continue;
+        }
+        const matrix = Util.transform(viewport.transform, ctm);
+        const corners = [minMax[0], minMax[1], minMax[2], minMax[3]];
+        Util.applyTransform(corners, matrix, 0);
+        Util.applyTransform(corners, matrix, 2);
+        boxes.push({ x1: Math.min(corners[0], corners[2]), x2: Math.max(corners[0], corners[2]), y1: Math.min(corners[1], corners[3]), y2: Math.max(corners[1], corners[3]) });
+      }
+    }
+    return collectRules(boxes);
+  })().catch(() => []);
+  return page.rules;
+}
+
+async function agentGetPageRules(number) {
+  const page = agentPage(number);
+  const rules = await pageRules(page);
+  return rules.slice(0, 80).map(rule => ({
+    x1: Math.round((rule.x1 / page.width) * AGENT_GRID),
+    x2: Math.round((rule.x2 / page.width) * AGENT_GRID),
+    y: Math.round((rule.y / page.height) * AGENT_GRID)
+  }));
+}
+
+// A proposed signature box is moved so it rests on the signature line under it, if there is one.
+async function agentSnapSignatureBox(number, gridBox) {
+  const page = agentPage(number);
+  const box = gridToUnits(page, gridBox);
+  const snapped = snapBoxToRule(await pageRules(page), box);
+  const toGrid = (value, size) => Math.round((value / size) * AGENT_GRID);
+  return {
+    x1: toGrid(snapped.x, page.width),
+    y1: toGrid(snapped.y, page.height),
+    x2: toGrid(snapped.x + snapped.width, page.width),
+    y2: toGrid(snapped.y + snapped.height, page.height)
+  };
+}
+
 async function agentSearchDocument(query, limit = 30) {
   const needle = String(query ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   if (!needle) {
@@ -2507,16 +2579,14 @@ async function downloadPdf() {
       try {
         bytes = await flattenToImagePdf();
         toast(t("Downloaded as an image-only PDF so the redacted text is really removed."));
-      } catch (error) {
-        console.error(error);
+      } catch {
         toast(t("Couldn't apply the redactions — download cancelled."));
         return;
       }
     } else if (markup.count() > 0 || formEdits.size > 0) {
       try {
         bytes = await markup.exportPdf(state.doc);
-      } catch (error) {
-        console.error(error);
+      } catch {
         toast(t("Couldn't save your changes into the PDF — downloaded the original file."));
       }
     }
@@ -2989,7 +3059,8 @@ window.addEventListener("drop", event => {
 
 document.addEventListener("keydown", event => {
   const mod = event.metaKey || event.ctrlKey;
-  const key = event.key.toLowerCase();
+  // Some synthetic and IME events arrive without a key.
+  const key = String(event.key ?? "").toLowerCase();
 
   if (mod && key === "f") {
     event.preventDefault();

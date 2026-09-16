@@ -1406,7 +1406,7 @@ export function createBlockEditor({ root, blocks: initialBlocks, onChange, onCit
     }
 
     const mod = event.metaKey || event.ctrlKey;
-    const key = event.key.toLowerCase();
+    const key = String(event.key ?? "").toLowerCase();
     if (mod && key === "z") {
       event.preventDefault();
       if (event.shiftKey) {

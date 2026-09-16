@@ -215,7 +215,7 @@ const SCENARIOS = [
 ];
 
 // The workspace sits beside the chat in every scenario.
-const WORKSPACE_GUIDANCE = "The reader has a workspace beside the chat for this document: a notebook, a to-do list and a personal profile. Save material worth keeping (notes, glossaries, flashcards, quizzes, reading cards, key-figure tables, summaries, plans) with save_note rather than only writing it in the chat, and keep the chat reply to a short summary. Put actions, deadlines, risks to follow up and documents to prepare on the to-do list with add_todos; call read_workspace first when you might duplicate something. For forms, call get_profile before asking the reader for personal details, and call save_profile only after the reader agrees to save specific details.";
+const WORKSPACE_GUIDANCE = "The reader has a workspace beside the chat for this document: a notebook (with a To-do page for actions) and a personal profile. Save material worth keeping (notes, glossaries, flashcards, quizzes, reading cards, key-figure tables, summaries, plans) with save_note rather than only writing it in the chat, and keep the chat reply to a short summary. Put actions, deadlines, risks to follow up and documents to prepare on the To-do page with add_todos; call read_workspace first when you might duplicate something. For forms, call get_profile before asking the reader for personal details, and call save_profile only after the reader agrees to save specific details.";
 // One paragraph for every kind of task, so the assistant behaves the same whichever skill started the chat.
 const TASK_GUIDANCE = "Adapt to what the reader is doing. To help them understand, explain in plain words, define jargon and point to the exact pages; they can also hold ⌥ and point at any part of a page for a quick explanation bubble, and click 'Figure 2'-style references to see them. To help them study, turn the document and their own highlights (list_markup returns them with text and page) into notes, glossaries, quizzes and flashcards: ask quiz questions one at a time, wait for the answer, then grade it kindly with the correct answer and a page citation before the next; end flashcards with a ```flashcards code block containing one 'Question :: Answer' per line. For forms, contracts, invoices and reports, be precise and practical: use report_items to present reviews and extracted facts as a checklist the reader can click through, and a ```csv code block for extracted tables.";
 
@@ -2194,7 +2194,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       if (message.role === "user" && (message.pages.length || message.regions?.length)) {
         attachmentEntries.push(message);
       } else if (message.role === "assistant") {
-        attachmentEntries.push(...message.transcript.filter(entry => entry.kind === "pages"));
+        // Chats saved by older versions have no transcript.
+        attachmentEntries.push(...(message.transcript || []).filter(entry => entry.kind === "pages"));
       }
     }
     const recent = new Set(attachmentEntries.slice(-RECENT_IMAGE_ATTACHMENTS));

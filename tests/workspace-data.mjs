@@ -3,6 +3,8 @@ import { blocksToMarkdown, escapeInline, inlineToHtml, inlineToPlain, markdownTo
 import { applyDetail, emptyProfile, loadProfile, normalizeDate, profileAge, profileEntries } from '../src/profile.js';
 import { moveOutline, normalizeOutline, outlineChildren } from '../src/outline.js';
 import { popupNearCaret } from '../src/popup-position.js';
+import { mergeTodos, readTodos } from '../src/todos.js';
+import { collectRules, snapBoxToRule, snapTextToRule } from '../src/rules.js';
 
 const types = markdown => markdownToBlocks(markdown).map(block => block.type);
 
@@ -95,5 +97,60 @@ assert.deepEqual(profileEntries(profile, new Date(2026, 8, 15)).map(entry => ent
 const migrated = loadProfile([{ label: 'Phone number', value: '123' }, { label: 'Phone', value: '456' }, { label: 'Hobby', value: 'Chess' }]);
 assert.equal(migrated.fields.phone, '123');
 assert.deepEqual(migrated.custom.map(field => field.label), ['Phone', 'Hobby']);
+
+
+// To-dos are to-do blocks on the notebook's To-do page: appended after the last one, cited by page,
+// skipped when an unticked copy is already there, and read back as plain items.
+{
+  const start = markdownToBlocks('# To-do\n\n- [ ] Sign the form [p. 3]\n- [x] Read *section 2*\n\nNotes below.');
+  const { blocks: merged, added } = mergeTodos(start, [
+    { text: 'sign the form', page: 3 },
+    { text: 'Read section 2', page: 2 },
+    { text: 'Book a session by 30 Sep', page: 1 },
+    { text: '  ' }
+  ]);
+  assert.equal(added.length, 2);
+  assert.deepEqual(merged.map(block => block.type), ['heading1', 'todo', 'todo', 'todo', 'todo', 'paragraph']);
+  assert.equal(merged[3].text, 'Read section 2 [p. 2]');
+  assert.equal(merged[4].text, 'Book a session by 30 Sep [p. 1]');
+  assert.deepEqual(readTodos(merged), [
+    { text: 'Sign the form', page: 3, done: false },
+    { text: 'Read section 2', page: null, done: true },
+    { text: 'Read section 2', page: 2, done: false },
+    { text: 'Book a session by 30 Sep', page: 1, done: false }
+  ]);
+  assert.equal(blocksToMarkdown(merged).split('\n').filter(line => line.startsWith('- [')).length, 4);
+
+  // A new page's blank paragraph is dropped; the old separate list migrates with its ticks.
+  const fresh = mergeTodos(markdownToBlocks(''), [{ text: 'Return the form', page: 3, done: true }, { text: 'Bring a photo' }]);
+  assert.deepEqual(fresh.blocks.map(block => [block.type, block.text, block.checked]), [['todo', 'Return the form [p. 3]', true], ['todo', 'Bring a photo', false]]);
+  assert.equal(mergeTodos(fresh.blocks, [{ text: 'bring a  photo' }]).added.length, 0);
+}
+
+// Blank lines come from flat drawn boxes; text and signatures placed near one are set to sit on it.
+{
+  const rules = collectRules([
+    { x1: 300, x2: 550, y1: 500, y2: 500 },
+    { x1: 550, x2: 600, y1: 500.4, y2: 500.4 },
+    { x1: 300, x2: 430, y1: 540, y2: 540.8 },
+    { x1: 80, x2: 90, y1: 300, y2: 300 },
+    { x1: 100, x2: 400, y1: 200, y2: 260 }
+  ]);
+  assert.deepEqual(rules.map(rule => [rule.x1, rule.x2, Math.round(rule.y)]), [[300, 600, 500], [300, 430, 540]]);
+
+  // A date typed a little low, across the line, is lifted so its baseline sits just above it.
+  const y = snapTextToRule(rules, { x: 302, y: 533, fontSize: 11 });
+  assert.ok(y + 11 * 0.96 <= 538 && y + 11 * 0.96 > 535, `glyphs end at ${y + 11 * 0.96}`);
+  assert.equal(snapTextToRule(rules, { x: 302, y: 533, fontSize: 11, depth: 12 }), 525.1);
+  // Too far above, off the end of the line, or several lines: left alone.
+  assert.equal(snapTextToRule(rules, { x: 302, y: 505, fontSize: 11 }), null);
+  assert.equal(snapTextToRule(rules, { x: 480, y: 533, fontSize: 11 }), null);
+  assert.equal(snapTextToRule(rules, { x: 302, y: 533, fontSize: 11, lineCount: 2 }), null);
+
+  // A signature box straddling the line comes to rest on it; one with no line under it stays put.
+  const box = snapBoxToRule(rules, { x: 330, y: 480, width: 150, height: 34 });
+  assert.equal(box.y + box.height, 499);
+  assert.deepEqual(snapBoxToRule(rules, { x: 330, y: 100, width: 150, height: 34 }), { x: 330, y: 100, width: 150, height: 34 });
+}
 
 console.log('workspace data checks passed');

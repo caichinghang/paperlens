@@ -336,6 +336,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   let colors = { ...DEFAULT_COLORS };
   let strokeWidth = 2;
   let signature = null;
+  let measureContext = null;
   let saveTimer = 0;
   let pendingSave = null;
   let editing = null;
@@ -1424,7 +1425,8 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   }
 
   // The assistant proposes a box (page units) and the reader approves it; the saved signature is
-  // fitted inside the box. Without a saved signature the pad opens and nothing is placed.
+  // fitted inside the box, resting on its bottom edge (the signature line). Without a saved signature
+  // the pad opens and nothing is placed.
   function placeSignatureInBox(pageNumber, box) {
     if (!signature) {
       openSignaturePad();
@@ -1433,7 +1435,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     const width = Math.max(10, Math.min(box.width, box.height / signature.aspect));
     const height = width * signature.aspect;
     const left = box.x + (box.width - width) / 2;
-    const top = box.y + (box.height - height) / 2;
+    const top = box.y + box.height - height;
     const annotation = {
       id: uid(),
       type: "ink",
@@ -1453,7 +1455,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
   function handleKeydown(event) {
     const mod = event.metaKey || event.ctrlKey;
-    const key = event.key.toLowerCase();
+    const key = String(event.key ?? "").toLowerCase();
 
     if (mod && key === "z") {
       const handled = event.shiftKey ? redo() : undo();
@@ -1674,6 +1676,15 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     return touched;
   }
 
+  // How far below a text box's top its lowest glyph reaches, in page units, as it is drawn here.
+  function textDepth(text, fontSize) {
+    const context = (measureContext ||= document.createElement("canvas").getContext("2d"));
+    context.font = textFont(fontSize);
+    context.textBaseline = "top";
+    const descent = context.measureText(String(text ?? "")).actualBoundingBoxDescent || fontSize * 0.85;
+    return ((TEXT_LINE_HEIGHT - 1) / 2) * fontSize + descent;
+  }
+
   // Largest font size (down to 5pt) at which `text` wraps inside a width × height box in page units.
   function fitFontSize({ text, width, height, fontSize }) {
     let size = clamp(Math.round((fontSize || height / TEXT_LINE_HEIGHT) * 2) / 2, 5, 48);
@@ -1806,6 +1817,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     setDocument,
     setLayerVisible,
     setOpen,
+    textDepth,
     updateAnnotations,
     updatePageSize
   };

@@ -93,7 +93,7 @@ const DEFINITIONS = [
   },
   {
     name: "get_page_layout",
-    description: "Get the text of a page split into blocks (paragraphs, headings, captions, table rows) with each block's box on the 0–1000 grid and its font size. Use it to place translations or notes exactly over or beside the original text, or to find figures (gaps between blocks).",
+    description: "Get the text of a page split into blocks (paragraphs, headings, captions, table rows) with each block's box on the 0–1000 grid and its font size, plus the horizontal lines drawn on the page (blank answer lines, signature and date lines, table rules) as {x1, x2, y}. Use it to place translations or notes exactly over or beside the original text, to find the line a form wants you to write on, or to find figures (gaps between blocks).",
     parameters: {
       type: "object",
       properties: { page: pageParam },
@@ -143,7 +143,7 @@ const DEFINITIONS = [
   },
   {
     name: "add_text",
-    description: "Add a text box to a page, for example to fill in a form that has no real fields, or to leave a note. (x, y) is the top-left corner on the 0–1000 grid. To answer next to a label, use the label's y and an x just past its right edge; to write on a blank line, put y a little above the line so the text sits on it. Use \\n for more lines. The reader can click the box later to edit or move it.",
+    description: "Add a text box to a page, for example to fill in a form that has no real fields, or to leave a note. (x, y) is the top-left corner on the 0–1000 grid. To answer next to a label, use the label's y and an x just past its right edge; to write on a blank line, aim y just above the line (get_page_layout lists the lines): a single line of text placed on or near a line is set to sit on it automatically. Use \\n for more lines. The reader can click the box later to edit or move it.",
     parameters: {
       type: "object",
       properties: {
@@ -321,7 +321,7 @@ const DEFINITIONS = [
   },
   {
     name: "add_todos",
-    description: "Add items to the reader's to-do list in the workspace for this document: obligations, risks to follow up, documents to prepare, revision tasks. Each item is one short action; if it has a deadline, say so in the text (for example \"Submit the form by 30 Sep\"). Link the page it comes from.",
+    description: "Add actions to the To-do page in this document's notebook (created the first time): obligations, risks to follow up, documents to prepare, revision tasks. Each item becomes a checkbox line the reader can tick, edit or reorder; items already on the page and not yet done are skipped. Each item is one short action; if it has a deadline, say so in the text (for example \"Submit the form by 30 Sep\"). Link the page it comes from.",
     parameters: {
       type: "object",
       properties: {
@@ -342,7 +342,7 @@ const DEFINITIONS = [
   },
   {
     name: "read_workspace",
-    description: "See the notes and to-dos already saved for this document, to build on them or avoid duplicates.",
+    description: "See the notebook pages already saved for this document and the items on its To-do page (text, page, done), to build on them or avoid duplicates.",
     parameters: { type: "object", properties: {} }
   },
   {
@@ -406,7 +406,7 @@ const DEFINITIONS = [
   },
   {
     name: "propose_signature",
-    description: "Propose where the reader's saved signature goes: a box on the 0–1000 grid over the signature line. The reader approves it in a card before anything is placed, so never say the form has been signed.",
+    description: "Propose where the reader's saved signature goes: a box on the 0–1000 grid above the signature line, about as tall as two lines of text. The box is moved to rest on the line under it (see the lines in get_page_layout) and the signature is drawn along its bottom edge. The reader approves it in a card before anything is placed, so never say the form has been signed.",
     parameters: {
       type: "object",
       properties: { page: pageParam, ...boxParams },
@@ -642,9 +642,9 @@ export function createAgentTools(host) {
       }
 
       case "get_page_layout": {
-        const blocks = await host.getPageLayout(args.page);
+        const [blocks, lines] = await Promise.all([host.getPageLayout(args.page), host.getPageRules(args.page)]);
         return {
-          result: { page: Number(args.page), blocks, note: blocks.length ? undefined : "No text layer on this page (it may be scanned)." },
+          result: { page: Number(args.page), blocks, lines, note: blocks.length ? undefined : "No text layer on this page (it may be scanned)." },
           summary: tn(blocks.length, "Read {count} text block on p. {page}", "Read {count} text blocks on p. {page}", { page: args.page })
         };
       }
@@ -685,7 +685,7 @@ export function createAgentTools(host) {
       }
 
       case "add_text": {
-        const id = host.addText({
+        const id = await host.addText({
           page: args.page,
           x: args.x,
           y: args.y,
@@ -827,8 +827,8 @@ export function createAgentTools(host) {
       case "add_todos": {
         const added = host.workspace.addTodos(args.items);
         return {
-          result: { ok: true, added: added.length },
-          summary: tn(added.length, "Added {count} to-do", "Added {count} to-dos"),
+          result: { ok: true, added: added.length, note: added.length ? "Added to the To-do page in the notebook." : "Every item was already on the To-do page." },
+          summary: added.length ? tn(added.length, "Added {count} to-do", "Added {count} to-dos") : t("Already on the to-do page"),
           openTab: "todos"
         };
       }
@@ -885,13 +885,14 @@ export function createAgentTools(host) {
       }
 
       case "propose_signature": {
-        const box = gridBox(args);
-        if (!box) {
+        const proposed = gridBox(args);
+        if (!proposed) {
           throw new Error("Pass page, x1, y1, x2 and y2.");
         }
         const page = Number(args.page);
+        const box = await host.snapSignatureBox(page, proposed);
         return {
-          result: { ok: true, note: "Shown to the reader as a proposal; they approve it in the card." },
+          result: { ok: true, box, note: "Shown to the reader as a proposal; they approve it in the card." },
           summary: t("Proposed a signature on p. {page}", { page }),
           card: { type: "signature", page, box }
         };
