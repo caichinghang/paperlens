@@ -7,6 +7,8 @@ const TOKEN = /\{\{profile:([A-Za-z0-9_-]+)\}\}/g;
 // Values this short are matched exactly; longer ones also match with spacing and punctuation changed.
 const MIN_LOOSE_LENGTH = 4;
 const SEPARATORS = "[\\s\\-–—_.·/()（）]*";
+let compiledKey = "";
+let compiledValue = [];
 
 export function profileToken(id) {
   return `{{profile:${id}}}`;
@@ -53,17 +55,27 @@ function secretPattern(value) {
 }
 
 export function compileSecrets(secrets) {
-  return (Array.isArray(secrets) ? secrets : [])
+  if (secrets?.[0]?.pattern) {
+    return secrets;
+  }
+  const normalized = (Array.isArray(secrets) ? secrets : [])
     .map(secret => ({ ...secret, value: String(secret?.value ?? "").trim() }))
     .filter(secret => secret.id && secret.value)
-    .sort((a, b) => b.value.length - a.value.length)
-    .map(secret => ({ ...secret, pattern: new RegExp(secretPattern(secret.value), "giu") }));
+    .sort((a, b) => b.value.length - a.value.length);
+  const key = JSON.stringify(normalized.map(({ id, label, value }) => [id, label, value]));
+  if (key === compiledKey) {
+    return compiledValue;
+  }
+  compiledKey = key;
+  compiledValue = normalized.map(secret => ({ ...secret, pattern: new RegExp(secretPattern(secret.value), "giu") }));
+  return compiledValue;
 }
 
 // `secrets` are [{ id, label, value }] or already compiled; `replace` decides what stands in.
 export function maskText(text, secrets, replace = secret => profileToken(secret.id)) {
   let masked = String(text ?? "");
   for (const secret of secrets[0]?.pattern ? secrets : compileSecrets(secrets)) {
+    secret.pattern.lastIndex = 0;
     masked = masked.replace(secret.pattern, () => replace(secret));
   }
   return masked;

@@ -1740,15 +1740,6 @@ svg {
   object-fit: contain;
 }
 
-.ai-empty-chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-  max-width: 300px;
-}
-
-.ai-empty-chips button,
 .ai-key-prompt {
   padding: 5px 11px;
   border: 1px solid var(--line-strong);
@@ -1759,7 +1750,6 @@ svg {
   transition: background 120ms ease, color 120ms ease;
 }
 
-.ai-empty-chips button:hover,
 .ai-key-prompt:hover {
   background: var(--bg);
   color: var(--text);
@@ -1898,11 +1888,6 @@ svg {
 .msg .cite:hover {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   text-decoration-color: var(--accent);
-}
-
-.msg .cite-extra {
-  color: var(--soft);
-  font-size: 0.92em;
 }
 
 /* Text that follows a step group or a card gets a little air. */
@@ -3705,38 +3690,6 @@ svg {
   color: var(--text);
 }
 
-/* Page header for the to-do list and the profile: a title, a quiet line under it, a figure on the right. */
-.ws-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 30px;
-  margin-bottom: 22px;
-}
-
-.ws-head-text {
-  min-width: 0;
-}
-
-.ws-head h1 {
-  margin: 0;
-  color: var(--text);
-  font-size: 24px;
-  font-weight: 650;
-  line-height: 1.25;
-  letter-spacing: -0.015em;
-}
-
-.ws-head p {
-  max-width: 56ch;
-  margin: 6px 0 0;
-  color: var(--soft);
-  font-size: 12.5px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
 .ws-blank {
   display: grid;
   justify-items: center;
@@ -4127,12 +4080,6 @@ svg {
   color: var(--accent);
 }
 
-.nb-muted {
-  color: var(--soft);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
 /* No PDF open: the notebook mark and two quiet lines, centred in the panel. */
 .nb-empty {
   display: grid;
@@ -4169,42 +4116,6 @@ svg {
 
 .nb-main > .ws-blank {
   padding-top: 72px;
-}
-
-.nb-highlights {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.nb-highlight {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 14px;
-  width: 100%;
-  padding: 6px 10px 6px 14px;
-  border: 0;
-  border-left: 3px solid var(--c);
-  border-radius: 0 8px 8px 0;
-  background: transparent;
-  color: var(--text);
-  font-size: 15px;
-  line-height: 1.7;
-  text-align: left;
-}
-
-.nb-highlight:hover {
-  background: var(--surface-hover);
-}
-
-.nb-highlight em {
-  color: var(--soft);
-  font-size: 12.5px;
-  font-style: normal;
-  white-space: nowrap;
 }
 
 @container (max-width: 640px) {
@@ -5597,82 +5508,11 @@ body.is-block-sorting * {
   line-height: 1.5;
 }
 
-.checklist,
 .redaction-list,
 .flashcard-list {
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.checklist li {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 0;
-  border-top: 1px solid var(--line);
-  line-height: 1.45;
-}
-
-.checklist li:first-child {
-  border-top: 0;
-}
-
-.checklist li.is-done .check-text {
-  color: var(--soft);
-  text-decoration: line-through;
-}
-
-.check-toggle {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  margin-top: -1px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-}
-
-.check-toggle:hover {
-  background: var(--surface-hover);
-}
-
-.check-icon {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-}
-
-.check-icon svg {
-  width: 14px;
-  height: 14px;
-  stroke-width: 1.8;
-}
-
-.checklist li.is-error .check-icon {
-  color: var(--danger);
-}
-
-.checklist li.is-warning .check-icon {
-  color: #d9891a;
-}
-
-.checklist li.is-info .check-icon {
-  color: var(--soft);
-}
-
-.checklist li.is-ok .check-icon,
-.checklist li.is-done .check-icon {
-  color: #2f9e44;
-}
-
-.check-text {
-  flex: 1;
-  min-width: 0;
-  padding-top: 1px;
-  overflow-wrap: anywhere;
 }
 
 .check-jump {

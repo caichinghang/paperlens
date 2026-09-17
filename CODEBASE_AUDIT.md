@@ -3,6 +3,12 @@
 Date: 2026-09-17  
 Scope: static source review only. No browser or live-extension testing was performed, and no functional source changes were made as part of this audit.
 
+> Implementation update: the concrete fixes and cleanup items from this audit were implemented on
+> `codex/codebase-audit-fixes` after the original review checkpoint. Static verification remains the
+> boundary: no browser testing was added. Measurement-dependent product experiments (for example,
+> aggressively shortening agent instructions) were not applied blindly; the safe local allocation,
+> caching, page-payload and module-boundary improvements were implemented instead.
+
 ## Executive summary
 
 The current tree is syntactically valid and its existing Node checks pass. The architecture is understandable for a framework-free extension, and several important performance choices are already good: visible-page rendering is queued, off-screen canvases and text layers are released, search and text extraction are cached, request images have a bounded cache, and most persistence writes are debounced.
@@ -314,7 +320,7 @@ Recommended boundaries:
 
 - `agentGetHeadingCandidates()` and whole-document form listing process pages sequentially. Bounded concurrency (for example 3–4 pages) could reduce latency, but should be measured because PDF.js work is CPU- and memory-heavy.
 - The system prompt and full tool schemas are sent again at every agent step. Shortening tool descriptions and scenario guidance could reduce tokens and latency, but token-usage data should be collected first so clarity is not traded away blindly.
-- The new implicit-current-page behavior attaches page content to every message without an explicit page target. It correctly fixes stale page context, but it can send a full image for greetings or document-wide questions. Preserve the live page-number metadata; consider attaching the page payload only when the request is page-relative, or expose a user setting, after measuring cost and accuracy.
+- The live page-number metadata is now always preserved, while simple greetings, thanks, and “what page am I on?” questions skip the page image. Page-relative requests still attach the current page automatically. Broader intent classification should only be expanded after measuring cost and accuracy.
 - `compileSecrets()` recompiles every private-value regular expression for each request and assistant image. Cache compiled patterns until the profile changes if profiles with many private fields show measurable overhead.
 
 ## Test gaps

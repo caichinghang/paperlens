@@ -16,10 +16,6 @@ const PRICES = {
 const PEAK_HOURS = [[9, 12], [14, 18]];
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 
-export function hasPricing(model) {
-  return Object.hasOwn(PRICES, model);
-}
-
 // Beijing has no daylight saving, so shifting by eight hours and reading the UTC fields gives its clock.
 export function isPeakTime(time = Date.now()) {
   const beijing = new Date(new Date(time).getTime() + BEIJING_OFFSET_MS);
