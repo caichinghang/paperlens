@@ -270,10 +270,24 @@ console.log('pricing checks passed');
     assert.throws(() => publicWebUrl(address), /private-network|http\(s\)/);
   }
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => ({
-    status: 302,
-    headers: new Headers({ location: 'http://127.0.0.1/private' })
+  // Browsers follow redirects and report where they ended up in `response.url`.
+  const followed = (url, redirected) => Object.defineProperties(new Response('Public text', {
+    status: 200,
+    headers: { 'content-type': 'text/plain' }
+  }), {
+    url: { value: url },
+    redirected: { value: redirected }
   });
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push(options.redirect);
+    return followed('https://www.example.com/start/', true);
+  };
+  const read = await readWebpage('http://example.com/start');
+  assert.equal(read.url, 'https://www.example.com/start/', 'a public page reached through redirects can be read');
+  assert.equal(read.text, 'Public text');
+  assert.deepEqual(requests, ['follow'], 'redirects are followed by the browser, not handled manually');
+  globalThis.fetch = async () => followed('http://127.0.0.1/private', true);
   await assert.rejects(readWebpage('https://example.com/start'), /private-network/);
   globalThis.fetch = originalFetch;
 }

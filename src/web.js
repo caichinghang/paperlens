@@ -10,7 +10,6 @@ const TIMEOUT_MS = 15_000;
 const MAX_PAGE_CHARS = 12_000;
 const BLOCK_ELEMENTS = "p, div, li, dt, dd, h1, h2, h3, h4, h5, h6, br, tr, section, article, blockquote, pre, table, ul, ol";
 const NOISE_ELEMENTS = "script, style, noscript, template, svg, canvas, iframe, object, nav, header, footer, aside, form, button, [hidden], [aria-hidden='true']";
-const MAX_REDIRECTS = 5;
 
 function clean(text) {
   return String(text ?? "").replace(/\s+/g, " ").trim();
@@ -42,7 +41,7 @@ function blockedIpv6(hostname) {
 }
 
 // Extension fetches can reach hosts ordinary pages cannot. Keep the model away from loopback,
-// link-local and private networks, and re-run this check for every redirect.
+// link-local and private networks, including when a public address redirects to one.
 export function publicWebUrl(address, base) {
   let url;
   try {
@@ -61,26 +60,22 @@ export function publicWebUrl(address, base) {
 }
 
 async function request(address, failure) {
-  let url = publicWebUrl(address);
-  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
-    let response;
-    try {
-      response = await fetch(url.href, { credentials: "omit", redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS) });
-    } catch (error) {
-      throw new Error(error?.name === "TimeoutError" ? "The request timed out." : failure);
-    }
-    if (![301, 302, 303, 307, 308].includes(response.status)) {
-      // Some fetch implementations expose the final URL even without a visible redirect response.
-      publicWebUrl(response.url || url.href);
-      return response;
-    }
-    const location = response.headers.get("location");
-    if (!location) {
-      throw new Error("The page redirected without a destination.");
-    }
-    url = publicWebUrl(location, url.href);
+  const url = publicWebUrl(address);
+  let response;
+  try {
+    // Browsers hide redirect responses from `redirect: "manual"` (status 0, no Location header), so
+    // redirects are followed and the final address is checked before any of the body is used.
+    response = await fetch(url.href, { credentials: "omit", redirect: "follow", signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch (error) {
+    throw new Error(error?.name === "TimeoutError" ? "The request timed out." : failure);
   }
-  throw new Error("The page redirected too many times.");
+  try {
+    publicWebUrl(response.url || url.href);
+  } catch (error) {
+    response.body?.cancel().catch(() => {});
+    throw error;
+  }
+  return response;
 }
 
 // Result links go through a DuckDuckGo redirect that carries the real address in `uddg`.
