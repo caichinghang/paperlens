@@ -359,7 +359,13 @@
                       <button type="button" role="radio" data-language="zh" aria-checked="false">中文</button>
                     </div>
                   </div>
-                  <p class="settings-help">The page reloads to apply a new language.</p>
+                  <div class="settings-row">
+                    <span class="settings-label">Currency</span>
+                    <div id="aiCurrency" class="settings-segmented" role="radiogroup" aria-label="Currency">
+                      <button type="button" role="radio" data-currency="usd" aria-checked="true" class="is-active">$ USD</button>
+                      <button type="button" role="radio" data-currency="cny" aria-checked="false">¥ CNY</button>
+                    </div>
+                  </div>
                 </div>
               </section>
 
@@ -375,7 +381,6 @@
                       </button>
                     </span>
                   </label>
-                  <p class="settings-help">Get one at platform.deepseek.com. It stays in this browser and is only sent to the API base URL below.</p>
                   <label class="settings-row">
                     <span class="settings-label">API base URL</span>
                     <span class="settings-field">
@@ -383,15 +388,11 @@
                     </span>
                   </label>
                   <label class="settings-row">
-                    <span class="settings-label">Model</span>
+                    <span class="settings-label">Model ID</span>
                     <span class="settings-field">
-                      <input id="aiModel" type="text" list="aiModelOptions" placeholder="deepseek-flash" spellcheck="false">
-                      <datalist id="aiModelOptions">
-                        <option value="deepseek-flash"></option>
-                      </datalist>
+                      <input id="aiModel" type="text" placeholder="deepseek-flash" autocomplete="off" spellcheck="false">
                     </span>
                   </label>
-                  <p class="settings-help">DeepSeek Flash reads page images and uses tools. Any OpenAI-compatible model ID works with a matching base URL.</p>
                   <div class="settings-row">
                     <span class="settings-label">Send pages as</span>
                     <div id="aiPageFormat" class="settings-segmented" role="radiogroup" aria-label="Send pages as">
@@ -400,7 +401,7 @@
                       <button type="button" role="radio" data-format="text" aria-checked="false">Text only</button>
                     </div>
                   </div>
-                  <p class="settings-help">Automatic sends images when the model can read them. Choose Text only for text-only models.</p>
+                  <p class="settings-help"><a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">Get an API key at platform.deepseek.com</a></p>
                 </div>
               </section>
 
@@ -423,17 +424,16 @@
                   <label class="settings-switch">
                     <span>
                       <strong>Let the AI search the web</strong>
-                      <small>Searches the web and reads pages when the document isn't enough. Search queries are sent to Bing or DuckDuckGo, or to Tavily if you add a key.</small>
+                      <small>Reads the web when the document isn't enough. Searches go to Bing or DuckDuckGo, or to Tavily if you add a key (1,000 free searches a month).</small>
                     </span>
                     <input id="aiWebSearch" type="checkbox" class="switch">
                   </label>
                   <label class="settings-row">
-                    <span class="settings-label">Tavily API key (optional)</span>
+                    <span class="settings-label">Tavily API key</span>
                     <span class="settings-field">
                       <input id="aiTavilyKey" type="password" placeholder="tvly-…" autocomplete="off" spellcheck="false">
                     </span>
                   </label>
-                  <p class="settings-help">Searches use Bing, then DuckDuckGo. Add a Tavily key (1,000 free searches a month at tavily.com) for more reliable results; it's only sent to Tavily.</p>
                 </div>
               </section>
             </div>

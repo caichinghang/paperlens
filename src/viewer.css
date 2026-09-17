@@ -2536,6 +2536,15 @@ svg {
   line-height: 1.5;
 }
 
+.settings-help a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.settings-help a:hover {
+  text-decoration: underline;
+}
+
 /* One quiet line under a page's title, before its first group. */
 .settings-intro {
   margin: 0 0 18px;
@@ -2780,6 +2789,27 @@ svg {
 
 .dialog-actions .spacer {
   flex: 1;
+}
+
+.toast.has-action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-right: 6px;
+}
+
+.toast-action {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary-text) 16%, transparent);
+  color: var(--primary-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.toast-action:hover {
+  background: color-mix(in srgb, var(--primary-text) 26%, transparent);
 }
 
 .toast {
@@ -3253,23 +3283,89 @@ svg {
 
 /* ---------- AI panel: actions, cards ---------- */
 
-/* Chat history under the title: newest first, the open chat marked, delete on hover. */
+/* Chat history under the title: New chat and search stay on top; chats scroll below in date groups
+   whose labels stay pinned. The open chat's title is bold; delete shows on hover. The menu never
+   grows past the panel, however narrow or short the panel is dragged. */
 .history-menu {
-  width: min(310px, calc(100vw - 48px));
-  max-height: min(440px, 70vh);
-  overflow-y: auto;
-  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  width: min(340px, calc(var(--ai-panel-width, 364px) - 24px));
+  min-width: 0;
+  max-height: min(480px, calc(var(--ai-panel-height, 600px) - var(--panel-header-height) - 12px));
+  padding: 0;
+  overflow: hidden;
+}
+
+.ai-panel .ai-menu {
+  max-width: calc(var(--ai-panel-width, 100vw) - 24px);
+}
+
+.history-head {
+  display: grid;
+  padding: 4px 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-head > .history-new {
+  margin-bottom: 4px;
 }
 
 .menu .history-new {
   justify-content: flex-start;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
+  font-weight: 500;
 }
 
 .history-new svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
+}
+
+/* Search looks like the toolbar's Search document row: an icon and a bare field, under a hairline.
+   Its icon and text line up with New chat's above. */
+.history-search {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 9px;
+  height: 42px;
+  padding: 0 10px;
+}
+
+.history-search .flyout-input {
+  padding: 0;
+}
+
+.history-search::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 8px;
+  left: 8px;
+  height: 1px;
+  background: var(--line);
+}
+
+.history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 6px 6px;
+}
+
+.history-group-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 10px 4px;
+  background: var(--surface-raised);
+  color: var(--soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .history-row {
@@ -3280,72 +3376,110 @@ svg {
 }
 
 .history-row:hover,
-.history-row.is-current {
+.history-row:focus-within {
   background: var(--surface-hover);
 }
 
 .menu .history-row .history-open {
   display: grid;
   flex: 1;
-  gap: 1px;
-  justify-items: start;
+  gap: 2px;
+  justify-content: stretch;
+  justify-items: stretch;
   min-width: 0;
-  padding: 6px 32px 6px 10px;
+  padding: 7px 10px;
   background: transparent;
+  white-space: normal;
 }
 
-.menu .history-row .history-open:hover {
-  background: transparent;
+/* Room for the delete button while it shows, so it never covers the title. */
+.menu .history-row:hover .history-open,
+.menu .history-row:focus-within .history-open {
+  padding-right: 42px;
 }
 
-.history-title,
-.history-meta {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.menu .history-row .history-open:hover,
+.menu .history-row .history-open:focus-visible {
+  background: transparent;
+  outline: none;
 }
 
 .history-title {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text);
   font-size: 13px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.history-meta {
+.history-row.is-current .history-title {
+  font-weight: 600;
+}
+
+.history-doc {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
   color: var(--soft);
   font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.history-doc svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.history-doc span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .menu .history-row .history-delete {
   position: absolute;
-  right: 4px;
+  top: 50%;
+  right: 8px;
   display: grid;
+  /* The shared menu button spreads its content (space-between); centre the icon in the square. */
+  place-content: center;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   padding: 0;
+  border-radius: 7px;
+  background: var(--surface-hover);
   color: var(--soft);
   opacity: 0;
+  transform: translateY(-50%);
 }
 
 .history-row:hover .history-delete,
-.menu .history-row .history-delete:focus-visible {
+.history-row:focus-within .history-delete {
   opacity: 1;
 }
 
-.menu .history-row .history-delete:hover {
-  background: var(--active);
-  color: var(--text);
+.menu .history-row .history-delete:hover,
+.menu .history-row .history-delete:focus-visible {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  outline: none;
 }
 
 .history-delete svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
 }
 
 .history-empty {
-  padding: 4px 10px 8px;
+  padding: 14px 10px 10px;
   color: var(--soft);
   font-size: 12.5px;
+  text-align: center;
 }
 
 .ai-chip.is-scenario {
@@ -3699,19 +3833,7 @@ svg {
 }
 
 .ws-blank-icon {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 6px;
-  border-radius: 12px;
-  background: var(--sidebar-hover);
-  color: var(--muted);
-}
-
-.ws-blank-icon svg {
-  width: 22px;
-  height: 22px;
+  margin-bottom: 10px;
 }
 
 .ws-blank strong {
@@ -5667,6 +5789,15 @@ body.is-block-sorting * {
 .msg-usage-cost { margin-top: 3px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--text); font-weight: 600; }
 .msg-usage.is-below .msg-usage-detail { top: calc(100% + 6px); bottom: auto; transform: translateY(-2px); }
 .msg-usage:hover .msg-usage-detail, .msg-usage:focus-visible .msg-usage-detail { opacity: 1; visibility: visible; transform: none; transition: opacity 120ms ease, transform 120ms ease; }
+/* Web pages behind the reply: a link button in the actions that opens a short list of sources. */
+.msg-sources { position: relative; display: inline-flex; }
+.msg-sources-list { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20; display: grid; gap: 2px; width: max-content; min-width: 220px; max-width: min(340px, 80vw); max-height: 280px; overflow-y: auto; padding: 8px 6px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 8px 24px rgba(15, 15, 15, 0.12); }
+.msg-sources.is-below .msg-sources-list { top: calc(100% + 6px); bottom: auto; }
+.msg-sources-list strong { padding: 0 8px 4px; color: var(--soft); font-size: 11px; font-weight: 600; }
+.msg-sources-list a { display: grid; gap: 1px; padding: 6px 8px; border-radius: 7px; color: var(--text); text-decoration: none; }
+.msg-sources-list a:hover, .msg-sources-list a:focus-visible { background: var(--surface-hover); outline: none; }
+.msg-source-title { overflow: hidden; font-size: 12.5px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.msg-source-site { color: var(--soft); font-size: 11px; line-height: 1.3; }
 
 /* ---------- Tables ---------- */
 /* In the chat a table is a compact button; it opens full-size in the workspace, where it gets a frame,

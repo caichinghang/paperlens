@@ -319,15 +319,31 @@ function isTypingTarget(target) {
   return Boolean(target?.closest?.("input, textarea, select") || target?.isContentEditable);
 }
 
-function toast(message, duration = 2400) {
+// `options` is a duration in milliseconds, or { duration, action: { label, run } } for a toast with
+// one button (such as Undo) that stays up a little longer.
+function toast(message, options = {}) {
+  const { duration = 2400, action = null } = typeof options === "number" ? { duration: options } : options;
   clearTimeout(toastTimer);
   elements.toast.hidden = true;
-  elements.toast.textContent = message;
+  elements.toast.replaceChildren(message);
+  elements.toast.classList.toggle("has-action", Boolean(action));
+  if (action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "toast-action";
+    button.textContent = action.label;
+    button.addEventListener("click", () => {
+      clearTimeout(toastTimer);
+      elements.toast.hidden = true;
+      action.run();
+    }, { once: true });
+    elements.toast.append(button);
+  }
   void elements.toast.offsetWidth;
   elements.toast.hidden = false;
   toastTimer = window.setTimeout(() => {
     elements.toast.hidden = true;
-  }, duration);
+  }, action ? Math.max(duration, 5000) : duration);
 }
 
 function currentScale() {
@@ -3127,6 +3143,23 @@ elements.searchInput.addEventListener("input", () => {
   clearTimeout(search.timer);
   search.timer = window.setTimeout(() => runSearch(elements.searchInput.value), 180);
 });
+// After a thumbnail is clicked, the down and up arrows step through pages and keep the focus on the
+// matching thumbnail, so holding a key walks the document.
+elements.thumbnailList.addEventListener("keydown", event => {
+  const item = event.target.closest?.(".thumbnail-item");
+  if (!item || event.metaKey || event.ctrlKey || event.altKey || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) {
+    return;
+  }
+  event.preventDefault();
+  const next = state.pages[Number(item.dataset.pageNumber) + (event.key === "ArrowDown" ? 1 : -1) - 1];
+  if (!next) {
+    return;
+  }
+  scrollToPage(next.number, 0, event.repeat ? "auto" : "smooth");
+  next.thumbnail.focus({ preventScroll: true });
+  next.thumbnail.scrollIntoView({ block: "nearest" });
+});
+
 elements.searchInput.addEventListener("keydown", event => {
   if (event.key === "Enter") {
     event.preventDefault();

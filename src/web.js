@@ -5,6 +5,9 @@
 
 const TAVILY_URL = "https://api.tavily.com/search";
 const BING_URL = "https://www.bing.com/search";
+const BING_NEWS_URL = "https://www.bing.com/news/search";
+// Bing News matches best on a few keywords; words like these only narrow a query to nothing.
+const NEWS_FILLER = /\b(?:news|latest|today|today's|todays|this week|recent|recently|breaking|headlines?|major|biggest|big|top|announcements?|updates?)\b|新闻|最新|今天|今日|本周|头条|頭條|新聞/gi;
 const DUCKDUCKGO_URL = "https://html.duckduckgo.com/html/";
 const TIMEOUT_MS = 15_000;
 const MAX_PAGE_CHARS = 12_000;
@@ -148,9 +151,68 @@ async function searchBing(query, limit) {
   return results;
 }
 
+// News cards carry the article address, headline, publisher and age ("6 hours ago") as attributes.
+function parseBingNews(html, limit) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const results = [];
+  for (const card of doc.querySelectorAll(".news-card")) {
+    const url = card.getAttribute("data-url") || card.getAttribute("url") || card.querySelector("a.title")?.getAttribute("href") || "";
+    const title = clean(card.getAttribute("data-title") || card.querySelector("a.title")?.textContent);
+    if (!/^https?:\/\//i.test(url) || !title) {
+      continue;
+    }
+    results.push({
+      title,
+      url,
+      snippet: clean(card.querySelector(".snippet")?.textContent),
+      source: clean(card.getAttribute("data-author")),
+      published: clean(card.querySelector(".source span[aria-label]")?.getAttribute("aria-label"))
+    });
+    if (results.length >= limit) {
+      break;
+    }
+  }
+  return results;
+}
+
+async function searchBingNews(query, limit) {
+  const run = async text => {
+    const response = await request(`${BING_NEWS_URL}?q=${encodeURIComponent(text)}`, "Couldn't reach Bing News.");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return parseBingNews(await response.text(), limit);
+  };
+  const results = await run(query);
+  const shorter = clean(query.replace(NEWS_FILLER, " "));
+  return results.length || !shorter || shorter === query ? results : run(shorter);
+}
+
+async function searchTavilyNews(query, limit, key) {
+  const response = await fetch(TAVILY_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ query, max_results: limit, search_depth: "basic", topic: "news" }),
+    signal: AbortSignal.timeout(TIMEOUT_MS)
+  }).catch(error => {
+    throw new Error(error?.name === "TimeoutError" ? "The request timed out." : "Couldn't reach Tavily.");
+  });
+  if (!response.ok) {
+    throw new Error(response.status === 401 || response.status === 403 ? "the API key was rejected" : `HTTP ${response.status}`);
+  }
+  const payload = await response.json();
+  return (payload.results || [])
+    .filter(item => /^https?:\/\//i.test(item?.url || ""))
+    .slice(0, limit)
+    .map(item => ({ title: clean(item.title), url: item.url, snippet: clean(item.content).slice(0, 500), ...(item.published_date ? { published: clean(item.published_date) } : {}) }));
+}
+
 // Tries each engine in turn and returns the first non-empty result list, with the engine that found it.
-export async function searchWeb(query, limit = 6, { tavilyKey = "" } = {}) {
+// `news` asks news indexes first, for current events; the general web engines stay as a fallback.
+export async function searchWeb(query, limit = 6, { tavilyKey = "", news = false } = {}) {
   const engines = [
+    ...(news && tavilyKey ? [["Tavily News", () => searchTavilyNews(query, limit, tavilyKey)]] : []),
+    ...(news ? [["Bing News", () => searchBingNews(query, limit)]] : []),
     ...(tavilyKey ? [["Tavily", () => searchTavily(query, limit, tavilyKey)]] : []),
     ["Bing", () => searchBing(query, limit)],
     ["DuckDuckGo", () => searchDuckDuckGo(query, limit)]
@@ -244,6 +306,10 @@ export async function readWebpage(address) {
   }
 
   const finalUrl = publicWebUrl(response.url || url.href).href;
+  if (!text.trim()) {
+    // Some sites (MSN articles, for one) build their text with scripts, which aren't run here.
+    throw new Error("The page has no readable text without JavaScript. Use the search snippet, or read another result.");
+  }
   const truncated = text.length > MAX_PAGE_CHARS;
   return {
     url: finalUrl,
