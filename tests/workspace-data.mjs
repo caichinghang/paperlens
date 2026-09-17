@@ -287,6 +287,8 @@ console.log('pricing checks passed');
   assert.equal(read.url, 'https://www.example.com/start/', 'a public page reached through redirects can be read');
   assert.equal(read.text, 'Public text');
   assert.deepEqual(requests, ['follow'], 'redirects are followed by the browser, not handled manually');
+  globalThis.fetch = async () => Object.defineProperties(new Response('  \n ', { status: 200, headers: { 'content-type': 'text/plain' } }), { url: { value: 'https://example.com/app' } });
+  await assert.rejects(readWebpage('https://example.com/app'), /no readable text/, 'a page whose text needs scripts is reported instead of returning nothing');
   globalThis.fetch = async () => followed('http://127.0.0.1/private', true);
   await assert.rejects(readWebpage('https://example.com/start'), /private-network/);
   globalThis.fetch = originalFetch;
