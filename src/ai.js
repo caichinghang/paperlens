@@ -1,7 +1,9 @@
 import { createAgentTools, formatPages, TOOL_LABELS } from "./agent-tools.js";
+import { parseCsv, parseFlashcards } from "./blocks.js";
 import { replyLanguageName, setLanguagePreference, t, tn, uiLanguage } from "./i18n.js";
 import { formatCost, requestCost } from "./pricing.js";
 import { compileSecrets, maskDeep } from "./privacy.js";
+import { readSseJson } from "./sse.js";
 import { getItem, removeItem, setItem } from "./store.js";
 
 const SETTINGS_KEY = "aiSettings";
@@ -38,8 +40,9 @@ const MAX_STORED_MESSAGES = 120;
 const MAX_STORED_TOOL_RESULT = 1500;
 const RECENT_FULL_TRANSCRIPTS = 4;
 const MAX_AGENT_STEPS = 14;
-const IMAGE_CACHE_LIMIT = 40;
+const IMAGE_CACHE_LIMIT = 12;
 const MENTION_PATTERN = /(^|\s)@(\d+)(?:\s*[-–]\s*(\d+))?(?=$|[\s.,;:!?)])/g;
+const VIEWER_STATE_ONLY = /^(?:hi|hello|hey|thanks|thank\s+you|(?:what|which)\s+page(?:\s+(?:am\s+i\s+on|is\s+this))?|你好|嗨|谢谢|多谢|我在第几页|现在第几页)$/i;
 
 const ICONS = {
   send: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>',
@@ -239,7 +242,7 @@ export function renderInline(text) {
   const codes = [];
   let html = escapeHtml(text).replace(/`([^`]+)`/g, (_, code) => {
     codes.push(code);
-    return ` ${codes.length - 1} `;
+    return `\uE000${codes.length - 1}\uE001`;
   });
 
   html = html
@@ -268,7 +271,7 @@ export function renderInline(text) {
     })
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
-  return html.replace(/ (\d+) /g, (_, index) => `<code>${codes[Number(index)]}</code>`);
+  return html.replace(/\uE000(\d+)\uE001/g, (_, index) => `<code>${codes[Number(index)]}</code>`);
 }
 
 const LIST_ITEM = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
@@ -503,50 +506,6 @@ export function expandTable(block) {
   };
 }
 
-function parseFlashcards(text) {
-  return text.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
-    const parts = line.split(/\s*::\s*|\s*\|\s*(?=[^|]*$)/);
-    return parts.length >= 2 ? { question: parts[0].replace(/^[-*\d.)\s]+/, ""), answer: parts.slice(1).join(" ") } : null;
-  }).filter(Boolean);
-}
-
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    if (quoted) {
-      if (character === '"' && text[index + 1] === '"') {
-        cell += '"';
-        index += 1;
-      } else if (character === '"') {
-        quoted = false;
-      } else {
-        cell += character;
-      }
-    } else if (character === '"') {
-      quoted = true;
-    } else if (character === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (character === "\n") {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else if (character !== "\r") {
-      cell += character;
-    }
-  }
-  if (cell || row.length) {
-    row.push(cell);
-    rows.push(row);
-  }
-  return rows.filter(cells => cells.some(value => value.trim()));
-}
-
 function renderCodeBlock(language, code) {
   const lang = language.trim().toLowerCase();
   if (lang === "flashcards") {
@@ -676,11 +635,11 @@ function parseMentions(text, pageCount) {
 
 // A page mention is an explicit override for this message. Without one, the page in the viewer is
 // the natural context: the reader should not have to type @59 just because an older turn used @15.
-function resolveTurnPages(text, pageCount, currentPage, attached = [], hasRegions = false) {
+function resolveTurnPages(text, pageCount, currentPage, attached = [], hasRegions = false, attachImplicit = true) {
   const mentions = parseMentions(text, pageCount);
   const explicit = new Set([...attached, ...mentions.pages]);
   const page = Number(currentPage);
-  const implicit = !explicit.size && !mentions.tokens.length && !hasRegions && Number.isInteger(page) && page >= 1 && page <= pageCount;
+  const implicit = attachImplicit && !explicit.size && !mentions.tokens.length && !hasRegions && Number.isInteger(page) && page >= 1 && page <= pageCount;
   return {
     pages: [...(implicit ? new Set([page]) : explicit)].sort((a, b) => a - b),
     implicit
@@ -689,6 +648,11 @@ function resolveTurnPages(text, pageCount, currentPage, attached = [], hasRegion
 
 function withViewerState(text, page) {
   return `${text}\n\n[Live viewer state: page ${page} is the page visible for this message. Earlier @page mentions are historical references and do not change the current page.]`;
+}
+
+function needsCurrentPageContent(text) {
+  const clean = String(text ?? "").replace(/[\s.!?。！？，,]+$/g, "").trim();
+  return Boolean(clean) && !VIEWER_STATE_ONLY.test(clean);
 }
 
 function rangeLabel({ from, to }) {
@@ -826,6 +790,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   el.panel.inert = true;
   el.mic.hidden = !SpeechRecognition;
 
+  let readyDone = false;
   const ready = Promise.all([getItem(SETTINGS_KEY, null), getItem(CHATS_KEY, null), getItem(HISTORY_KEY, null)]).then(([savedSettings, savedChats, legacyHistory]) => {
     settings = { ...DEFAULT_SETTINGS, ...(savedSettings || {}) };
     if (RETIRED_DEFAULT_MODELS.has(settings.model)) {
@@ -858,6 +823,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     if (reopenSettings) {
       openSettings();
     }
+    readyDone = true;
   });
 
   function isDeepSeekHost() {
@@ -1046,6 +1012,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     chatId = chat.id;
     history = restoreHistory(chat.messages);
     scenario = findScenario(chat.scenario);
+    tools.resetSession();
     resetComposerContext();
     showSettings(false);
     persist();
@@ -1188,6 +1155,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       docKey = key;
       controller?.abort();
       imageCache.clear();
+      tools.resetSession();
       regions = [];
       pageRanges = [];
       setQuote("");
@@ -1202,6 +1170,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     chatId = newChatId();
     history = [];
     scenario = null;
+    tools.resetSession();
     resetComposerContext();
     showSettings(false);
     persist();
@@ -2136,8 +2105,13 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   // ---------- Building requests ----------
 
   // Page and region images are rendered once per markup revision, then reused across steps and turns.
-  function cached(key, render) {
+  function cached(key, group, render) {
     if (!imageCache.has(key)) {
+      for (const cachedKey of imageCache.keys()) {
+        if (cachedKey !== key && cachedKey.startsWith(`${group}|`)) {
+          imageCache.delete(cachedKey);
+        }
+      }
       if (imageCache.size >= IMAGE_CACHE_LIMIT) {
         imageCache.delete(imageCache.keys().next().value);
       }
@@ -2150,11 +2124,13 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   function pageImage(page) {
-    return cached(`${docKey}|${page}|${host.getRevision()}`, () => host.renderPageImage(page));
+    const group = `${docKey}|p|${page}`;
+    return cached(`${group}|${host.getRevision()}`, group, () => host.renderPageImage(page));
   }
 
   function regionImage(region) {
-    return cached(`${docKey}|r|${regionKey(region)}|${host.getRevision()}`, () => host.renderRegionImage(region.page, region.box));
+    const group = `${docKey}|r|${regionKey(region)}`;
+    return cached(`${group}|${host.getRevision()}`, group, () => host.renderRegionImage(region.page, region.box));
   }
 
   function describeAttachments(pages, regions) {
@@ -2226,7 +2202,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
 
     return [
       `You are an AI assistant inside a PDF reader, working on "${info.name}" (${info.pageCount} pages). The live viewer is currently on page ${info.currentPage}. Treat this live page as the current page for the new turn even when older chat messages mention or attach another page. An @page mention refers only to the message where it appears; it never changes the live viewer page. This chat may also contain earlier questions about other documents; only the current document can be viewed or edited now.`,
-      "You only see pages that are attached. PaperLens automatically attaches the live current page when a new message has no explicit page target; the reader can instead attach pages with @ mentions (like @3 or @2-4) or attach regions. You can open any page yourself with view_pages, zoom into a part with view_region, find things with search_document and get_outline. Never guess what a page you haven't seen says.",
+      "You only see pages that are attached. For a page-related message with no explicit target, PaperLens automatically attaches the live current page; greetings and questions that only need the page number carry the live viewer state without the page image. The reader can instead attach pages with @ mentions (like @3 or @2-4) or attach regions. You can open any page yourself with view_pages, zoom into a part with view_region, find things with search_document and get_outline. Never guess what a page you haven't seen says.",
       seeing,
       editing,
       web,
@@ -2336,14 +2312,14 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     const body = {
       model: settings.model,
       messages: secrets.length ? maskDeep(messages, secrets) : messages,
-      stream: true,
-      // Ask for token counts in the last chunk, for the usage shown under each reply.
-      stream_options: { include_usage: true }
+      stream: true
     };
     if (withTools) {
       body.tools = tools.definitions({ allowEdits: settings.allowEdits, allowWeb: settings.webSearch });
     }
     if (isDeepSeekHost()) {
+      // DeepSeek supports a final usage chunk; unknown OpenAI-compatible servers may reject it.
+      body.stream_options = { include_usage: true };
       body.thinking = thinking === "none"
         ? { type: "disabled" }
         : { type: "enabled", reasoning_effort: thinking };
@@ -2365,64 +2341,37 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     }
 
     const turn = { content: "", reasoning: "", toolCalls: [] };
-    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-    let buffer = "";
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) {
-        break;
+    await readSseJson(response.body, chunk => {
+      if (chunk.usage) {
+        turn.usage = chunk.usage;
       }
-
-      buffer += value;
-      const lines = buffer.split("\n");
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:") || trimmed === "data: [DONE]") {
-          continue;
+      const delta = chunk.choices?.[0]?.delta || {};
+      if (delta.reasoning_content) {
+        turn.reasoning += delta.reasoning_content;
+        reply.thinking = true;
+      }
+      if (delta.content) {
+        if (!turn.content && reply.content) {
+          reply.content += "\n\n";
         }
-
-        let chunk;
-        try {
-          chunk = JSON.parse(trimmed.slice(5));
-        } catch {
-          continue;
+        appendText(reply, delta.content, !turn.content);
+        turn.content += delta.content;
+        reply.content += delta.content;
+      }
+      for (const call of delta.tool_calls || []) {
+        const slot = (turn.toolCalls[call.index ?? turn.toolCalls.length] ||= { id: "", name: "", arguments: "" });
+        if (call.id) {
+          slot.id = call.id;
         }
-        if (chunk.usage) {
-          turn.usage = chunk.usage;
+        if (call.function?.name) {
+          slot.name += call.function.name;
         }
-        const delta = chunk.choices?.[0]?.delta || {};
-
-        if (delta.reasoning_content) {
-          turn.reasoning += delta.reasoning_content;
-          reply.thinking = true;
-        }
-        if (delta.content) {
-          if (!turn.content && reply.content) {
-            reply.content += "\n\n";
-          }
-          appendText(reply, delta.content, !turn.content);
-          turn.content += delta.content;
-          reply.content += delta.content;
-        }
-        for (const call of delta.tool_calls || []) {
-          const slot = (turn.toolCalls[call.index ?? turn.toolCalls.length] ||= { id: "", name: "", arguments: "" });
-          if (call.id) {
-            slot.id = call.id;
-          }
-          if (call.function?.name) {
-            slot.name += call.function.name;
-          }
-          if (call.function?.arguments) {
-            slot.arguments += call.function.arguments;
-          }
+        if (call.function?.arguments) {
+          slot.arguments += call.function.arguments;
         }
       }
-
       reply.onUpdate?.(reply);
-    }
+    });
 
     turn.toolCalls = turn.toolCalls.filter(Boolean);
     return turn;
@@ -2632,7 +2581,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       return;
     }
 
-    const pageContext = resolveTurnPages(content, info.pageCount, info.currentPage, attachedPages(), regions.length > 0);
+    const pageContext = resolveTurnPages(content, info.pageCount, info.currentPage, attachedPages(), regions.length > 0, needsCurrentPageContent(content));
     let pages = pageContext.pages;
     if (pages.length > MAX_ATTACHED_PAGES) {
       toast(t("Only the first {count} pages are attached", { count: MAX_ATTACHED_PAGES }));
@@ -2659,6 +2608,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       docName: info.name,
       at: Date.now()
     });
+    // Keep the submitted question even if the tab closes while the agent is still working.
+    flushChats();
     quote = "";
     regions = [];
     pageRanges = [];
@@ -3030,5 +2981,16 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     showSettings(true);
   }
 
-  return { close, isOpen, open, openSettings, setDocument, quickAsk, useCommand };
+  function flush() {
+    if (!readyDone) {
+      return Promise.resolve();
+    }
+    const writes = [flushChats()];
+    if (settingsTimer) {
+      writes.push(commitSettings());
+    }
+    return Promise.all(writes);
+  }
+
+  return { close, flush, isOpen, open, openSettings, setDocument, quickAsk, useCommand };
 }

@@ -7,77 +7,78 @@ function ascii(text) {
   return encoder.encode(text);
 }
 
-function concat(chunks) {
-  const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const out = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return out;
+function byteLength(part) {
+  return part instanceof Blob ? part.size : part.byteLength;
 }
 
-export function dataUrlToBytes(dataUrl) {
-  const binary = atob(dataUrl.slice(dataUrl.indexOf(",") + 1));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
+// Builds a PDF as Blob parts while pages are rendered. JPEGs stay as blobs instead of becoming
+// base64 strings and then being copied into several document-sized byte arrays.
+export function createImagePdfBuilder(pageCount, { title = "" } = {}) {
+  if (!Number.isInteger(pageCount) || pageCount < 1) {
+    throw new Error("An image PDF needs at least one page.");
   }
-  return bytes;
-}
+  const catalogId = 1;
+  const pagesId = 2;
+  const infoId = pageCount * 3 + 3;
+  const pageIds = Array.from({ length: pageCount }, (_, index) => index * 3 + 5);
+  const safeTitle = title.replace(/[()\\]/g, "").replace(/[^\x20-\x7e]/g, "");
+  const header = ascii("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+  const parts = [header];
+  const offsets = [];
+  let offset = header.length;
+  let nextId = 1;
+  let addedPages = 0;
 
-// pages: [{ jpeg: Uint8Array, width, height (points), pixelWidth, pixelHeight }]
-export function buildImagePdf(pages, { title = "" } = {}) {
-  const objects = [];
-  const add = parts => {
-    objects.push(parts);
-    return objects.length;
+  const addObject = (id, bodyParts) => {
+    if (id !== nextId) {
+      throw new Error(`PDF object ${id} was added out of order.`);
+    }
+    offsets.push(offset);
+    const wrapped = [ascii(`${id} 0 obj\n`), ...bodyParts, ascii("\nendobj\n")];
+    parts.push(...wrapped);
+    offset += wrapped.reduce((sum, part) => sum + byteLength(part), 0);
+    nextId += 1;
   };
 
-  const catalogId = add(null);
-  const pagesId = add(null);
-  const pageIds = [];
+  addObject(catalogId, [ascii(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`)]);
+  addObject(pagesId, [ascii(`<< /Type /Pages /Count ${pageCount} /Kids [${pageIds.map(id => `${id} 0 R`).join(" ")}] >>`)]);
 
-  for (const page of pages) {
-    const imageId = add([
-      ascii(`<< /Type /XObject /Subtype /Image /Width ${page.pixelWidth} /Height ${page.pixelHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.jpeg.length} >>\nstream\n`),
-      page.jpeg,
-      ascii("\nendstream")
-    ]);
-    const content = ascii(`q ${page.width.toFixed(2)} 0 0 ${page.height.toFixed(2)} 0 0 cm /Im0 Do Q`);
-    const contentId = add([ascii(`<< /Length ${content.length} >>\nstream\n`), content, ascii("\nendstream")]);
-    const pageId = add([ascii(
-      `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${page.width.toFixed(2)} ${page.height.toFixed(2)}] ` +
-      `/Resources << /XObject << /Im0 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`
-    )]);
-    pageIds.push(pageId);
-  }
+  return {
+    addPage({ jpeg, width, height, pixelWidth, pixelHeight }) {
+      if (addedPages >= pageCount || !(jpeg instanceof Blob || ArrayBuffer.isView(jpeg))) {
+        throw new Error("Invalid or extra image PDF page.");
+      }
+      const imageId = addedPages * 3 + 3;
+      const contentId = imageId + 1;
+      const pageId = imageId + 2;
+      addObject(imageId, [
+        ascii(`<< /Type /XObject /Subtype /Image /Width ${pixelWidth} /Height ${pixelHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${byteLength(jpeg)} >>\nstream\n`),
+        jpeg,
+        ascii("\nendstream")
+      ]);
+      const content = ascii(`q ${width.toFixed(2)} 0 0 ${height.toFixed(2)} 0 0 cm /Im0 Do Q`);
+      addObject(contentId, [ascii(`<< /Length ${content.length} >>\nstream\n`), content, ascii("\nendstream")]);
+      addObject(pageId, [ascii(
+        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${width.toFixed(2)} ${height.toFixed(2)}] ` +
+        `/Resources << /XObject << /Im0 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`
+      )]);
+      addedPages += 1;
+    },
 
-  objects[catalogId - 1] = [ascii(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`)];
-  objects[pagesId - 1] = [ascii(`<< /Type /Pages /Count ${pageIds.length} /Kids [${pageIds.map(id => `${id} 0 R`).join(" ")}] >>`)];
+    finish() {
+      if (addedPages !== pageCount) {
+        throw new Error(`Expected ${pageCount} image PDF pages, received ${addedPages}.`);
+      }
+      addObject(infoId, [ascii(`<< /Producer (PaperLens) ${safeTitle ? `/Title (${safeTitle})` : ""} >>`)]);
 
-  const safeTitle = title.replace(/[()\\]/g, "").replace(/[^\x20-\x7e]/g, "");
-  const infoId = add([ascii(`<< /Producer (PDF viewer) ${safeTitle ? `/Title (${safeTitle})` : ""} >>`)]);
-
-  const chunks = [ascii("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")];
-  let offset = chunks[0].length;
-  const offsets = [];
-
-  objects.forEach((parts, index) => {
-    offsets.push(offset);
-    const body = concat([ascii(`${index + 1} 0 obj\n`), ...parts, ascii("\nendobj\n")]);
-    chunks.push(body);
-    offset += body.length;
-  });
-
-  const xrefOffset = offset;
-  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const position of offsets) {
-    xref += `${String(position).padStart(10, "0")} 00000 n \n`;
-  }
-  xref += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R /Info ${infoId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-  chunks.push(ascii(xref));
-
-  return concat(chunks);
+      const xrefOffset = offset;
+      let xref = `xref\n0 ${nextId}\n0000000000 65535 f \n`;
+      for (const position of offsets) {
+        xref += `${String(position).padStart(10, "0")} 00000 n \n`;
+      }
+      xref += `trailer\n<< /Size ${nextId} /Root ${catalogId} 0 R /Info ${infoId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+      parts.push(ascii(xref));
+      return new Blob(parts, { type: "application/pdf" });
+    }
+  };
 }

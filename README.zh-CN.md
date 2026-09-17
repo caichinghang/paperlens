@@ -217,11 +217,13 @@ PaperLens 使用原生 HTML、CSS 和 JavaScript 模块编写，没有框架、�
 | `src/lens.js` | 按住 Option 的区域识别和解释气泡 |
 | `src/references.js` | 图、表、章节、公式和参考文献的弹出卡片 |
 | `src/markup.js` | 画笔、高亮、文本框、图层、签名、PDF 导出 |
+| `src/annotation-history.js` | 按页面保存批注快照，提升撤销和重做效率 |
 | `src/workspace.js` | 笔记本（含待办页）和个人资料面板 |
 | `src/editor.js`、`src/blocks.js` | 笔记页面的块编辑器及 Markdown 转换 |
 | `src/profile.js`、`src/todos.js` | 个人资料的分组和字段；笔记本待办页上的事项 |
 | `src/privacy.js` | 隐私资料的占位符，以及把隐私值从发给 AI 的内容里去掉 |
 | `src/web.js` | 网络搜索和网页正文提取 |
+| `src/sse.js` | 稳定解析助手的流式回复 |
 | `src/rules.js` | 识别页面上的横线，让日期和签名落在线上 |
 | `src/pdf-writer.js`、`src/ics.js` | 涂黑用的纯图片 PDF；日历导出 |
 | `src/i18n.js` | 中英文界面文案 |

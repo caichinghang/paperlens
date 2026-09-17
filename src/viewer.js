@@ -3,7 +3,7 @@ import { createAssistant } from "./ai.js";
 import { t, translateDom, translationTarget } from "./i18n.js";
 import { createLens } from "./lens.js";
 import { createMarkup } from "./markup.js";
-import { buildImagePdf, dataUrlToBytes } from "./pdf-writer.js";
+import { createImagePdfBuilder } from "./pdf-writer.js";
 import { createReferences } from "./references.js";
 import { compileSecrets, maskText } from "./privacy.js";
 import { headingCandidates } from "./headings.js";
@@ -94,6 +94,7 @@ const MARK_REMOVE_LABELS = { highlight: "Remove highlight", underline: "Remove u
 const AGENT_IMAGE_LONG_SIDE = 1600;
 const REGION_IMAGE_LONG_SIDE = 1200;
 const FLATTEN_SCALE = 150 / 72;
+const MAX_SEARCH_MATCHES = 5000;
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const narrowScreen = window.matchMedia("(max-width: 820px)");
 
@@ -114,7 +115,7 @@ const pageTextPromises = new Map();
 const pageTextData = new Map();
 const pageByShell = new WeakMap();
 const zoomAnimation = { frame: 0, target: 1, focalX: 0, focalY: 0, last: 0 };
-const search = { query: "", matches: [], index: -1, token: 0, timer: 0, pendingScroll: false };
+const search = { query: "", matches: [], index: -1, token: 0, timer: 0, pendingScroll: false, truncated: false };
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
@@ -336,6 +337,7 @@ function currentScale() {
 // ---------- Loading ----------
 
 function resetViewer() {
+  flushFormEdits();
   state.loadToken += 1;
   clearTimeout(settleTimer);
   cancelZoomAnimation();
@@ -346,11 +348,14 @@ function resetViewer() {
 
   for (const page of state.pages) {
     page.renderTask?.cancel();
+    clearTimeout(page.thumbnailTimer);
   }
 
   // PDF.js 6 tears a document down through its loading task; the proxy itself has no destroy().
   state.doc?.loadingTask?.destroy().catch(() => {});
   state.doc = null;
+  state.docKey = "";
+  state.fileName = "";
   state.pages = [];
   state.originalBytes = null;
   state.currentPage = 1;
@@ -362,9 +367,13 @@ function resetViewer() {
   search.token += 1;
   search.matches = [];
   search.index = -1;
+  search.truncated = false;
   hidePopover();
   references.reset();
   lens.reset();
+  assistant.setDocument("");
+  workspace.setDocument("", "");
+  markup.setDocument("");
   elements.pdfPages.replaceChildren();
   syncLayerPill();
   return state.loadToken;
@@ -492,10 +501,6 @@ async function openDocument(bytes, { token, name, key }) {
 
   elements.pdfPages.replaceChildren(...state.pages.map(page => page.shell));
   elements.thumbnailList.replaceChildren(...state.pages.map(page => page.thumbnail));
-  for (const page of state.pages) {
-    markup.attachPage(page);
-  }
-
   elements.pageCount.textContent = t("of {count}", { count: doc.numPages });
   elements.downloadPdf.disabled = false;
 
@@ -566,8 +571,8 @@ function setPageViewport(page, viewport) {
   page.thumbnail.querySelector(".thumbnail-preview").style.aspectRatio = `${page.width} / ${page.height}`;
 }
 
-function syncPageViewport(page) {
-  const viewport = page.pdfPage.getViewport({ scale: 1 });
+function syncPageViewport(page, pdfPage = page.pdfPage) {
+  const viewport = pdfPage.getViewport({ scale: 1 });
   const changed = Math.abs(viewport.width - page.width) > 0.5 ||
     Math.abs(viewport.height - page.height) > 0.5 ||
     viewport.rotation !== page.viewport.rotation;
@@ -582,16 +587,23 @@ function syncPageViewport(page) {
 
 async function loadPageSizes(token) {
   try {
-    for (const page of state.pages.slice(1)) {
-      if (token !== state.loadToken) {
-        return;
+    const doc = state.doc;
+    const pages = state.pages.slice(1);
+    let next = 0;
+    const worker = async () => {
+      while (next < pages.length && token === state.loadToken) {
+        const page = pages[next++];
+        const pdfPage = page.pdfPage || await doc.getPage(page.number);
+        if (token !== state.loadToken) {
+          return;
+        }
+        syncPageViewport(page, pdfPage);
+        if (page.pdfPage !== pdfPage) {
+          pdfPage.cleanup?.();
+        }
       }
-      page.pdfPage ||= await state.doc.getPage(page.number);
-      if (token !== state.loadToken) {
-        return;
-      }
-      syncPageViewport(page);
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, pages.length) }, worker));
   } catch {
     // The document was closed while sizes were loading.
   }
@@ -605,7 +617,9 @@ function observePages() {
         continue;
       }
       page.near = entry.isIntersecting;
-      if (!page.near) {
+      if (page.near) {
+        markup.attachPage(page);
+      } else {
         releasePage(page);
       }
     }
@@ -643,6 +657,7 @@ function releasePage(page) {
   page.linkLayer = null;
   page.linksStarted = false;
   references.release(page);
+  markup.releasePage(page.number);
 
   // The form layer stays while a field on it has focus (a keyboard scroll shouldn't eat the caret).
   if (page.formLayer && !page.formLayer.contains(document.activeElement)) {
@@ -650,6 +665,7 @@ function releasePage(page) {
   }
 
   page.renderedScale = 0;
+  page.failedScale = 0;
 }
 
 function scheduleRender() {
@@ -808,6 +824,7 @@ async function ensureTextLayer(page, token) {
     references.attach(page, token);
   } catch (error) {
     if (token === state.loadToken) {
+      page.textLayerStarted = false;
       console.warn(`Text layer for page ${page.number} failed`, error);
     }
   }
@@ -873,6 +890,7 @@ async function ensureLinkLayer(page, token) {
 
     page.shell.append(layer);
   } catch {
+    page.linksStarted = false;
     // Links are a convenience; a page without them still renders fine.
   }
 }
@@ -945,6 +963,7 @@ async function ensureFormLayer(page, token) {
     div.addEventListener("input", onEdit);
     div.addEventListener("change", onEdit);
   } catch (error) {
+    page.formLayerStarted = false;
     if (token === state.loadToken) {
       console.warn(`Form layer for page ${page.number} failed`, error);
     }
@@ -958,22 +977,37 @@ function rebuildFormLayer(page) {
 }
 
 let formPersistTimer = 0;
+let pendingFormSave = null;
+
+function writeFormSnapshot({ key, values }) {
+  if (!key) {
+    return;
+  }
+  if (Object.keys(values).length) {
+    setItem(`forms:${key}`, values);
+  } else {
+    removeItem(`forms:${key}`);
+  }
+}
+
+function flushFormEdits() {
+  clearTimeout(formPersistTimer);
+  formPersistTimer = 0;
+  if (pendingFormSave) {
+    const pending = pendingFormSave;
+    pendingFormSave = null;
+    writeFormSnapshot(pending);
+  }
+}
 
 // Typing fires an input event per keystroke; the saved copy only needs to catch up once it settles.
 function persistFormEdits({ immediate = false } = {}) {
   clearTimeout(formPersistTimer);
-  const write = () => {
-    const key = `forms:${state.docKey}`;
-    if (formEdits.size) {
-      setItem(key, Object.fromEntries(formEdits));
-    } else {
-      removeItem(key);
-    }
-  };
+  pendingFormSave = { key: state.docKey, values: Object.fromEntries(formEdits) };
   if (immediate) {
-    write();
+    flushFormEdits();
   } else {
-    formPersistTimer = window.setTimeout(write, 400);
+    formPersistTimer = window.setTimeout(flushFormEdits, 400);
   }
 }
 
@@ -1545,6 +1579,7 @@ function closeSearch() {
   search.query = "";
   search.matches = [];
   search.index = -1;
+  search.truncated = false;
   for (const page of state.pages) {
     clearHighlights(page);
   }
@@ -1561,7 +1596,7 @@ function updateSearchCount(pending = false) {
   } else if (!search.matches.length) {
     elements.searchCount.textContent = pending ? "…" : "0";
   } else {
-    elements.searchCount.textContent = `${Math.max(search.index + 1, 1)}/${search.matches.length}${pending ? "+" : ""}`;
+    elements.searchCount.textContent = `${Math.max(search.index + 1, 1)}/${search.matches.length}${pending || search.truncated ? "+" : ""}`;
   }
 }
 
@@ -1577,6 +1612,7 @@ async function runSearch(rawQuery) {
   search.query = query;
   search.matches = matches;
   search.index = -1;
+  search.truncated = false;
 
   if (!query || !state.doc) {
     updateSearchCount();
@@ -1600,9 +1636,12 @@ async function runSearch(rawQuery) {
 
     const firstOnPage = matches.length;
     let index = data.lower.indexOf(needle);
-    while (index !== -1) {
+    while (index !== -1 && matches.length < MAX_SEARCH_MATCHES) {
       matches.push({ page: page.number, start: index, end: index + needle.length });
       index = data.lower.indexOf(needle, index + needle.length);
+    }
+    if (matches.length >= MAX_SEARCH_MATCHES) {
+      search.truncated = true;
     }
 
     if (matches.length > firstOnPage) {
@@ -1613,6 +1652,9 @@ async function runSearch(rawQuery) {
       }
     }
     updateSearchCount(true);
+    if (search.truncated) {
+      break;
+    }
   }
 
   if (search.index === -1 && matches.length) {
@@ -1848,6 +1890,19 @@ function agentPage(number) {
   return page;
 }
 
+async function mapWithConcurrency(items, limit, run) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await run(items[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 function toGridBox(page, { x, y, width, height }) {
   return {
     x: Math.round((x / page.width) * AGENT_GRID),
@@ -2053,9 +2108,8 @@ function formFieldType(annotation) {
 async function agentListFormFields(pageNumbers) {
   const pages = pageNumbers?.length ? pageNumbers.map(agentPage) : state.pages;
   const storage = state.doc.annotationStorage;
-  const fields = [];
-
-  for (const page of pages) {
+  const groups = await mapWithConcurrency(pages, 4, async page => {
+    const fields = [];
     page.pdfPage ||= await state.doc.getPage(page.number);
     for (const annotation of await pageAnnotations(page)) {
       const type = formFieldType(annotation);
@@ -2097,9 +2151,10 @@ async function agentListFormFields(pageNumbers) {
 
       fields.push(field);
     }
-  }
+    return fields;
+  });
 
-  return fields;
+  return groups.flat();
 }
 
 function storeFieldValue(id, value, undoLog) {
@@ -2471,15 +2526,11 @@ async function agentGetHeadingCandidates() {
   if (!state.doc) {
     throw new Error("No PDF is open.");
   }
-  const pages = [];
-  let withText = 0;
-  for (const page of state.pages) {
+  const pages = await mapWithConcurrency(state.pages, 4, async page => {
     const { blocks } = await pageLayoutBlocks(page.number);
-    if (blocks.length) {
-      withText += 1;
-    }
-    pages.push({ page: page.number, blocks });
-  }
+    return { page: page.number, blocks };
+  });
+  const withText = pages.filter(page => page.blocks.length).length;
   const { bodySize, candidates, trimmed } = headingCandidates(pages);
   return { pageCount: state.pages.length, pagesWithText: withText, bodySize, candidates, trimmed };
 }
@@ -2705,7 +2756,7 @@ function syncLayerPill() {
 
 // Pages with approved redactions are flattened to images so the text underneath is really removed.
 async function flattenToImagePdf() {
-  const pages = [];
+  const builder = createImagePdfBuilder(state.pages.length, { title: state.fileName.replace(/\.pdf$/i, "") });
   for (const page of state.pages) {
     page.pdfPage ||= await state.doc.getPage(page.number);
     const viewport = page.pdfPage.getViewport({ scale: FLATTEN_SCALE });
@@ -2715,8 +2766,9 @@ async function flattenToImagePdf() {
     const context = canvas.getContext("2d", { alpha: false });
     await page.pdfPage.render({ canvas, canvasContext: context, viewport, annotationMode: pdfjsLib.AnnotationMode.ENABLE_STORAGE }).promise;
     markup.drawOnCanvas(context, page.number, FLATTEN_SCALE, { forExport: true });
-    pages.push({
-      jpeg: dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.9)),
+    const jpeg = await new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Couldn't encode a PDF page.")), "image/jpeg", 0.9));
+    builder.addPage({
+      jpeg,
       width: page.width,
       height: page.height,
       pixelWidth: canvas.width,
@@ -2724,7 +2776,7 @@ async function flattenToImagePdf() {
     });
     canvas.width = 0;
   }
-  return buildImagePdf(pages, { title: state.fileName.replace(/\.pdf$/i, "") });
+  return builder.finish();
 }
 
 // ---------- Download & files ----------
@@ -2753,7 +2805,8 @@ async function downloadPdf() {
       }
     }
 
-    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const blob = bytes instanceof Blob ? bytes : new Blob([bytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = state.fileName;
@@ -3287,6 +3340,8 @@ document.addEventListener("keydown", event => {
 });
 
 window.addEventListener("pagehide", () => {
+  flushFormEdits();
+  assistant.flush();
   markup.flush();
   workspace.flush();
 });

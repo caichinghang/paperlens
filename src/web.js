@@ -15,12 +15,67 @@ function clean(text) {
   return String(text ?? "").replace(/\s+/g, " ").trim();
 }
 
-async function request(url, failure) {
+function blockedIpv4(hostname) {
+  const parts = hostname.split(".").map(Number);
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+  const [a, b] = parts;
+  return a === 0 || a === 10 || a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) || a >= 224;
+}
+
+function blockedIpv6(hostname) {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (!host.includes(":")) {
+    return false;
+  }
+  if (host === "::" || host === "::1" || host.startsWith("fe8") || host.startsWith("fe9") || host.startsWith("fea") || host.startsWith("feb") || /^[fd]/.test(host)) {
+    return true;
+  }
+  const mapped = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  return mapped ? blockedIpv4(mapped[1]) : false;
+}
+
+// Extension fetches can reach hosts ordinary pages cannot. Keep the model away from loopback,
+// link-local and private networks, including when a public address redirects to one.
+export function publicWebUrl(address, base) {
+  let url;
   try {
-    return await fetch(url, { credentials: "omit", redirect: "follow", signal: AbortSignal.timeout(TIMEOUT_MS) });
+    url = new URL(String(address ?? "").trim(), base);
+  } catch {
+    throw new Error("Pass a full http(s) URL.");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Only http and https pages can be read.");
+  }
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (url.username || url.password || hostname === "localhost" || hostname.endsWith(".localhost") || blockedIpv4(hostname) || blockedIpv6(hostname)) {
+    throw new Error("Local and private-network addresses can't be read.");
+  }
+  return url;
+}
+
+async function request(address, failure) {
+  const url = publicWebUrl(address);
+  let response;
+  try {
+    // Browsers hide redirect responses from `redirect: "manual"` (status 0, no Location header), so
+    // redirects are followed and the final address is checked before any of the body is used.
+    response = await fetch(url.href, { credentials: "omit", redirect: "follow", signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch (error) {
     throw new Error(error?.name === "TimeoutError" ? "The request timed out." : failure);
   }
+  try {
+    publicWebUrl(response.url || url.href);
+  } catch (error) {
+    response.body?.cancel().catch(() => {});
+    throw error;
+  }
+  return response;
 }
 
 // Result links go through a DuckDuckGo redirect that carries the real address in `uddg`.
@@ -162,15 +217,7 @@ function readableText(root) {
 }
 
 export async function readWebpage(address) {
-  let url;
-  try {
-    url = new URL(String(address ?? "").trim());
-  } catch {
-    throw new Error("Pass a full http(s) URL.");
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("Only http and https pages can be read.");
-  }
+  const url = publicWebUrl(address);
 
   const response = await request(url.href, "Couldn't load the page.");
   if (!response.ok) {
@@ -196,7 +243,7 @@ export async function readWebpage(address) {
     text = readableText(doc.querySelector("article, main, [role='main']") || doc.body || doc.documentElement);
   }
 
-  const finalUrl = response.url || url.href;
+  const finalUrl = publicWebUrl(response.url || url.href).href;
   const truncated = text.length > MAX_PAGE_CHARS;
   return {
     url: finalUrl,

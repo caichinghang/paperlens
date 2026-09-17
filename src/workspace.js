@@ -9,7 +9,7 @@ import { createBlockEditor, EDITOR_ICONS } from "./editor.js";
 import { t, tn, uiLanguage } from "./i18n.js";
 import { moveOutline, normalizeOutline, outlineChildren, outlineItem as findOutlineItem, outlineParent } from "./outline.js";
 import { fillTokens } from "./privacy.js";
-import { applyDetail, emptyProfile, fieldLabel, fieldTemplate, fieldType, findField, isBuiltInSection, loadProfile, newField, newSection, privateEntries, profileAge, profileEntries, sectionTitle } from "./profile.js";
+import { allFields, applyDetail, emptyProfile, fieldLabel, fieldTemplate, fieldType, findField, isBuiltInSection, loadProfile, MAX_PROFILE_FIELDS, MAX_PROFILE_SECTIONS, newField, newSection, privateEntries, profileAge, profileEntries, sectionTitle } from "./profile.js";
 import { getItem, setItem } from "./store.js";
 import { mergeTodos, readTodos } from "./todos.js";
 
@@ -173,15 +173,24 @@ export function createWorkspace({ host, toast, onToggle }) {
 
   function flush() {
     clearTimeout(saveTimer);
+    saveTimer = 0;
     if (pendingSave) {
       setItem(pendingSave.key, pendingSave.value);
       pendingSave = null;
+    }
+    clearTimeout(profileTimer);
+    if (profileTimer) {
+      profileTimer = 0;
+      setItem(PROFILE_KEY, profile);
     }
   }
 
   function saveProfile() {
     clearTimeout(profileTimer);
-    profileTimer = window.setTimeout(() => setItem(PROFILE_KEY, profile), 300);
+    profileTimer = window.setTimeout(() => {
+      profileTimer = 0;
+      setItem(PROFILE_KEY, profile);
+    }, 300);
   }
 
   async function setDocument(key, name = "") {
@@ -859,6 +868,10 @@ export function createWorkspace({ host, toast, onToggle }) {
     } else if (action === "profile-add-field") {
       const { section } = profileTarget(button);
       if (section) {
+        if (allFields(profile).length >= MAX_PROFILE_FIELDS) {
+          toast(t("The profile has reached its field limit"));
+          return;
+        }
         const field = newField();
         section.fields.push(field);
         saveProfile();
@@ -866,6 +879,10 @@ export function createWorkspace({ host, toast, onToggle }) {
         el.body.querySelector(`[data-field="${CSS.escape(field.id)}"] [data-field-label]`)?.focus();
       }
     } else if (action === "profile-add-section") {
+      if (profile.sections.length >= MAX_PROFILE_SECTIONS || allFields(profile).length >= MAX_PROFILE_FIELDS) {
+        toast(t("The profile has reached its group limit"));
+        return;
+      }
       const section = newSection();
       profile.sections.push(section);
       saveProfile();
@@ -1281,7 +1298,6 @@ export function createWorkspace({ host, toast, onToggle }) {
     if (!isShown || tab !== "notes") {
       return;
     }
-    syncHighlights();
     renderNoteNav();
     if (selectedNoteId === HIGHLIGHTS) {
       renderNotePage();

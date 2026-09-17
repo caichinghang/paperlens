@@ -7,8 +7,8 @@
 import { profileToken } from "./privacy.js";
 
 export const PROFILE_VERSION = 2;
-const MAX_FIELDS = 200;
-const MAX_SECTIONS = 40;
+export const MAX_PROFILE_FIELDS = 200;
+export const MAX_PROFILE_SECTIONS = 40;
 
 // The built-in groups and their starting fields. A starting field keeps its kind (date, gender…)
 // and its aliases for matching even after the reader renames it.
@@ -213,7 +213,7 @@ export function applyDetail(profile, label, value) {
     return field.id;
   }
   const other = sectionOf(profile, "other");
-  if (allFields(profile).length >= MAX_FIELDS) {
+  if (allFields(profile).length >= MAX_PROFILE_FIELDS) {
     return null;
   }
   const created = newField(cleanLabel, cleanValue);
@@ -242,15 +242,19 @@ export function loadProfile(saved) {
   if (saved?.version === PROFILE_VERSION && Array.isArray(saved.sections)) {
     const seen = new Set();
     const sections = [];
-    for (const entry of saved.sections.slice(0, MAX_SECTIONS)) {
+    let fieldCount = 0;
+    for (const entry of saved.sections.slice(0, MAX_PROFILE_SECTIONS)) {
       if (!entry || typeof entry.id !== "string" || seen.has(entry.id)) {
         continue;
       }
       seen.add(entry.id);
+      const fields = (Array.isArray(entry.fields) ? entry.fields : [])
+        .slice(0, Math.max(0, MAX_PROFILE_FIELDS - fieldCount)).map(loadField).filter(Boolean);
+      fieldCount += fields.length;
       sections.push({
         id: entry.id,
         title: String(entry.title ?? "").slice(0, 80),
-        fields: (Array.isArray(entry.fields) ? entry.fields : []).map(loadField).filter(Boolean)
+        fields
       });
     }
     // Built-in groups can't be deleted; any that are missing come back empty, in their place.

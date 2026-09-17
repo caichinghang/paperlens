@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { blocksToMarkdown, escapeInline, inlineToHtml, inlineToPlain, markdownToBlocks } from '../src/blocks.js';
 import { applyDetail, emptyProfile, findField, loadProfile, normalizeDate, privateEntries, profileAge, profileEntries } from '../src/profile.js';
-import { fillTokens, maskDeep, maskText, profileToken } from '../src/privacy.js';
+import { compileSecrets, fillTokens, maskDeep, maskText, profileToken } from '../src/privacy.js';
 import { moveOutline, normalizeOutline, outlineChildren } from '../src/outline.js';
 import { popupNearCaret } from '../src/popup-position.js';
 import { mergeTodos, readTodos } from '../src/todos.js';
 import { collectRules, snapBoxToRule, snapTextToRule } from '../src/rules.js';
 import { headingCandidates } from '../src/headings.js';
+import { publicWebUrl, readWebpage } from '../src/web.js';
 
 const types = markdown => markdownToBlocks(markdown).map(block => block.type);
 
@@ -116,6 +117,7 @@ assert.equal(inlineToPlain('**Bold** and [link](https://x.y)'), 'Bold and link')
 
   // Tokens fill locally; anything private heading to the assistant turns back into its token.
   const secrets = privateEntries(profile);
+  assert.strictEqual(compileSecrets(secrets), compileSecrets(secrets), 'unchanged private values reuse compiled masking patterns');
   const lookup = fieldId => findField(profile, fieldId) && { label: findField(profile, fieldId).label, value: findField(profile, fieldId).value };
   assert.deepEqual(fillTokens(`ID: ${profileToken('idNumber')}`, lookup), { text: 'ID: A123456(7)', used: ['Hong Kong ID'], missing: [] });
   assert.deepEqual(fillTokens('{{profile:nope}}', lookup).missing, ['nope']);
@@ -246,3 +248,48 @@ console.log('workspace data checks passed');
 }
 
 console.log('pricing checks passed');
+
+// The web-reading tool accepts public HTTP(S) pages but never local or private-network targets.
+{
+  assert.equal(publicWebUrl('https://example.com/path').href, 'https://example.com/path');
+  assert.equal(publicWebUrl('/next', 'https://example.com/start').href, 'https://example.com/next');
+  for (const address of [
+    'http://localhost:3000',
+    'http://127.0.0.1',
+    'http://127.1',
+    'http://2130706433',
+    'http://10.0.0.2',
+    'http://100.64.0.1',
+    'http://169.254.169.254/latest/meta-data',
+    'http://172.16.2.3',
+    'http://192.168.1.1',
+    'http://[::1]',
+    'http://[fd00::1]',
+    'https://user:password@example.com'
+  ]) {
+    assert.throws(() => publicWebUrl(address), /private-network|http\(s\)/);
+  }
+  const originalFetch = globalThis.fetch;
+  // Browsers follow redirects and report where they ended up in `response.url`.
+  const followed = (url, redirected) => Object.defineProperties(new Response('Public text', {
+    status: 200,
+    headers: { 'content-type': 'text/plain' }
+  }), {
+    url: { value: url },
+    redirected: { value: redirected }
+  });
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push(options.redirect);
+    return followed('https://www.example.com/start/', true);
+  };
+  const read = await readWebpage('http://example.com/start');
+  assert.equal(read.url, 'https://www.example.com/start/', 'a public page reached through redirects can be read');
+  assert.equal(read.text, 'Public text');
+  assert.deepEqual(requests, ['follow'], 'redirects are followed by the browser, not handled manually');
+  globalThis.fetch = async () => followed('http://127.0.0.1/private', true);
+  await assert.rejects(readWebpage('https://example.com/start'), /private-network/);
+  globalThis.fetch = originalFetch;
+}
+
+console.log('web URL safety checks passed');

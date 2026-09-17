@@ -27,7 +27,14 @@ document.addEventListener(
     }
 
     const href = link.href;
-    if (!isDirectPdfLink(href)) {
+    if (!isDirectPdfLink(href) || link.hasAttribute("download")) {
+      return;
+    }
+
+    // Let the browser create the requested tab/window; the service worker redirects that new main
+    // frame to PaperLens. Only same-context PDF links are replaced here before the PDF request.
+    const target = (link.getAttribute("target") || "").trim().toLowerCase();
+    if (target && target !== "_self" && target !== "_top" && target !== "_parent") {
       return;
     }
 

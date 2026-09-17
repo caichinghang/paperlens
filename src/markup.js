@@ -1,4 +1,5 @@
 import * as pdfjsLib from "../vendor/pdfjs/pdf.mjs";
+import { captureAnnotationPages, restoreAnnotationPages } from "./annotation-history.js";
 import { t } from "./i18n.js";
 import { getItem, removeItem, setItem } from "./store.js";
 
@@ -339,6 +340,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
   let docKey = "";
   let annotations = [];
+  let annotationsByPage = new Map();
   let undoStack = [];
   let redoStack = [];
   let open = false;
@@ -382,8 +384,17 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
   // ---------- State & persistence ----------
 
-  function snapshot() {
-    return JSON.stringify(annotations);
+  function rebuildAnnotationIndex() {
+    annotationsByPage = new Map();
+    for (const annotation of annotations) {
+      const pageItems = annotationsByPage.get(annotation.page) || [];
+      pageItems.push(annotation);
+      annotationsByPage.set(annotation.page, pageItems);
+    }
+  }
+
+  function snapshot(pages) {
+    return captureAnnotationPages(annotations, pages);
   }
 
   function findAnnotation(id) {
@@ -398,20 +409,29 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     redoStack = [];
   }
 
-  function commit(mutate) {
-    const before = snapshot();
+  function commit(mutate, pages) {
+    const before = snapshot(pages);
     mutate();
-    if (before !== snapshot()) {
-      pushHistory(before);
-      changed();
+    if (JSON.stringify(before.items) === JSON.stringify(snapshot(before.pages).items)) {
+      return false;
     }
+    pushHistory(before);
+    changed(before.pages);
+    return true;
   }
 
-  function changed() {
+  function changed(pages = null) {
+    rebuildAnnotationIndex();
     if (selectedId && !findAnnotation(selectedId)) {
       selectedId = null;
     }
-    renderAll();
+    if (pages) {
+      for (const page of new Set(pages)) {
+        renderPage(page);
+      }
+    } else {
+      renderAll();
+    }
     renderList();
     syncBar();
     scheduleSave();
@@ -422,18 +442,19 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     return !annotation.layer || !hiddenLayers.has(annotation.layer);
   }
 
-  function restore(serialized) {
+  function restore(saved) {
     finishEditing();
-    annotations = JSON.parse(serialized);
-    changed();
+    const inverse = snapshot(saved.pages);
+    annotations = restoreAnnotationPages(annotations, saved);
+    changed(saved.pages);
+    return inverse;
   }
 
   function undo() {
     if (!undoStack.length) {
       return false;
     }
-    redoStack.push(snapshot());
-    restore(undoStack.pop());
+    redoStack.push(restore(undoStack.pop()));
     return true;
   }
 
@@ -441,8 +462,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     if (!redoStack.length) {
       return false;
     }
-    undoStack.push(snapshot());
-    restore(redoStack.pop());
+    undoStack.push(restore(redoStack.pop()));
     return true;
   }
 
@@ -496,6 +516,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     }
 
     annotations = Array.isArray(stored) ? stored : [];
+    rebuildAnnotationIndex();
     renderList();
     syncBar();
   }
@@ -503,6 +524,10 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   // ---------- Rendering ----------
 
   function attachPage(page) {
+    if (layers.has(page.number)) {
+      updatePageSize(page);
+      return;
+    }
     const layer = document.createElement("div");
     layer.className = "markup-layer";
     const svg = svgElement("svg", { preserveAspectRatio: "none" });
@@ -520,6 +545,20 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     layers.set(page.number, entry);
     surface.addEventListener("pointerdown", event => startDrawing(event, entry));
     updatePageSize(page);
+  }
+
+  function releasePage(number) {
+    const entry = layers.get(number);
+    if (!entry || findAnnotation(editing?.id)?.page === number) {
+      return;
+    }
+    if (mini?.parentElement === entry.page.shell) {
+      hideMiniToolbar();
+    }
+    entry.layer.remove();
+    entry.texts.remove();
+    entry.surface.remove();
+    layers.delete(number);
   }
 
   function updatePageSize(page) {
@@ -550,8 +589,8 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       }
     }
 
-    for (const annotation of annotations) {
-      if (annotation.page === number && isVisible(annotation)) {
+    for (const annotation of annotationsByPage.get(number) || []) {
+      if (isVisible(annotation)) {
         drawAnnotation(entry, annotation);
       }
     }
@@ -711,7 +750,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
         event.stopPropagation();
         commit(() => {
           annotations = annotations.filter(entry => entry.id !== annotation.id);
-        });
+        }, [annotation.page]);
       });
       item.append(remove);
 
@@ -768,6 +807,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   }
 
   function setLayerVisible(name, visible) {
+    const pages = new Set(annotations.filter(annotation => annotation.layer === name).map(annotation => annotation.page));
     if (visible) {
       hiddenLayers.delete(name);
     } else {
@@ -778,7 +818,9 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       }
     }
     finishEditing();
-    renderAll();
+    for (const page of pages) {
+      renderPage(page);
+    }
     renderList();
     onChange?.();
   }
@@ -819,7 +861,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
         if (next !== selected.fontSize) {
           commit(() => {
             selected.fontSize = next;
-          });
+          }, [selected.page]);
         }
       } else if (action === "color") {
         setColor(button.dataset.color);
@@ -954,7 +996,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     if (selected) {
       commit(() => {
         annotations = annotations.filter(annotation => annotation.id !== selected.id);
-      });
+      }, [selected.page]);
     }
   }
 
@@ -963,7 +1005,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     if (selected) {
       commit(() => {
         selected.color = color;
-      });
+      }, [selected.page]);
       colors[colorKey(selected)] = color;
     } else {
       colors[COLOR_GROUPS[tool] || "highlight"] = color;
@@ -977,11 +1019,11 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     if (selected?.width) {
       commit(() => {
         selected.width = width;
-      });
+      }, [selected.page]);
     } else if (selected?.type === "text") {
       commit(() => {
         selected.fontSize = WIDTH_TO_FONT_SIZE[width];
-      });
+      }, [selected.page]);
     }
     strokeWidth = width;
     savePrefs();
@@ -1126,7 +1168,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       if (annotation) {
         commit(() => {
           annotations.push({ ...annotation, id: uid(), page: entry.page.number, color });
-        });
+        }, [entry.page.number]);
       }
     };
 
@@ -1136,7 +1178,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   }
 
   function createText(entry, point) {
-    const before = snapshot();
+    const before = snapshot([entry.page.number]);
     const fontSize = WIDTH_TO_FONT_SIZE[strokeWidth] || 14;
     const annotation = {
       id: uid(),
@@ -1149,17 +1191,19 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       text: ""
     };
     annotations.push(annotation);
+    rebuildAnnotationIndex();
     setTool("select");
     startEditing(annotation.id, before);
   }
 
-  function startEditing(id, before = snapshot()) {
+  function startEditing(id, before = null) {
     finishEditing();
     const annotation = findAnnotation(id);
     const entry = annotation && layers.get(annotation.page);
     if (!entry) {
       return;
     }
+    before ||= snapshot([annotation.page]);
 
     renderPage(annotation.page);
     const element = entry.texts.querySelector(`.markup-text[data-id="${id}"]`);
@@ -1210,11 +1254,12 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       }
     }
 
-    if (before !== snapshot()) {
+    const pages = before.pages;
+    if (JSON.stringify(before.items) !== JSON.stringify(snapshot(pages).items)) {
       pushHistory(before);
     }
     element.remove();
-    changed();
+    changed(pages);
   }
 
   // Text boxes (including ones the assistant added) can be selected, moved and edited at any time;
@@ -1253,7 +1298,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     dragging = {
       annotation,
       original: JSON.parse(JSON.stringify(annotation)),
-      before: snapshot(),
+      before: snapshot([annotation.page]),
       startX: event.clientX,
       startY: event.clientY,
       scaleX: entry.page.width / rect.width,
@@ -1262,6 +1307,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     };
     window.addEventListener("pointermove", dragMove);
     window.addEventListener("pointerup", dragEnd, { once: true });
+    window.addEventListener("pointercancel", dragEnd, { once: true });
   });
 
   function dragMove(event) {
@@ -1280,9 +1326,11 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
   function dragEnd() {
     window.removeEventListener("pointermove", dragMove);
+    window.removeEventListener("pointerup", dragEnd);
+    window.removeEventListener("pointercancel", dragEnd);
     if (dragging?.moved) {
       pushHistory(dragging.before);
-      changed();
+      changed([dragging.annotation.page]);
     }
     dragging = null;
   }
@@ -1361,7 +1409,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     const ids = new Set(existing.map(annotation => annotation.id));
     commit(() => {
       annotations = annotations.filter(annotation => !ids.has(annotation.id));
-    });
+    }, existing.map(annotation => annotation.page));
     window.getSelection()?.removeAllRanges();
     return true;
   }
@@ -1383,7 +1431,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
           text
         });
       }
-    });
+    }, [...rectsByPage.keys()]);
     window.getSelection()?.removeAllRanges();
     return true;
   }
@@ -1472,8 +1520,8 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   function eraseAlong(pageNumber, from, to, radius) {
     let erased = false;
     const kept = [];
-    for (const annotation of annotations) {
-      const erasable = annotation.page === pageNumber && isVisible(annotation) && (annotation.type === "ink" || SHAPE_TYPES.has(annotation.type));
+    for (const annotation of annotationsByPage.get(pageNumber) || []) {
+      const erasable = isVisible(annotation) && (annotation.type === "ink" || SHAPE_TYPES.has(annotation.type));
       if (!erasable) {
         kept.push(annotation);
         continue;
@@ -1534,19 +1582,32 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       }
     }
     if (erased) {
-      annotations = kept;
+      const keptById = new Map(kept.map(annotation => [annotation.id, annotation]));
+      annotations = annotations.flatMap(annotation => annotation.page !== pageNumber
+        ? [annotation]
+        : keptById.has(annotation.id) ? [keptById.get(annotation.id)] : []);
+      rebuildAnnotationIndex();
     }
     return erased;
   }
 
   function startErasing(event, entry, start) {
-    const before = snapshot();
+    const before = snapshot([entry.page.number]);
     const rect = entry.layer.getBoundingClientRect();
     const radius = ERASER_RADIUS * (entry.page.width / rect.width);
     let last = start;
+    let renderFrame = 0;
+    const schedulePageRender = () => {
+      if (!renderFrame) {
+        renderFrame = requestAnimationFrame(() => {
+          renderFrame = 0;
+          renderPage(entry.page.number);
+        });
+      }
+    };
     let erased = eraseAlong(entry.page.number, start, start, radius);
     if (erased) {
-      renderPage(entry.page.number);
+      schedulePageRender();
     }
     entry.surface.setPointerCapture(event.pointerId);
 
@@ -1559,16 +1620,21 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       }
       if (changedNow) {
         erased = true;
-        renderPage(entry.page.number);
+        schedulePageRender();
       }
     };
     const end = () => {
       entry.surface.removeEventListener("pointermove", move);
       entry.surface.removeEventListener("pointerup", end);
       entry.surface.removeEventListener("pointercancel", end);
+      if (renderFrame) {
+        cancelAnimationFrame(renderFrame);
+        renderFrame = 0;
+        renderPage(entry.page.number);
+      }
       if (erased) {
         pushHistory(before);
-        changed();
+        changed([entry.page.number]);
       }
     };
     entry.surface.addEventListener("pointermove", move);
@@ -1808,7 +1874,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
     commit(() => {
       annotations.push(annotation);
-    });
+    }, [entry.page.number]);
     setTool("select");
     select(annotation.id);
   }
@@ -1835,7 +1901,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     };
     commit(() => {
       annotations.push(annotation);
-    });
+    }, [pageNumber]);
     return annotation.id;
   }
 
@@ -1892,7 +1958,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     clipboard.pastes += 1;
     commit(() => {
       annotations.push(copy);
-    });
+    }, [pageNumber]);
     select(copy.id);
     return true;
   }
@@ -2118,13 +2184,17 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     });
     commit(() => {
       annotations.push(...created);
-    });
+    }, created.map(annotation => annotation.page));
     return created.map(annotation => annotation.id);
   }
 
   function updateAnnotations(ids, patch) {
     const wanted = new Set(ids);
     let touched = 0;
+    const pages = annotations.filter(annotation => wanted.has(annotation.id)).map(annotation => annotation.page);
+    if (!pages.length) {
+      return 0;
+    }
     commit(() => {
       for (const annotation of annotations) {
         if (wanted.has(annotation.id)) {
@@ -2132,7 +2202,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
           touched += 1;
         }
       }
-    });
+    }, pages);
     return touched;
   }
 
@@ -2161,9 +2231,13 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   function removeAnnotations(ids) {
     const doomed = new Set(ids);
     const before = annotations.length;
+    const pages = annotations.filter(annotation => doomed.has(annotation.id)).map(annotation => annotation.page);
+    if (!pages.length) {
+      return 0;
+    }
     commit(() => {
       annotations = annotations.filter(annotation => !doomed.has(annotation.id));
-    });
+    }, pages);
     return before - annotations.length;
   }
 
@@ -2276,6 +2350,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     listAnnotations,
     markupTypesAt,
     placeSignatureInBox,
+    releasePage,
     removeAnnotations,
     revealAnnotation,
     setDocument,

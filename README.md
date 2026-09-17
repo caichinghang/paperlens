@@ -217,11 +217,13 @@ PaperLens is plain HTML, CSS and JavaScript modules. There's no framework, no bu
 | `src/lens.js` | Hold-Option region detection and explanation bubble |
 | `src/references.js` | Figure, table, section, equation and citation pop-out cards |
 | `src/markup.js` | Drawing, highlights, text boxes, layers, signatures, PDF export |
+| `src/annotation-history.js` | Page-scoped markup snapshots for efficient undo and redo |
 | `src/workspace.js` | Notebook (including the To-do page) and profile panel |
 | `src/editor.js`, `src/blocks.js` | Block editor for notebook pages and Markdown conversion |
 | `src/profile.js`, `src/todos.js` | Profile groups and fields; to-do items on the notebook's To-do page |
 | `src/privacy.js` | Placeholders for private profile details, and masking them out of what goes to the AI |
 | `src/web.js` | Web search and readable-page extraction |
+| `src/sse.js` | Robust parsing of streamed assistant responses |
 | `src/rules.js` | Blank lines on a page, so dates and signatures sit on them |
 | `src/pdf-writer.js`, `src/ics.js` | Image-only PDF for redactions; calendar export |
 | `src/i18n.js` | English and Chinese interface strings |

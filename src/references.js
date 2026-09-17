@@ -86,6 +86,7 @@ export function createReferences(host, { onExplain } = {}) {
   let card = null;
   let current = null;
   let token = 0;
+  const resolved = new Map();
 
   // ---------- Detection ----------
 
@@ -161,7 +162,29 @@ export function createReferences(host, { onExplain } = {}) {
     if (fromEnd) {
       return pages.slice().reverse();
     }
-    return pages.slice().sort((a, b) => Math.abs(a.number - fromPage) - Math.abs(b.number - fromPage) || a.number - b.number);
+    const ordered = [];
+    for (let distance = 0; ordered.length < pages.length; distance += 1) {
+      const lower = fromPage - distance;
+      const upper = fromPage + distance;
+      if (lower >= 1) {
+        ordered.push(pages[lower - 1]);
+      }
+      if (distance && upper <= pages.length) {
+        ordered.push(pages[upper - 1]);
+      }
+    }
+    return ordered;
+  }
+
+  function resolveCached(ref, fromPage) {
+    const key = `${ref.kind}:${ref.number}:${fromPage}`;
+    if (!resolved.has(key)) {
+      resolved.set(key, resolve(ref, fromPage).catch(error => {
+        resolved.delete(key);
+        throw error;
+      }));
+    }
+    return resolved.get(key);
   }
 
   async function findItem(fromPage, test, { fromEnd = false } = {}) {
@@ -340,7 +363,7 @@ export function createReferences(host, { onExplain } = {}) {
 
     let result = null;
     try {
-      result = await resolve(ref, fromPage);
+      result = await resolveCached(ref, fromPage);
     } catch (error) {
       console.warn("Reference lookup failed", error);
     }
@@ -398,6 +421,7 @@ export function createReferences(host, { onExplain } = {}) {
 
   function reset() {
     close();
+    resolved.clear();
   }
 
   // Called when a page scrolls far away; its hits are rebuilt with the text layer.
