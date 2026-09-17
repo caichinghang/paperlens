@@ -25,6 +25,7 @@ English · [简体中文](README.zh-CN.md)
 - [More features](#more-features)
 - [Install](#install)
 - [Privacy](#privacy)
+- [Performance](#performance)
 - [Built with](#built-with)
 - [License](#license)
 
@@ -64,7 +65,7 @@ The assistant runs as an agent with real tools. It decides which pages to look a
 | It can… | Tools |
 | --- | --- |
 | **Read the document** | View pages, zoom into a region, search the whole text, read page layout, find exact text boxes, read the contents |
-| **Search the web** | Web search (Tavily, Bing or DuckDuckGo) and read a result page as clean text |
+| **Search the web** | Search the web, or recent news for current events, and read a result or a link you paste as clean text. Sources are listed under the reply |
 | **Mark up the PDF** | Highlight text, add text boxes, draw shapes and tick marks, add a translation layer, list and delete markup |
 | **Work with forms** | List and fill real form fields, propose a signature, propose redactions |
 | **Write to your workspace** | Save notes to the notebook, add actions to its To-do page, read and save your profile (only after you agree) |
@@ -142,16 +143,16 @@ Open the workspace next to the chat and each PDF gets its own notebook. The assi
 | Area | What's included |
 | --- | --- |
 | **Opening PDFs** | PDF links open in PaperLens automatically; local files can be opened or dropped onto the window |
-| **Navigation** | Thumbnails, PDF bookmarks, AI-built contents for PDFs without bookmarks, go to page, clickable links |
+| **Navigation** | Thumbnails (click one, then ↑/↓ to step through pages), PDF bookmarks, AI-built contents for PDFs without bookmarks, go to page, clickable links |
 | **Zoom** | Fit width, fit page and smooth zoom with the trackpad or Ctrl + scroll |
 | **Search** | Search the whole document with every match highlighted |
 | **Selection menu** | Highlight, underline, strike through, copy, explain, translate or ask about selected text |
-| **Markup** | Pen, highlighter, underline, strike-through, rectangles, ellipses, lines, arrows and text boxes in any colour and width |
-| **Forms and signatures** | Real form fields you can type into; draw and save a signature |
+| **Markup** | Pen, highlighter, underline, strike-through, rectangles, ellipses, lines, arrows and text boxes in any colour and width; an eraser; copy and paste markup; undo and redo |
+| **Forms and signatures** | Real form fields you can type into; draw and save several signatures and pick one each time |
 | **Chat context** | Attach `@3` or `@2-4` for pages, selected text, or a region you draw |
-| **Chat** | Multiple saved chats, page citations you can click, retry, copy, share and dictation |
+| **Chat** | Saved chats with short titles written for you, grouped by date and searchable; page citations you can click; web sources; retry, copy, share and dictation; token count and cost for each reply |
 | **Export** | Annotated PDF, image-only redacted PDF, Markdown notes, flashcards as TSV, tables as CSV, BibTeX and `.ics` calendars |
-| **Settings** | English or Chinese, light or dark, model and thinking level, document edits and web search on or off |
+| **Settings** | English or Chinese, light or dark, cost in dollars or yuan, model and thinking level, document edits and web search on or off |
 
 ## Install
 
@@ -174,13 +175,14 @@ Open the assistant and click **API Settings**.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| API key | — | Get one from [DeepSeek](https://platform.deepseek.com) |
-| Base URL | `https://api.deepseek.com` | Any OpenAI-compatible endpoint works |
-| Model | `deepseek-flash` | Use a model with tool calling for agent features |
-| Page format | Auto | Choose **Text only** for models that can't read images |
-| Thinking | High | Off, Low, High or Max |
-| Document edits | On | Turn off to stop the assistant changing the PDF |
-| Web search | On | Add a Tavily key for better results; otherwise Bing, then DuckDuckGo |
+| Currency | Follows the language | Shows the cost of each reply in US dollars ($) or yuan (¥) |
+| DeepSeek API key | — | The link under the settings opens [DeepSeek's API keys page](https://platform.deepseek.com/api_keys) |
+| API base URL | `https://api.deepseek.com` | Any OpenAI-compatible endpoint works |
+| Model ID | `deepseek-flash` | Type the model's ID; use one with tool calling for agent features |
+| Send pages as | Automatic | Choose **Text only** for models that can't read images |
+| Thinking | High | Off, Low, High or Max, from the model menu under the chat |
+| Let the AI edit the PDF | On | Turn off to stop the assistant changing the PDF |
+| Let the AI search the web | On | Uses Bing (including Bing News), then DuckDuckGo. Add a Tavily key (1,000 free searches a month) for more reliable results |
 
 To update, pull the latest code and click **Reload** on the PaperLens card in `chrome://extensions`.
 
@@ -189,10 +191,21 @@ To update, pull the latest code and click **Reload** on the PaperLens card in `c
 - **No account, no analytics.** PaperLens has no server of its own.
 - **Stored locally.** API keys, chats, notebooks, profile, markup, form values, signatures and settings stay in Chrome's extension storage.
 - **Only what's needed is sent.** Each request sends the messages and the page text or images for that request to the AI provider you set. Option explanations send only the cropped region.
-- **Web search is visible.** Search queries go to Tavily, Bing or DuckDuckGo, and a result page may be fetched to read it. You can turn web search off.
+- **Web search is visible.** Search queries go to Bing, DuckDuckGo or, if you add a key, Tavily, and a result page may be fetched to read it. Every page the assistant read is listed under **Sources** on its reply. You can turn web search off.
+- **Web reading stays on the public web.** The assistant can only open pages from its own search results or links you wrote in the chat. It can never open addresses on your computer or local network, such as `localhost` or your router, even if a PDF or web page tells it to.
+- **Chat titles.** When a new chat's first reply finishes, a short title is written by the same AI provider from your first question and the start of the reply, with private details masked.
 - **Private details stay on your machine.** A detail with a closed eye never goes to the AI provider. The assistant fills forms with a placeholder, and anything on its way out (tool results, page images, messages, even a number you paste into the chat) has private values swapped back to their placeholder. Only values saved in your profile are covered: if a PDF already has your ID number printed in it, page images still show it.
 - **Your profile is yours.** The assistant asks before saving personal details, and you can edit or clear them at any time.
 - **Redactions are real.** A redacted download is flattened to images so the covered text is removed, not just hidden.
+
+## Performance
+
+- **Long PDFs stay smooth.** Only the pages near where you're reading keep their images and markup loaded, so a 500-page document scrolls much like a 10-page one.
+- **Markup stays quick.** Undo, redo and the eraser only work on the page you changed, even when the document is full of drawings.
+- **Lighter redacted downloads.** Long documents are flattened page by page, using far less memory.
+- **Cheaper small talk.** "Hi", "thanks" or "what page am I on?" don't send the page image, so they're answered faster and cost less. Questions about the page still include it.
+- **Search stays responsive** on huge documents: the match count stops at 5,000 and shows "+".
+- **Nothing lost when you leave.** Chats, form entries and settings are saved when you switch documents or close the tab, and two PaperLens tabs no longer overwrite each other's chats.
 
 ## Built with
 
