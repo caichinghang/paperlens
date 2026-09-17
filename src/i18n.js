@@ -40,6 +40,26 @@ export function setLanguagePreference(language) {
   return true;
 }
 
+// Translations always go between Chinese and English, whatever the interface language: Chinese text
+// becomes English and anything else becomes Simplified Chinese. Returns null when there's no text
+// to judge by, so the prompt can leave the direction to the model.
+export function translationTarget(text) {
+  const letters = String(text ?? "").replace(/[\s\d\p{P}\p{S}]/gu, "");
+  if (!letters) {
+    return null;
+  }
+  const chinese = (letters.match(/[\u3400-\u9fff\uf900-\ufaff]/g) || []).length;
+  return chinese / letters.length >= 0.3 ? "English" : "Simplified Chinese";
+}
+
+// The instruction for which way to translate, for a prompt.
+export function translationDirection(text) {
+  const target = translationTarget(text);
+  return target
+    ? `into ${target}`
+    : "into English if it is written in Chinese, otherwise into Simplified Chinese";
+}
+
 // The language the assistant should write in when a prompt names one.
 export function replyLanguageName() {
   if (uiLanguage === "zh") {
@@ -112,7 +132,7 @@ const ZH = {
   "Drop PDF to open": "松开以打开 PDF",
   "Open a PDF": "打开 PDF",
   "Browse to a PDF on the web and it opens here — or drop a file anywhere in this window.": "在网页上打开 PDF 会自动显示在这里，也可以把文件拖到窗口任意位置。",
-  "Choose a file…": "选择文件…",
+  "Choose a file": "选择文件",
   "this site": "此网站",
   "Loading…": "加载中…",
   "Loading from {host}…": "正在从 {host} 加载…",
@@ -145,8 +165,7 @@ const ZH = {
   "Try again": "重试",
   "Share": "分享",
   "Copied — paste it wherever you want to share it": "已复制，可以粘贴到任意地方分享",
-  "Search and go to page (⌘F)": "搜索与跳页 (⌘F)",
-  "Search and go to page": "搜索与跳页",
+  "Search document (⌘F)": "搜索文档 (⌘F)",
   "Close": "关闭",
 
   // Markup toolbar and list
@@ -173,8 +192,16 @@ const ZH = {
   "Text box (T)": "文本框 (T)",
   "Text box": "文本框",
   "Text": "文字",
-  "Signature (click again to redraw)": "签名（再次点击可重新绘制）",
   "Signature": "签名",
+  "Eraser (E)": "橡皮擦 (E)",
+  "Eraser": "橡皮擦",
+  "Choose a signature": "选择签名",
+  "Use this signature": "用这个签名",
+  "New signature": "新建签名",
+  "Delete signature": "删除签名",
+  "Remove highlight": "取消高亮",
+  "Remove underline": "取消下划线",
+  "Remove strikethrough": "取消删除线",
   "Redaction": "涂黑",
   "Color": "颜色",
   "Yellow": "黄色",
@@ -222,6 +249,8 @@ const ZH = {
   "Ask AI about this": "问 AI",
   "Ask AI": "问 AI",
   "Translate this passage.": "翻译这段文字。",
+  "Translate this passage into English.": "把这段文字翻译成英文。",
+  "Translate this passage into Simplified Chinese.": "把这段文字翻译成简体中文。",
   "Explain this passage.": "解释这段文字。",
   "Ask more in chat": "在对话中继续问",
   "Explain this in more detail.": "更详细地解释一下。",
@@ -288,7 +317,6 @@ const ZH = {
   "API key removed": "已移除 API 密钥",
   "Attach page": "附加页面",
   "Skills": "技能",
-  "Skills…": "技能…",
   "Quick actions": "快捷操作",
   "Add context": "添加上下文",
   "Ask AI · @ pages · / skills": "问 AI · @ 页面 · / 技能",
@@ -306,7 +334,7 @@ const ZH = {
   "Thinking": "思考",
   "Custom model & API…": "自定义模型和 API…",
   "Current page": "当前页",
-  "Choose pages…": "选择页面…",
+  "Scenarios and skills": "场景和技能",
   "Quote selected text": "引用选中文字",
   "All pages": "全部页面",
   "Remove {label}": "移除{label}",
@@ -377,7 +405,7 @@ const ZH = {
   "Key figures": "关键指标",
   "Open a PDF to keep notes next to it.": "打开 PDF 后可以在这里记笔记。",
   "{done} of {total} done": "已完成 {done}/{total}",
-  "Saved only in this browser. The assistant reads these details when it fills in forms, and asks before saving anything new.": "只保存在本浏览器。助手填表时会读取这些信息，保存新信息前会先问你。",
+  "Saved only in this browser. Close the eye on a detail to keep it private: it stays hidden here, and the assistant only gets a placeholder it can fill forms with, never the detail itself.": "只保存在本浏览器。把某项资料的眼睛关上即设为隐私：在这里会被隐藏，AI 也只拿到一个占位符用来填表，永远读不到内容本身。",
   "Label": "名称",
   "Value": "内容",
   "Add field": "添加字段",
@@ -483,6 +511,13 @@ const ZH = {
   "Address": "地址",
   "Other details": "其他信息",
   "Field name": "字段名称",
+  "Group name": "分组名称",
+  "Add group": "添加分组",
+  "Delete group": "删除分组",
+  "Delete this group and the details in it?": "删除这个分组及其中的资料吗？",
+  "Private: hidden here and from the assistant": "隐私：在这里隐藏，AI 也读不到",
+  "Visible to the assistant": "AI 可以读取",
+  "{details} filled from your profile, not sent to the AI": "已从个人资料填入{details}，未发送给 AI",
   "Anything else forms ask for, such as school, occupation or an emergency contact.": "表格常问、但上面没有的信息，例如学校、职业或紧急联系人。",
   "{done} of {total} filled": "已填 {done}/{total}",
   "Show": "显示",
@@ -596,6 +631,17 @@ const ZH = {
   "Looking at pages…": "正在查看页面…",
   "Looking closer…": "正在放大查看…",
   "Searching the document…": "正在搜索文档…",
+  "{count} input tokens": "输入 {count} tokens",
+  "{count} from cache": "其中缓存命中 {count}",
+  "{count} output tokens": "输出 {count} tokens",
+  "{count} for thinking": "其中思考 {count}",
+  "Cost ≈ {amount} ({rate})": "费用约 {amount}（{rate}）",
+  "peak price": "高峰价",
+  "off-peak price": "闲时价",
+  "peak and off-peak prices": "含高峰与闲时价",
+  "Finding headings…": "正在查找标题…",
+  "Found {count} possible heading": "找到 {count} 个候选标题",
+  "Found {count} possible headings": "找到 {count} 个候选标题",
   "Reading the table of contents…": "正在读取目录…",
   "Building the table of contents…": "正在生成目录…",
   "Reading the page layout…": "正在读取页面布局…",

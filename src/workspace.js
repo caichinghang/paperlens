@@ -4,11 +4,12 @@
 // can edit everything by hand.
 
 import { checklistSummary, expandTable, renderInline, SEVERITY_ICONS } from "./ai.js";
-import { blocksToMarkdown, markdownToBlocks } from "./blocks.js";
+import { blocksToMarkdown, createBlock, escapeInline, markdownToBlocks } from "./blocks.js";
 import { createBlockEditor, EDITOR_ICONS } from "./editor.js";
 import { t, tn, uiLanguage } from "./i18n.js";
 import { moveOutline, normalizeOutline, outlineChildren, outlineItem as findOutlineItem, outlineParent } from "./outline.js";
-import { applyDetail, emptyProfile, loadProfile, PROFILE_SECTIONS, profileAge, profileEntries } from "./profile.js";
+import { fillTokens } from "./privacy.js";
+import { applyDetail, emptyProfile, fieldLabel, fieldTemplate, fieldType, findField, isBuiltInSection, loadProfile, newField, newSection, privateEntries, profileAge, profileEntries, sectionTitle } from "./profile.js";
 import { getItem, setItem } from "./store.js";
 import { mergeTodos, readTodos } from "./todos.js";
 
@@ -150,12 +151,11 @@ export function createWorkspace({ host, toast, onToggle }) {
   let saveTimer = 0;
   let pendingSave = null;
   let profileTimer = 0;
-  const revealed = new Set();
 
   el.panel.inert = true;
   const profileReady = getItem(PROFILE_KEY, null).then(saved => {
     profile = loadProfile(saved);
-    if (Array.isArray(saved)) {
+    if (saved && saved.version !== profile.version) {
       setItem(PROFILE_KEY, profile);
     }
   });
@@ -268,7 +268,7 @@ export function createWorkspace({ host, toast, onToggle }) {
       button.classList.toggle("is-active", active);
       button.setAttribute("aria-selected", String(active));
     }
-    el.exportButton.hidden = tab === "profile" || tab === "view";
+    el.exportButton.hidden = tab === "profile" || tab === "view" || !docKey;
     el.body.dataset.tab = tab;
     renderHeader();
     if (!isShown) {
@@ -367,7 +367,23 @@ export function createWorkspace({ host, toast, onToggle }) {
 
   function renderNotes() {
     if (!docKey) {
-      el.body.innerHTML = emptyState("book", t("No document open"), t("Open a PDF to keep notes next to it."));
+      // Pressed into the panel, like the assistant's empty PDF mark, but a notebook.
+      el.body.innerHTML = `
+        <div class="nb-empty">
+          <div class="ai-empty-mark nb-empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 880 1000">
+              <mask id="nbEmptyMarkCutout">
+                <rect width="880" height="1000" style="fill:#fff"></rect>
+                <rect x="188" y="0" width="34" height="1000" style="fill:#000"></rect>
+                <rect x="330" y="250" width="400" height="74" rx="37" style="fill:#000"></rect>
+                <rect x="330" y="400" width="280" height="74" rx="37" style="fill:#000"></rect>
+              </mask>
+              <rect mask="url(#nbEmptyMarkCutout)" x="40" y="20" width="800" height="960" rx="110"></rect>
+            </svg>
+          </div>
+          <strong>${escapeHtml(t("No document open"))}</strong>
+          <p>${escapeHtml(t("Open a PDF to keep notes next to it."))}</p>
+        </div>`;
       return;
     }
     ensureSelection();
@@ -505,16 +521,33 @@ export function createWorkspace({ host, toast, onToggle }) {
       note = { id: HIGHLIGHTS, kind: "note", title: shortTitle(`${baseName()} Highlights`), blocks: [], source: "user", order: nextOrder(null), createdAt: Date.now() };
       data.notes.push(note);
     }
-    // Each PDF mark is imported once. Afterwards its block is freely editable or removable.
+    // Each PDF mark is imported once, as a bullet. Afterwards its block is freely editable or removable.
     const known = new Set(note.importedHighlights || []);
+    // Pages from before highlights were bulleted hold them as paragraphs; those become bullets once.
+    let changed = false;
+    if (!note.bulletedHighlights) {
+      const imported = new Set([...known].map(key => {
+        const split = key.indexOf(":");
+        return `${key.slice(split + 1).replace(/\n+/g, " ")} [p. ${key.slice(0, split)}]`;
+      }));
+      for (const block of note.blocks) {
+        if (block.type === "paragraph" && imported.has(block.text)) {
+          block.type = "bullet";
+          block.indent = 0;
+        }
+      }
+      note.bulletedHighlights = true;
+      changed = known.size > 0;
+    }
     for (const mark of marks) {
       const key = `${mark.page}:${mark.text}`;
       if (known.has(key)) continue;
-      note.blocks.push(...markdownToBlocks(`${mark.text.replace(/\n+/g, " ")} [p. ${mark.page}]`));
+      note.blocks.push(createBlock("bullet", { text: `${escapeInline(mark.text.replace(/\s+/g, " ").trim())} [p. ${mark.page}]` }));
       known.add(key);
+      changed = true;
     }
     note.importedHighlights = [...known];
-    if (marks.length) save();
+    if (changed) save();
   }
 
   function selectNote(id) {
@@ -529,69 +562,78 @@ export function createWorkspace({ host, toast, onToggle }) {
   }
 
   // ---------- Profile ----------
+  // Groups of label/value rows. Group titles and field names can be edited, every group takes more
+  // fields, and the eye on a row decides whether the detail is private: hidden here (shown only
+  // while being edited) and never given to the assistant, which gets a token to fill forms with.
 
-  function profileFieldHtml(field) {
-    const value = String(profile.fields[field.key] ?? "");
-    const id = `pf-${field.key}`;
-    const hidden = field.secret && !revealed.has(field.key);
-    const buttons = [
-      field.secret ? `<button type="button" class="field-button" data-ws="profile-reveal" data-key="${field.key}" aria-pressed="${!hidden}" title="${escapeHtml(hidden ? t("Show") : t("Hide"))}" aria-label="${escapeHtml(hidden ? t("Show") : t("Hide"))}">${hidden ? ICONS.eye : ICONS.eyeOff}</button>` : "",
-      `<button type="button" class="field-button pf-copy" data-ws="profile-copy" data-key="${field.key}" title="${escapeHtml(t("Copy"))}" aria-label="${escapeHtml(t("Copy"))}">${ICONS.copy}</button>`
-    ].join("");
-    const placeholder = field.placeholder ? ` placeholder="${escapeHtml(field.placeholder)}"` : "";
-    const stacked = field.type === "multiline";
+  function defaultLabel(field) {
+    const template = fieldTemplate(field);
+    return template ? t(template.label) : "";
+  }
+
+  function shownLabel(field) {
+    return String(field.label ?? "").trim() || defaultLabel(field);
+  }
+
+  function shownTitle(section) {
+    return String(section.title ?? "").trim() || (isBuiltInSection(section) ? t(sectionTitle(section)) : "");
+  }
+
+  function ageText(value) {
+    const age = profileAge(value);
+    return age === null ? "" : tn(age, "{count} year old", "{count} years old");
+  }
+
+  function profileRowHtml(field) {
+    const type = fieldType(field);
+    const value = String(field.value ?? "");
+    const stacked = type === "multiline";
+    const placeholder = type === "date" ? "YYYY-MM-DD" : type === "gender" ? t("Enter gender") : fieldTemplate(field)?.placeholder || t("Value");
+    const shown = type === "gender" ? ({ male: t("Male"), female: t("Female"), other: t("Other") }[value] || value) : value;
+    const valueClass = `pf-value${field.private ? " is-private" : ""}`;
     const control = stacked
-      ? `<textarea id="${id}" rows="2" data-profile-key="${field.key}"${placeholder}>${escapeHtml(value)}</textarea>`
-      : `<input id="${id}" type="${hidden ? "password" : ["date", "choice"].includes(field.type) ? "text" : field.type || "text"}" data-profile-key="${field.key}" value="${escapeHtml(field.key === "gender" ? ({ male: t("Male"), female: t("Female"), other: t("Other") }[value] || value) : value)}" autocomplete="off" spellcheck="false"${field.type === "date" ? ` placeholder="YYYY-MM-DD"` : field.type === "choice" ? ` placeholder="${escapeHtml(t("Enter gender"))}"` : placeholder}>`;
-    const age = field.key === "birthDate" ? profileAge(value) : null;
-    const hint = field.key === "birthDate"
-      ? `<span class="pf-hint" data-age>${age === null ? "" : escapeHtml(tn(age, "{count} year old", "{count} years old"))}</span>`
-      : "";
+      ? `<textarea rows="2" class="${valueClass}" data-field-value placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(shownLabel(field) || t("Value"))}" autocomplete="off" spellcheck="false">${escapeHtml(shown)}</textarea>`
+      : `<input type="text" class="${valueClass}" data-field-value value="${escapeHtml(shown)}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(shownLabel(field) || t("Value"))}" autocomplete="off" spellcheck="false">`;
+    const hint = field.key === "birthDate" ? `<span class="pf-hint" data-age>${escapeHtml(field.private ? "" : ageText(value))}</span>` : "";
+    const eyeLabel = field.private ? t("Private: hidden here and from the assistant") : t("Visible to the assistant");
     return `
-      <div class="settings-row pf-field${stacked ? " is-stacked" : ""}">
-        <label class="settings-label" for="${id}">${escapeHtml(t(field.label))}</label>
-        <span class="settings-field">${control}${hint}${buttons}</span>
+      <div class="settings-row pf-row${stacked ? " is-stacked" : ""}" data-field="${escapeHtml(field.id)}">
+        <input type="text" class="pf-label" data-field-label value="${escapeHtml(shownLabel(field))}" placeholder="${escapeHtml(t("Field name"))}" aria-label="${escapeHtml(t("Field name"))}" autocomplete="off" spellcheck="false">
+        <span class="settings-field">
+          ${control}${hint}
+          <button type="button" class="field-button pf-eye" data-ws="profile-private" aria-pressed="${field.private}" title="${escapeHtml(eyeLabel)}" aria-label="${escapeHtml(eyeLabel)}">${field.private ? ICONS.eyeOff : ICONS.eye}</button>
+          <button type="button" class="field-button pf-tool" data-ws="profile-copy" title="${escapeHtml(t("Copy"))}" aria-label="${escapeHtml(t("Copy"))}">${ICONS.copy}</button>
+          <button type="button" class="field-button pf-tool" data-ws="profile-delete-field" title="${escapeHtml(t("Delete"))}" aria-label="${escapeHtml(t("Delete"))}">${ICONS.trash}</button>
+        </span>
       </div>`;
   }
 
   function renderProfile() {
-    let html = `
+    const groups = profile.sections.map(section => `
+      <section class="settings-group pf-group" data-section="${escapeHtml(section.id)}">
+        <div class="pf-group-head">
+          <input type="text" class="pf-title" data-section-title value="${escapeHtml(shownTitle(section))}" placeholder="${escapeHtml(t("Group name"))}" aria-label="${escapeHtml(t("Group name"))}" autocomplete="off" spellcheck="false">
+          ${isBuiltInSection(section) ? "" : `<button type="button" class="ws-icon-button" data-ws="profile-delete-section" title="${escapeHtml(t("Delete group"))}" aria-label="${escapeHtml(t("Delete group"))}">${ICONS.trash}</button>`}
+        </div>
+        <div class="settings-card">
+          ${section.fields.map(profileRowHtml).join("")}
+          ${section.fields.some(field => field.key === "birthDate") ? `<p class="settings-help">${escapeHtml(t("Age is worked out from this date"))}</p>` : ""}
+          ${section.id === "other" && !section.fields.length ? `<p class="settings-help">${escapeHtml(t("Anything else forms ask for, such as school, occupation or an emergency contact."))}</p>` : ""}
+          <button type="button" class="pf-add" data-ws="profile-add-field">${ICONS.plus}<span>${escapeHtml(t("Add field"))}</span></button>
+        </div>
+      </section>`).join("");
+    el.body.innerHTML = `
       <div class="pf">
-        <p class="settings-intro">${escapeHtml(t("Saved only in this browser. The assistant reads these details when it fills in forms, and asks before saving anything new."))}</p>`;
-    for (const section of PROFILE_SECTIONS) {
-      html += `
-        <section class="settings-group pf-group">
-          <h3>${escapeHtml(t(section.title))}</h3>
-          <div class="settings-card">
-            ${section.fields.map(profileFieldHtml).join("")}
-            ${section.id === "basics" ? `<p class="settings-help">${escapeHtml(t("Age is worked out from this date"))}</p>` : ""}
-          </div>
-        </section>`;
-    }
-    html += `
-        <section class="settings-group pf-group">
-          <h3>${escapeHtml(t("Other details"))}</h3>
-          <div class="settings-card">
-            ${profile.custom.map(field => `
-              <div class="settings-row pf-custom-row" data-field="${escapeHtml(field.id)}">
-                <span class="settings-field"><input type="text" data-custom-part="label" value="${escapeHtml(field.label)}" placeholder="${escapeHtml(t("Field name"))}" aria-label="${escapeHtml(t("Field name"))}"></span>
-                <span class="settings-field"><input type="text" data-custom-part="value" value="${escapeHtml(field.value)}" placeholder="${escapeHtml(t("Value"))}" aria-label="${escapeHtml(t("Value"))}" spellcheck="false"></span>
-                <button type="button" class="ws-icon-button" data-ws="delete-field" title="${escapeHtml(t("Delete"))}" aria-label="${escapeHtml(t("Delete"))}">${ICONS.trash}</button>
-              </div>`).join("")}
-            ${profile.custom.length ? "" : `<p class="settings-help">${escapeHtml(t("Anything else forms ask for, such as school, occupation or an emergency contact."))}</p>`}
-            <button type="button" class="pf-add" data-ws="add-field">${ICONS.plus}<span>${escapeHtml(t("Add field"))}</span></button>
-          </div>
-        </section>
+        <p class="settings-intro">${escapeHtml(t("Saved only in this browser. Close the eye on a detail to keep it private: it stays hidden here, and the assistant only gets a placeholder it can fill forms with, never the detail itself."))}</p>
+        ${groups}
+        <button type="button" class="pf-add pf-add-group" data-ws="profile-add-section">${ICONS.plus}<span>${escapeHtml(t("Add group"))}</span></button>
       </div>`;
-    el.body.innerHTML = html;
   }
 
-  function updateProfileSummary() {
-    const hint = el.body.querySelector("[data-age]");
-    if (hint) {
-      const age = profileAge(profile.fields.birthDate);
-      hint.textContent = age === null ? "" : tn(age, "{count} year old", "{count} years old");
-    }
+  function profileTarget(element) {
+    const section = profile.sections.find(entry => entry.id === element.closest("[data-section]")?.dataset.section) || null;
+    const field = section?.fields.find(entry => entry.id === element.closest("[data-field]")?.dataset.field) || null;
+    return { section, field };
   }
 
   // ---------- Tables and checklists opened from the chat ----------
@@ -794,33 +836,49 @@ export function createWorkspace({ host, toast, onToggle }) {
       if (note) {
         render();
       }
-    } else if (action === "profile-choice") {
-      const { key, value } = button.dataset;
-      profile.fields[key] = profile.fields[key] === value ? "" : value;
-      saveProfile();
-      render();
-    } else if (action === "profile-reveal") {
-      const { key } = button.dataset;
-      if (revealed.has(key)) {
-        revealed.delete(key);
-      } else {
-        revealed.add(key);
+    } else if (action === "profile-private") {
+      const { field } = profileTarget(button);
+      if (field) {
+        field.private = !field.private;
+        saveProfile();
+        render();
+        el.body.querySelector(`[data-field="${CSS.escape(field.id)}"] [data-ws="profile-private"]`)?.focus();
       }
-      render();
     } else if (action === "profile-copy") {
-      const value = String(profile.fields[button.dataset.key] ?? "").trim();
+      const value = String(profileTarget(button).field?.value ?? "").trim();
       if (value) {
         copyText(value);
       }
-    } else if (action === "add-field") {
-      profile.custom.push({ id: uid("field"), label: "", value: "" });
-      render();
-      el.body.querySelector(".pf-custom-row:last-child [data-custom-part='label']")?.focus();
-    } else if (action === "delete-field") {
-      const id = button.closest("[data-field]")?.dataset.field;
-      profile.custom = profile.custom.filter(field => field.id !== id);
+    } else if (action === "profile-delete-field") {
+      const { section, field } = profileTarget(button);
+      if (section && field) {
+        section.fields = section.fields.filter(entry => entry !== field);
+        saveProfile();
+        render();
+      }
+    } else if (action === "profile-add-field") {
+      const { section } = profileTarget(button);
+      if (section) {
+        const field = newField();
+        section.fields.push(field);
+        saveProfile();
+        render();
+        el.body.querySelector(`[data-field="${CSS.escape(field.id)}"] [data-field-label]`)?.focus();
+      }
+    } else if (action === "profile-add-section") {
+      const section = newSection();
+      profile.sections.push(section);
       saveProfile();
       render();
+      el.body.querySelector(`[data-section="${CSS.escape(section.id)}"] [data-section-title]`)?.focus();
+    } else if (action === "profile-delete-section") {
+      const { section } = profileTarget(button);
+      const filled = section?.fields.some(field => String(field.value ?? "").trim());
+      if (section && !isBuiltInSection(section) && (!filled || window.confirm(t("Delete this group and the details in it?")))) {
+        profile.sections = profile.sections.filter(entry => entry !== section);
+        saveProfile();
+        render();
+      }
     }
   }
 
@@ -889,14 +947,29 @@ export function createWorkspace({ host, toast, onToggle }) {
         }
         save();
       }
-    } else if (target.dataset.profileKey) {
-      profile.fields[target.dataset.profileKey] = target.dataset.profileKey === "gender" ? target.value.slice(0, 60) : target.value;
-      saveProfile();
-      updateProfileSummary();
-    } else if (target.dataset.customPart) {
-      const field = profile.custom.find(entry => entry.id === target.closest("[data-field]")?.dataset.field);
+    } else if (target.matches("[data-field-value]")) {
+      const { field } = profileTarget(target);
       if (field) {
-        field[target.dataset.customPart] = target.value;
+        field.value = target.value.slice(0, 500);
+        saveProfile();
+        const hint = target.parentElement.querySelector("[data-age]");
+        if (hint) {
+          hint.textContent = field.private ? "" : ageText(field.value);
+        }
+      }
+    } else if (target.matches("[data-field-label]")) {
+      const { field } = profileTarget(target);
+      if (field) {
+        // Typing the built-in name back (or clearing it) returns to the default, which stays translated.
+        const text = target.value.trim();
+        field.label = !text || text === defaultLabel(field) ? "" : target.value.slice(0, 80);
+        saveProfile();
+      }
+    } else if (target.matches("[data-section-title]")) {
+      const { section } = profileTarget(target);
+      if (section) {
+        const text = target.value.trim();
+        section.title = isBuiltInSection(section) && (!text || text === t(sectionTitle({ id: section.id }))) ? "" : target.value.slice(0, 80);
         saveProfile();
       }
     }
@@ -1171,12 +1244,26 @@ export function createWorkspace({ host, toast, onToggle }) {
     return profileEntries(profile);
   }
 
+  // The private values, for masking what goes to the assistant. Before the profile has loaded
+  // nothing can have been filled from it yet.
+  function privateDetails() {
+    return privateEntries(profile);
+  }
+
+  // Swaps profile tokens the assistant passed back for the real values.
+  async function fillProfileTokens(text) {
+    await profileReady;
+    return fillTokens(text, id => {
+      const field = findField(profile, id);
+      return field && { label: fieldLabel(field), value: field.value };
+    });
+  }
+
   async function saveProfileFields(fields) {
     await profileReady;
     let count = 0;
     for (const entry of Array.isArray(fields) ? fields : []) {
-      if (String(entry?.label ?? "").trim() && String(entry?.value ?? "").trim()) {
-        applyDetail(profile, entry.label, entry.value);
+      if (String(entry?.label ?? "").trim() && String(entry?.value ?? "").trim() && applyDetail(profile, entry.label, entry.value)) {
         count += 1;
       }
     }
@@ -1205,6 +1292,7 @@ export function createWorkspace({ host, toast, onToggle }) {
     addNote: args => addNote(args),
     addTodos: items => addTodos(items),
     close: () => setOpen(false),
+    fillProfileTokens,
     flush,
     getProfile,
     isOpen: () => isShown,
@@ -1212,6 +1300,7 @@ export function createWorkspace({ host, toast, onToggle }) {
     open: nextTab => setOpen(true, nextTab),
     openChecklist,
     openTable,
+    privateDetails,
     saveProfileFields,
     setDocument,
     snapshot,

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { blocksToMarkdown, escapeInline, inlineToHtml, inlineToPlain, markdownToBlocks } from '../src/blocks.js';
-import { applyDetail, emptyProfile, loadProfile, normalizeDate, profileAge, profileEntries } from '../src/profile.js';
+import { applyDetail, emptyProfile, findField, loadProfile, normalizeDate, privateEntries, profileAge, profileEntries } from '../src/profile.js';
+import { fillTokens, maskDeep, maskText, profileToken } from '../src/privacy.js';
 import { moveOutline, normalizeOutline, outlineChildren } from '../src/outline.js';
 import { popupNearCaret } from '../src/popup-position.js';
 import { mergeTodos, readTodos } from '../src/todos.js';
 import { collectRules, snapBoxToRule, snapTextToRule } from '../src/rules.js';
+import { headingCandidates } from '../src/headings.js';
 
 const types = markdown => markdownToBlocks(markdown).map(block => block.type);
 
@@ -81,22 +83,62 @@ assert.equal(inlineToHtml(escapeInline('2 * 3 * 4 and snake_case_name [p. 2]')),
 assert.equal(inlineToHtml('snake_case_name'), 'snake_case_name');
 assert.equal(inlineToPlain('**Bold** and [link](https://x.y)'), 'Bold and link');
 
-// Profile details land in the fixed fields; the rest are kept as custom ones.
-const profile = emptyProfile();
-assert.equal(applyDetail(profile, '姓名', '陈大文'), 'nameChinese');
-assert.equal(applyDetail(profile, 'Full name', 'Chan Tai Man'), 'nameEnglish');
-assert.equal(applyDetail(profile, 'Date of Birth', '1990年5月1日'), 'birthDate');
-assert.equal(profile.fields.birthDate, '1990-05-01');
-assert.equal(applyDetail(profile, 'Sex', 'F'), 'gender');
-assert.equal(applyDetail(profile, 'School', 'HKU'), 'custom');
-assert.equal(normalizeDate('31/12/1999'), '1999-12-31');
-assert.equal(normalizeDate('1999-02-30'), '');
-assert.equal(profileAge('1990-05-01', new Date(2026, 3, 30)), 35);
-assert.equal(profileAge('1990-05-01', new Date(2026, 4, 1)), 36);
-assert.deepEqual(profileEntries(profile, new Date(2026, 8, 15)).map(entry => entry.label), ['English name', 'Chinese name', 'Gender', 'Date of birth', 'Age', 'School']);
-const migrated = loadProfile([{ label: 'Phone number', value: '123' }, { label: 'Phone', value: '456' }, { label: 'Hobby', value: 'Chess' }]);
-assert.equal(migrated.fields.phone, '123');
-assert.deepEqual(migrated.custom.map(field => field.label), ['Phone', 'Hobby']);
+// Profile details land in the matching field, renamed or not; the rest become new "Other details".
+{
+  const profile = emptyProfile();
+  assert.equal(applyDetail(profile, '姓名', '陈大文'), 'nameChinese');
+  assert.equal(applyDetail(profile, 'Full name', 'Chan Tai Man'), 'nameEnglish');
+  assert.equal(applyDetail(profile, 'Date of Birth', '1990年5月1日'), 'birthDate');
+  assert.equal(findField(profile, 'birthDate').value, '1990-05-01');
+  assert.equal(applyDetail(profile, 'Sex', 'F'), 'gender');
+  const school = applyDetail(profile, 'School', 'HKU');
+  assert.equal(profile.sections.at(-1).fields[0].id, school);
+  assert.equal(findField(profile, school).private, false);
+  // A renamed field is found by its new name and still by the built-in aliases; ID-like labels start private.
+  findField(profile, 'idNumber').label = 'Hong Kong ID';
+  assert.equal(applyDetail(profile, 'hong kong id', 'A123456(7)'), 'idNumber');
+  assert.equal(applyDetail(profile, 'HKID number', 'A123456(7)'), 'idNumber');
+  assert.equal(findField(profile, applyDetail(profile, 'US Social Security Number', '123-45-6789')).private, true);
+  assert.equal(normalizeDate('31/12/1999'), '1999-12-31');
+  assert.equal(normalizeDate('1999-02-30'), '');
+  assert.equal(profileAge('1990-05-01', new Date(2026, 3, 30)), 35);
+  assert.equal(profileAge('1990-05-01', new Date(2026, 4, 1)), 36);
+
+  // The assistant gets values for open fields and only a token for private ones, with no hint.
+  const entries = profileEntries(profile, new Date(2026, 8, 15));
+  assert.deepEqual(entries.map(entry => entry.label), ['English name', 'Chinese name', 'Gender', 'Date of birth', 'Age', 'Hong Kong ID', 'School', 'US Social Security Number']);
+  const id = entries.find(entry => entry.label === 'Hong Kong ID');
+  assert.deepEqual(id, { group: 'Identity documents', label: 'Hong Kong ID', private: true, token: '{{profile:idNumber}}' });
+  assert.ok(!JSON.stringify(entries).includes('A123456'));
+  // A private date of birth takes its age with it.
+  findField(profile, 'birthDate').private = true;
+  assert.ok(!profileEntries(profile).some(entry => entry.label === 'Age' || entry.value === '1990-05-01'));
+
+  // Tokens fill locally; anything private heading to the assistant turns back into its token.
+  const secrets = privateEntries(profile);
+  const lookup = fieldId => findField(profile, fieldId) && { label: findField(profile, fieldId).label, value: findField(profile, fieldId).value };
+  assert.deepEqual(fillTokens(`ID: ${profileToken('idNumber')}`, lookup), { text: 'ID: A123456(7)', used: ['Hong Kong ID'], missing: [] });
+  assert.deepEqual(fillTokens('{{profile:nope}}', lookup).missing, ['nope']);
+  assert.equal(maskText('A123456(7) / A 123 456 (7) / a1234567 / A12345678 / Link', [{ id: 'idNumber', value: 'A123456(7)' }, { id: 'n', value: 'Li' }]),
+    '{{profile:idNumber}} / {{profile:idNumber}} / {{profile:idNumber}} / A12345678 / Link');
+  assert.equal(maskText('我叫陈大文。', [{ id: 'c', value: '陈大文' }]), '我叫{{profile:c}}。');
+  assert.deepEqual(maskDeep({ fields: [{ value: 'A123456(7)' }], image: 'data:image/jpeg;A123456(7)', count: 2 }, secrets),
+    { fields: [{ value: '{{profile:idNumber}}' }], image: 'data:image/jpeg;A123456(7)', count: 2 });
+}
+
+// Older profiles: version 1 kept fixed values in `fields` and the reader's own in `custom`; before that a plain list.
+{
+  const v1 = loadProfile({ fields: { phone: '123', idNumber: 'X1' }, custom: [{ id: 'field-s', label: 'Student ID', value: '3035' }, { id: 'field-h', label: 'Hobby', value: 'Chess' }] });
+  assert.equal(findField(v1, 'phone').value, '123');
+  assert.equal(findField(v1, 'idNumber').private, true);
+  assert.deepEqual(v1.sections.at(-1).fields.map(field => [field.label, field.private]), [['Student ID', true], ['Hobby', false]]);
+  const list = loadProfile([{ label: 'Phone number', value: '123' }, { label: 'Phone', value: '456' }, { label: 'Hobby', value: 'Chess' }]);
+  assert.equal(findField(list, 'phone').value, '123');
+  assert.deepEqual(list.sections.at(-1).fields.map(field => field.label), ['Phone', 'Hobby']);
+  // A saved version 2 profile keeps custom groups; built-in groups can't go missing.
+  const v2 = loadProfile({ version: 2, sections: [{ id: 'section-school', title: 'School', fields: [{ id: 'field-a', label: 'Name', value: 'HKU' }] }] });
+  assert.deepEqual(v2.sections.map(section => section.id), ['name', 'basics', 'identity', 'contact', 'other', 'section-school']);
+}
 
 
 // To-dos are to-do blocks on the notebook's To-do page: appended after the last one, cited by page,
@@ -153,4 +195,54 @@ assert.deepEqual(migrated.custom.map(field => field.label), ['Phone', 'Hobby']);
   assert.deepEqual(snapBoxToRule(rules, { x: 330, y: 100, width: 150, height: 34 }), { x: 330, y: 100, width: 150, height: 34 });
 }
 
+// Table-of-contents candidates come from the text layer: larger type, numbered headings and page
+// titles; body text, page numbers and long lines don't count.
+{
+  const block = (text, fontSize, y, lineCount = 1) => ({ text, fontSize, lineCount, box: { y } });
+  const body = 'Body text that goes on for a while so this size carries the most characters in the document. '.repeat(3);
+  const pages = [
+    { page: 1, blocks: [block('Practice Question', 28, 40), block(body, 12, 120, 4), block('12', 9, 780)] },
+    { page: 2, blocks: [block('2.1 Unordered sampling', 12, 60), block(body, 12, 100, 4), block('Figure 1: Recall', 10, 300)] },
+    { page: 3, blocks: [block('Summary', 13, 30), block(body, 12, 80, 4), block('第二章 概率', 12, 400)] }
+  ];
+  const { bodySize, candidates, trimmed } = headingCandidates(pages);
+  assert.equal(bodySize, 12);
+  assert.deepEqual(candidates.map(entry => [entry.page, entry.text]), [[1, 'Practice Question'], [2, '2.1 Unordered sampling'], [3, 'Summary'], [3, '第二章 概率']]);
+  assert.equal(trimmed, false);
+  // Over the limit, the largest type is kept, still in reading order.
+  const many = Array.from({ length: 10 }, (_, index) => ({ page: index + 1, blocks: [block(`Heading ${index}`, index % 2 ? 20 : 16, 10), block(body, 12, 100, 4)] }));
+  const cut = headingCandidates(many, { limit: 5 });
+  assert.equal(cut.trimmed, true);
+  assert.deepEqual(cut.candidates.map(entry => entry.page), [2, 4, 6, 8, 10]);
+}
+
 console.log('workspace data checks passed');
+
+// DeepSeek list prices, doubled in Beijing peak hours (weekdays 9–12 and 14–18).
+{
+  const { formatCost, isPeakTime, requestCost } = await import('../src/pricing.js');
+  assert.equal(isPeakTime(Date.UTC(2026, 8, 17, 2, 0)), true);   // Thu 10:00 Beijing
+  assert.equal(isPeakTime(Date.UTC(2026, 8, 17, 4, 30)), false); // Thu 12:30 Beijing
+  assert.equal(isPeakTime(Date.UTC(2026, 8, 17, 10, 0)), false); // Thu 18:00 Beijing
+  assert.equal(isPeakTime(Date.UTC(2026, 8, 19, 2, 0)), false);  // Sat 10:00 Beijing
+  assert.equal(isPeakTime(Date.UTC(2026, 8, 20, 17, 0)), false); // Mon 01:00 Beijing
+  assert.equal(isPeakTime(Date.UTC(2026, 8, 21, 6, 0)), true);   // Mon 14:00 Beijing
+
+  // 1M input (400k from cache) and 100k output, off-peak then peak.
+  const usage = { prompt_tokens: 1_000_000, prompt_cache_hit_tokens: 400_000, completion_tokens: 100_000 };
+  const offPeak = requestCost('deepseek-flash', usage, Date.UTC(2026, 8, 19, 2, 0));
+  assert.equal(offPeak.peak, false);
+  assert.ok(Math.abs(offPeak.usd - (0.6 * 0.15 + 0.4 * 0.003 + 0.1 * 0.6)) < 1e-9);
+  assert.ok(Math.abs(offPeak.cny - (0.6 * 1 + 0.4 * 0.02 + 0.1 * 4)) < 1e-9);
+  const peak = requestCost('deepseek-flash', usage, Date.UTC(2026, 8, 17, 2, 0));
+  assert.ok(Math.abs(peak.usd - offPeak.usd * 2) < 1e-9);
+  assert.equal(requestCost('some-other-model', usage), null);
+
+  assert.equal(formatCost(0.0042, 'usd'), '$0.0042');
+  assert.equal(formatCost(0.00042, 'usd'), '$0.00042');
+  assert.equal(formatCost(0.0315, 'cny'), '¥0.032');
+  assert.equal(formatCost(1.254, 'usd'), '$1.25');
+  assert.equal(formatCost(0, 'cny'), '¥0');
+}
+
+console.log('pricing checks passed');

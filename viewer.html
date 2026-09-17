@@ -76,6 +76,9 @@
             <button type="button" data-tool="pen" title="Draw (P)" aria-label="Draw">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c3-4.5 5-6 6.5-4.5s-1 4 1 4.5 3.5-5 6-6.5 3 .5 4.5 1.5"></path></svg>
             </button>
+            <button type="button" data-tool="eraser" title="Eraser (E)" aria-label="Eraser">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l9.6-9.6a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L11 21"></path><path d="M22 21H7"></path><path d="m5 11 9 9"></path></svg>
+            </button>
             <button type="button" data-tool="rect" title="Rectangle (R)" aria-label="Rectangle">
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect></svg>
             </button>
@@ -91,7 +94,7 @@
             <button type="button" data-tool="text" title="Text box (T)" aria-label="Text box">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V4h16v3"></path><path d="M12 4v16"></path><path d="M9 20h6"></path></svg>
             </button>
-            <button type="button" data-tool="signature" title="Signature (click again to redraw)" aria-label="Signature">
+            <button type="button" data-tool="signature" title="Signature" aria-label="Signature">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16c2.5 0 4-9 6.5-9S9 16 11 16s2.5-4 4-4 1 3 2.5 3 2-1 3.5-1"></path><path d="M3 21h18"></path></svg>
             </button>
           </div>
@@ -125,12 +128,21 @@
         </div>
 
         <div id="emptyState" class="empty-state">
-          <div class="empty-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg>
+          <div class="ai-empty-mark empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 920 1000">
+              <mask id="emptyMarkCutout">
+                <rect width="920" height="1000" style="fill:#fff"></rect>
+                <path style="fill:#000" d="M638 18v131c0 72 58 131 130 131h130L638 18Z"></path>
+                <path style="fill:#000" fill-rule="evenodd" d="M156 459c0-10 8-18 18-18h73c60 0 97 29 97 82 0 57-37 84-97 84h-33v63c0 10-8 18-18 18h-22c-10 0-18-8-18-18V459Zm58 30v62h31c21 0 33-12 33-28 0-22-12-34-33-34h-31Z"></path>
+                <path style="fill:#000" fill-rule="evenodd" d="M397 441h64c73 0 116 47 116 124s-43 123-116 123h-64c-10 0-18-8-18-18V459c0-10 8-18 18-18Zm42 48v151h18c31 0 50-26 50-75s-19-76-50-76h-18Z"></path>
+                <path style="fill:#000" d="M626 459c0-10 8-18 18-18h128c10 0 18 8 18 18v26c0 10-8 18-18 18h-84v43h77c10 0 18 8 18 18v26c0 10-8 18-18 18h-77v66c0 10-8 18-18 18h-26c-10 0-18-8-18-18V459Z"></path>
+              </mask>
+              <path mask="url(#emptyMarkCutout)" d="M146 18h492l260 262v578c0 74-60 121-134 121H146c-74 0-128-57-128-131V151c0-74 54-133 128-133Z"></path>
+            </svg>
           </div>
           <h2>Open a PDF</h2>
           <p>Browse to a PDF on the web and it opens here — or drop a file anywhere in this window.</p>
-          <button id="emptyOpenFile" class="text-button" type="button">Choose a file…</button>
+          <button id="emptyOpenFile" class="text-button" type="button">Choose a file</button>
         </div>
 
         <div id="pdfShell" class="pdf-shell" hidden>
@@ -139,7 +151,10 @@
 
         <!-- Vertical tool dock: find · edit · zoom · file -->
         <div id="toolDock" class="tool-dock glass" role="toolbar" aria-orientation="vertical" aria-label="PDF tools">
-          <button id="searchToggle" class="dock-button" type="button" title="Search and go to page (⌘F)" aria-label="Search and go to page" aria-pressed="false">
+          <button id="pageToggle" class="dock-button page-toggle" type="button" title="Go to page" aria-label="Go to page" aria-pressed="false">
+            <span id="pageToggleNumber" class="page-toggle-number">–</span>
+          </button>
+          <button id="searchToggle" class="dock-button" type="button" title="Search document (⌘F)" aria-label="Search document" aria-pressed="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>
           </button>
           <button id="markupToggle" class="dock-button" type="button" title="Show markup toolbar" aria-label="Markup" aria-pressed="false">
@@ -160,7 +175,7 @@
           <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden>
         </div>
 
-        <!-- Search and go to page: two rows on one grid, so the arrow buttons line up. -->
+        <!-- Search: one row, with the match count and arrows. -->
         <div id="searchBox" class="search-flyout glass" role="search" hidden>
           <div class="flyout-row">
             <span class="flyout-icon" aria-hidden="true">
@@ -178,7 +193,11 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
             </button>
           </div>
-          <div class="flyout-row page-row" role="group" aria-label="Go to page">
+        </div>
+
+        <!-- Go to page: the same row shape as search, so the two flyouts read as a pair. -->
+        <div id="pageBox" class="search-flyout page-flyout glass" role="group" aria-label="Go to page" hidden>
+          <div class="flyout-row page-row">
             <span class="flyout-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg>
             </span>
@@ -189,6 +208,9 @@
             </button>
             <button id="pageNext" class="flyout-button" type="button" title="Next page" aria-label="Next page">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+            </button>
+            <button id="pageClose" class="flyout-button" type="button" title="Close (Esc)" aria-label="Close">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>
             </button>
           </div>
         </div>
@@ -241,6 +263,7 @@
           </button>
           <button type="button" data-action="translate" class="ask-action" title="Translate this in a bubble" aria-label="Translate">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 8 6 6"></path><path d="m4 14 6-6 2-3"></path><path d="M2 5h12"></path><path d="M7 2h1"></path><path d="m22 22-5-10-5 10"></path><path d="M14 18h6"></path></svg>
+            Translate
           </button>
           <button type="button" data-action="ask" class="ask-action" title="Ask AI about this">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 15.5A2 2 0 0 0 8.5 14l-6.1-1.6a.5.5 0 0 1 0-1L8.5 10a2 2 0 0 0 1.4-1.5l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1A2 2 0 0 0 15.5 10l6.1 1.6a.5.5 0 0 1 0 1L15.5 14a2 2 0 0 0-1.4 1.5l-1.6 6.1a.5.5 0 0 1-1 0z"></path></svg>

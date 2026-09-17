@@ -3,7 +3,7 @@
 // that area is sent to the model and a small bubble explains it, without opening the chat.
 
 import { renderMarkdown } from "./ai.js";
-import { replyLanguageName, t } from "./i18n.js";
+import { replyLanguageName, t, translationDirection } from "./i18n.js";
 
 const DWELL_MS = 650;
 const OUTLINE_PAD = 4;
@@ -198,12 +198,14 @@ export function createLens(host, { quickAsk, openChat }) {
     const width = element.offsetWidth;
     const height = element.offsetHeight;
 
+    // Only the part of the viewer no panel covers counts as room.
+    const area = host.uncovered?.() || { left: 0, right: stage.width };
     let left;
     let top;
-    if (regionRight + width + 16 <= stage.width) {
+    if (regionRight + width + 16 <= area.right) {
       left = regionRight + 12;
       top = regionTop;
-    } else if (regionLeft - width - 16 >= 0) {
+    } else if (regionLeft - width - 16 >= area.left) {
       left = regionLeft - width - 12;
       top = regionTop;
     } else {
@@ -211,7 +213,7 @@ export function createLens(host, { quickAsk, openChat }) {
       left = regionLeft + ((regionRight - regionLeft) - width) / 2;
       top = regionBottom + 12;
     }
-    element.style.left = `${clamp(left, 12, Math.max(12, stage.width - width - 12))}px`;
+    element.style.left = `${clamp(left, area.left + 12, Math.max(area.left + 12, area.right - width - 12))}px`;
     element.style.top = `${clamp(top, 12, Math.max(12, stage.height - height - 12))}px`;
   }
 
@@ -228,7 +230,10 @@ export function createLens(host, { quickAsk, openChat }) {
   function promptFor(kind, found, hint) {
     const language = replyLanguageName();
     if (kind === "translate") {
-      return `Translate the text in this cropped part of page ${found.page.number} into ${language}. Keep the meaning and formatting (paragraphs, lists). Return only the translation.`;
+      return [
+        `Translate the text in this cropped part of page ${found.page.number} ${translationDirection(hint)}. Keep the meaning and formatting (paragraphs, lists). Return only the translation.`,
+        hint ? `Extracted text, for reference:\n"""\n${hint.slice(0, 1500)}\n"""` : ""
+      ].filter(Boolean).join("\n\n");
     }
     const what = found.kind === "area"
       ? "It may be a figure, chart, table, diagram or formula."
@@ -256,7 +261,7 @@ export function createLens(host, { quickAsk, openChat }) {
     const { signal } = controller;
 
     try {
-      const { dataUrl } = await host.renderRegion(found.page.number, found.box, { pad: 6, longSide: 1000 });
+      const { dataUrl } = await host.renderRegion(found.page.number, found.box, { pad: 6, longSide: 1000, forAssistant: true });
       signal.throwIfAborted();
       let answer = "";
       await quickAsk({

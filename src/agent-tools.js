@@ -3,6 +3,7 @@
 
 import { t, tn } from "./i18n.js";
 import { buildCalendar, isCalendarDate } from "./ics.js";
+import { compileSecrets, hasToken, maskDeep, maskText, profileToken } from "./privacy.js";
 import { readWebpage, searchWeb } from "./web.js";
 
 const COLOR_NAMES = {
@@ -70,6 +71,11 @@ const DEFINITIONS = [
     parameters: { type: "object", properties: {} }
   },
   {
+    name: "get_heading_candidates",
+    description: "For building a table of contents: the likely headings of the whole document, found in its text layer without viewing any page. Each candidate is {page, size, text} (short lines in larger type, numbered headings such as \"2.1\" or \"Chapter 3\", and page or slide titles), with the body text size to compare against. Far cheaper than viewing pages: call it once instead of skimming every page. pagesWithText 0 means a scanned PDF with no text to read.",
+    parameters: { type: "object", properties: {} }
+  },
+  {
     name: "set_outline",
     description: "Give the reader a table of contents in the sidebar when the PDF has none: one entry per heading with its page and depth (0 for chapters or top-level sections, 1 for subsections, 2 deeper). Keep titles as printed. Replaces any outline you set before.",
     parameters: {
@@ -122,7 +128,7 @@ const DEFINITIONS = [
   },
   {
     name: "fill_form_fields",
-    description: "Set the values of real form fields returned by list_form_fields. Text fields take text; checkboxes and radio buttons take \"true\" or \"false\"; dropdowns take one of the listed options. The reader can also edit these fields directly afterwards.",
+    description: "Set the values of real form fields returned by list_form_fields. Text fields take text, or a private profile token from get_profile passed unchanged; checkboxes and radio buttons take \"true\" or \"false\"; dropdowns take one of the listed options. The reader can also edit these fields directly afterwards.",
     parameters: {
       type: "object",
       properties: {
@@ -143,7 +149,7 @@ const DEFINITIONS = [
   },
   {
     name: "add_text",
-    description: "Add a text box to a page, for example to fill in a form that has no real fields, or to leave a note. (x, y) is the top-left corner on the 0–1000 grid. To answer next to a label, use the label's y and an x just past its right edge; to write on a blank line, aim y just above the line (get_page_layout lists the lines): a single line of text placed on or near a line is set to sit on it automatically. Use \\n for more lines. The reader can click the box later to edit or move it.",
+    description: "Add a text box to a page, for example to fill in a form that has no real fields, or to leave a note. (x, y) is the top-left corner on the 0–1000 grid. To answer next to a label, use the label's y and an x just past its right edge; to write on a blank line, aim y just above the line (get_page_layout lists the lines): a single line of text placed on or near a line is set to sit on it automatically. Use \\n for more lines. The text can also be a private profile token from get_profile, passed unchanged. The reader can click the box later to edit or move it.",
     parameters: {
       type: "object",
       properties: {
@@ -347,7 +353,7 @@ const DEFINITIONS = [
   },
   {
     name: "get_profile",
-    description: "Read the personal details the reader saved in their profile (name, address, ID numbers, contact details…). Call it before asking the reader for details to fill in a form.",
+    description: "Read the personal details the reader saved in their profile, each with its group and label (name, address, ID numbers, contact details…). Call it before asking the reader for details to fill in a form. Details the reader keeps private come as {label, private: true, token} with no value, and you can't see them: to use one, pass its token unchanged (for example \"{{profile:idNumber}}\") as the value in fill_form_fields or as the text in add_text, and it is filled in locally. Never ask the reader to tell you a private detail and never guess it.",
     parameters: { type: "object", properties: {} }
   },
   {
@@ -421,6 +427,7 @@ export const TOOL_LABELS = {
   view_region: t("Looking closer…"),
   search_document: t("Searching the document…"),
   get_outline: t("Reading the table of contents…"),
+  get_heading_candidates: t("Finding headings…"),
   set_outline: t("Building the table of contents…"),
   get_page_layout: t("Reading the page layout…"),
   find_text: t("Finding text…"),
@@ -587,7 +594,52 @@ export function createAgentTools(host) {
   }
 
   // Returns { result, summary, attachPages?, attachRegions?, card?, undo? }; throws with a message the model can act on.
-  async function execute(name, args, { allowEdits, allowWeb, tavilyKey = "" }) {
+  // Private profile details: tokens the assistant passes are filled in here, just before a tool
+  // writes them into the PDF, and anything going back to the assistant has private values masked.
+  async function fillTokenArgs(name, args) {
+    const used = [];
+    const fill = async value => {
+      if (!hasToken(value)) {
+        return value;
+      }
+      const filled = await host.workspace.fillProfileTokens(String(value));
+      if (filled.missing.length) {
+        throw new Error(`Nothing is saved for ${filled.missing.map(profileToken).join(", ")}; ask the reader to fill it in in their profile.`);
+      }
+      used.push(...filled.used);
+      return filled.text;
+    };
+    if (name === "fill_form_fields" && Array.isArray(args.fields)) {
+      const fields = [];
+      for (const field of args.fields) {
+        fields.push(field && typeof field === "object" ? { ...field, value: await fill(field.value) } : field);
+      }
+      return { args: { ...args, fields }, used };
+    }
+    if (name === "add_text") {
+      return { args: { ...args, text: await fill(args.text) }, used };
+    }
+    return { args, used };
+  }
+
+  async function execute(name, args, options) {
+    const filled = await fillTokenArgs(name, args && typeof args === "object" ? args : {});
+    const outcome = await run(name, filled.args, options);
+    const secrets = compileSecrets(host.workspace?.privateDetails?.() || []);
+    if (!secrets.length) {
+      return outcome;
+    }
+    // The step log is for the reader, so a private value there reads as its label instead.
+    const summary = typeof outcome.summary === "string" ? maskText(outcome.summary, secrets, secret => `[${secret.label}]`) : outcome.summary;
+    const details = [...new Set(filled.used)];
+    return {
+      ...outcome,
+      result: maskDeep(outcome.result, secrets),
+      summary: details.length ? `${summary} · ${t("{details} filled from your profile, not sent to the AI", { details: details.join(", ") })}` : summary
+    };
+  }
+
+  async function run(name, args, { allowEdits, allowWeb, tavilyKey = "" }) {
     if (EDIT_TOOLS.has(name) && !allowEdits) {
       throw new Error("Editing is turned off in the assistant's settings.");
     }
@@ -639,6 +691,17 @@ export function createAgentTools(host) {
       case "set_outline": {
         const count = host.setOutline(args.entries);
         return { result: { ok: true, entries: count, note: "The outline is now in the sidebar." }, summary: tn(count, "Built a table of contents with {count} entry", "Built a table of contents with {count} entries") };
+      }
+
+      case "get_heading_candidates": {
+        const found = await host.getHeadingCandidates();
+        const note = !found.pagesWithText
+          ? "This PDF has no text layer (it looks scanned), so headings can't be read from it. Tell the reader instead of viewing every page."
+          : found.trimmed ? "Only the headings in the largest type are listed; smaller ones were left out to keep the list short." : undefined;
+        return {
+          result: { ...found, note },
+          summary: tn(found.candidates.length, "Found {count} possible heading", "Found {count} possible headings")
+        };
       }
 
       case "get_page_layout": {

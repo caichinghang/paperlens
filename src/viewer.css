@@ -885,6 +885,21 @@ svg {
   transform: translateY(calc(1.6em * var(--total-scale-factor) + 8px));
 }
 
+/* Under a drawing or highlight that sits too close to the top of the page for the bar to fit above. */
+.markup-mini.is-under {
+  transform: translateY(8px);
+}
+
+.markup-mini .mini-text-tools,
+.markup-mini .mini-colors {
+  display: contents;
+}
+
+.markup-mini .mini-text-tools[hidden],
+.markup-mini .mini-colors[hidden] {
+  display: none;
+}
+
 .markup-mini button {
   display: grid;
   place-items: center;
@@ -915,17 +930,17 @@ svg {
   background: var(--line-strong);
 }
 
+/* The same small dot as the markup bar's colours, ringed in its own colour when it's the one in use. */
 .markup-mini .mini-swatch {
-  min-width: 22px;
-  height: 22px;
+  width: 24px;
+  min-width: 24px;
   padding: 0;
-  border-radius: 50%;
-  background: var(--swatch);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  background: transparent;
 }
 
-.markup-mini .mini-swatch.is-active {
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--accent);
+.markup-mini .mini-swatch.is-active,
+.markup-mini .mini-swatch:hover {
+  background: transparent;
 }
 
 /* Redaction boxes: dashed red while proposed, solid black once approved. */
@@ -988,6 +1003,11 @@ svg {
 
 .pdf-pages[data-tool="signature"] .draw-surface {
   cursor: copy;
+}
+
+/* The eraser's reach, drawn as the cursor so the reader sees what it will touch. */
+.pdf-pages[data-tool="eraser"] .draw-surface {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Ccircle cx='11' cy='11' r='9' fill='rgba(255,255,255,0.35)' stroke='%23333' stroke-width='1.2'/%3E%3C/svg%3E") 11 11, crosshair;
 }
 
 /* ---------- Floating controls ---------- */
@@ -1158,6 +1178,30 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+.page-flyout {
+  width: 260px;
+}
+
+/* The go-to-page button is the page number itself, drawn to sit with the dock's line icons: the same
+   grey, a medium weight, and digits a little shorter than an icon. Longer
+   numbers step down so they still fit the button. */
+.page-toggle-number {
+  color: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.page-toggle[data-digits="3"] .page-toggle-number {
+  font-size: 12.5px;
+}
+
+.page-toggle[data-digits="4"] .page-toggle-number {
+  font-size: 10.5px;
+}
+
 .flyout-button {
   width: 30px;
   height: 30px;
@@ -1191,6 +1235,47 @@ svg {
   font-size: 13px;
   text-align: left;
   white-space: nowrap;
+}
+
+/* The "+" menu: the key for each way of adding context sits in front, like a shortcut. */
+#aiAttachMenu button {
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-width: 220px;
+}
+
+#aiAttachMenu {
+  width: max-content;
+  max-width: min(340px, calc(100vw - 24px));
+}
+
+/* The quoted snippet takes whatever width is left and trails off inside the menu. */
+#aiAttachMenu button em {
+  min-width: 0;
+  max-width: 150px;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attach-key {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-hover);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.attach-key svg {
+  width: 13px;
+  height: 13px;
 }
 
 .menu button:hover:not(:disabled) {
@@ -1461,6 +1546,12 @@ svg {
   background: var(--surface-hover);
 }
 
+/* The selection already has this mark; choosing it again takes it off. */
+.selection-popover button.is-on {
+  background: var(--active);
+  color: var(--text);
+}
+
 .selection-popover svg {
   width: 15px;
   height: 15px;
@@ -1484,41 +1575,29 @@ svg {
   display: grid;
   align-content: center;
   justify-items: center;
-  gap: 12px;
-  padding: 28px;
+  gap: 8px;
+  padding: 28px 28px 64px;
   text-align: center;
 }
 
+/* Pressed into the page area like the assistant's and the notebook's empty marks. */
 .empty-mark {
-  display: grid;
-  place-items: center;
-  width: 84px;
-  height: 104px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--soft);
-  box-shadow: 0 8px 24px rgba(15, 15, 15, 0.06);
-}
-
-.empty-mark svg {
-  width: 46px;
-  height: 46px;
-  stroke-width: 1.3;
+  margin-bottom: 10px;
 }
 
 .empty-state h2 {
-  margin: 8px 0 0;
-  font-size: 22px;
-  font-weight: 650;
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .empty-state p {
-  max-width: 440px;
-  margin: 0 0 6px;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.5;
+  max-width: 40ch;
+  margin: 0 0 8px;
+  color: var(--soft);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .drop-overlay {
@@ -2574,52 +2653,94 @@ svg {
 }
 
 /* Outline: AI-built table of contents */
+/* No bookmarks: a full-width button to build a table of contents, with one small line underneath. */
 .outline-empty {
-  gap: 10px;
-  padding-top: 24px;
-  padding-bottom: 24px;
+  display: grid;
+  gap: 8px;
+  padding: 10px 8px 16px;
+  text-align: center;
 }
 
-.outline-empty .text-button {
-  display: inline-flex;
+.outline-generate {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  height: 30px;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 38px;
   padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
   color: var(--accent);
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 120ms ease;
 }
 
-.outline-empty .text-button svg {
-  width: 14px;
-  height: 14px;
+.outline-generate:hover {
+  background: color-mix(in srgb, var(--accent) 17%, transparent);
 }
 
+.outline-generate svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.outline-empty p {
+  margin: 0;
+  color: var(--soft);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+/* A table of contents the AI built: one quiet line on top, with a small icon to build it again. */
 .outline-note {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 2px 4px 6px;
-  padding: 6px 8px 6px 10px;
-  border-radius: 8px;
-  background: var(--sidebar-selected);
-  color: var(--muted);
-  font-size: 11.5px;
+  gap: 5px;
+  margin: 0 6px 4px 10px;
+  min-height: 24px;
+  color: var(--soft);
+  font-size: 11px;
+}
+
+.outline-note > svg {
+  flex: none;
+  width: 11px;
+  height: 11px;
+}
+
+.outline-note span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .outline-note button {
-  padding: 2px 7px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--accent);
-  font-size: 11.5px;
-  font-weight: 600;
+  color: var(--soft);
 }
 
 .outline-note button:hover {
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.outline-note button svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* ---------- Dialog & toast ---------- */
@@ -3259,9 +3380,19 @@ svg {
   margin: 8px 0;
 }
 
-/* Keep the pages centred in the part of the window the floating panels leave uncovered. With both
-   side panels open (or neither) the page stays centred in the whole window. */
+/* Keep the pages centred in the part of the window the floating panels leave uncovered, whichever
+   of them are open. */
 @media (min-width: 821px) {
+  .app-shell.ai-open:not(.sidebar-collapsed) .pdf-shell {
+    padding-left: calc(var(--sidebar-width) + 72px);
+    padding-right: calc(var(--ai-width) + 72px);
+  }
+
+  .app-shell.ai-open:not(.sidebar-collapsed) .markup-bar {
+    left: calc((100% + var(--sidebar-width) - var(--ai-width)) / 2);
+    max-width: calc(100% - var(--sidebar-width) - var(--ai-width) - 136px);
+  }
+
   .app-shell.ai-open.sidebar-collapsed .pdf-shell {
     padding-right: calc(var(--ai-width) + 72px);
   }
@@ -4000,6 +4131,40 @@ svg {
   color: var(--soft);
   font-size: 14px;
   line-height: 1.6;
+}
+
+/* No PDF open: the notebook mark and two quiet lines, centred in the panel. */
+.nb-empty {
+  display: grid;
+  flex: 1;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 24px 64px;
+  text-align: center;
+}
+
+.nb-empty-mark {
+  margin-bottom: 10px;
+}
+
+.nb-empty-mark svg {
+  width: 24px;
+  height: 28px;
+}
+
+.nb-empty strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nb-empty p {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--soft);
+  font-size: 12.5px;
+  line-height: 1.55;
 }
 
 .nb-main > .ws-blank {
@@ -4939,33 +5104,114 @@ body.is-block-sorting * {
   white-space: nowrap;
 }
 
-.pf-copy {
+/* A group's title is editable in place and reads as the settings group label until focused. */
+.pf-group-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+}
+
+.pf-title {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  margin-left: -4px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  outline: none;
+  background: transparent;
+  color: var(--soft);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pf-title:hover:not(:focus),
+.pf-title:focus {
+  background: var(--surface-hover);
+}
+
+.pf-title:focus {
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.pf-group-head .ws-icon-button {
+  opacity: 0;
+}
+
+.pf-group:hover .pf-group-head .ws-icon-button,
+.pf-group-head:focus-within .ws-icon-button {
+  opacity: 1;
+}
+
+/* Field names are editable too, styled like the settings labels beside them. */
+.pf-label {
+  min-width: 0;
+  height: 32px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 7px;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  transition: background 120ms ease;
+}
+
+.pf-label::placeholder {
+  color: var(--soft);
+  font-weight: 500;
+}
+
+.pf-label:hover:not(:focus),
+.pf-label:focus {
+  background: var(--surface-hover);
+}
+
+.pf-row.is-stacked .pf-label {
+  justify-self: start;
+  width: 100%;
+}
+
+/* A private value shows as dots; it's readable only while it's being edited. */
+.pf-value.is-private:not(:focus) {
+  -webkit-text-security: disc;
+}
+
+/* Copy and delete appear with the row; the eye always shows, so its state reads at a glance. */
+.pf-tool {
   opacity: 0;
   transition: opacity 120ms ease;
 }
 
-.settings-field:hover .pf-copy,
-.settings-field:focus-within .pf-copy {
+.pf-row:hover .pf-tool,
+.pf-row:focus-within .pf-tool {
   opacity: 1;
 }
 
-.pf-custom-row {
-  grid-template-columns: minmax(92px, 0.85fr) minmax(0, 1.5fr) 28px;
-  gap: 8px;
+.settings-field .pf-eye[aria-pressed="false"] {
+  background: transparent;
+  color: var(--soft);
 }
 
-.pf-custom-row .settings-field input[data-custom-part="label"] {
-  color: var(--muted);
-  font-weight: 550;
+.settings-field .pf-eye[aria-pressed="false"]:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
-.pf-custom-row .ws-icon-button {
-  opacity: 0;
-}
-
-.pf-custom-row:hover .ws-icon-button,
-.pf-custom-row:focus-within .ws-icon-button {
-  opacity: 1;
+.pf-add-group {
+  width: 100%;
+  margin: 18px 0 0;
+  padding: 0 2px;
 }
 
 /* Adding a field is the last row of the card, quiet like the notebook's "New". */
@@ -5004,13 +5250,6 @@ body.is-block-sorting * {
     padding: 10px 0;
   }
 
-  .pf-custom-row {
-    grid-template-columns: minmax(0, 1fr) 28px;
-  }
-
-  .pf-custom-row .settings-field + .settings-field {
-    grid-row: 2;
-  }
 }
 
 /* ---------- Checklist opened from the chat ---------- */
@@ -5580,6 +5819,14 @@ body.is-block-sorting * {
 .msg-actions { opacity: 1; margin-top: 12px; }
 .msg-actions button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; }
 .msg-actions button svg { width: 15px; height: 15px; }
+/* Token counts for the reply, a quiet label at the end of its actions. */
+.msg-actions { align-items: center; }
+.msg-usage { margin-left: 6px; color: var(--soft); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default; position: relative; padding: 4px 6px; border-radius: 6px; outline: none; }
+.msg-usage:hover, .msg-usage:focus-visible { color: var(--muted); background: var(--surface-hover); }
+.msg-usage-detail { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20; display: grid; gap: 3px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); box-shadow: 0 8px 24px rgba(15, 15, 15, 0.12); color: var(--muted); font-size: 11.5px; line-height: 1.35; opacity: 0; visibility: hidden; transform: translateY(2px); transition: opacity 120ms ease, transform 120ms ease, visibility 0s linear 120ms; pointer-events: none; }
+.msg-usage-cost { margin-top: 3px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--text); font-weight: 600; }
+.msg-usage.is-below .msg-usage-detail { top: calc(100% + 6px); bottom: auto; transform: translateY(-2px); }
+.msg-usage:hover .msg-usage-detail, .msg-usage:focus-visible .msg-usage-detail { opacity: 1; visibility: visible; transform: none; transition: opacity 120ms ease, transform 120ms ease; }
 
 /* ---------- Tables ---------- */
 /* In the chat a table is a compact button; it opens full-size in the workspace, where it gets a frame,
@@ -5764,6 +6011,7 @@ body.is-block-sorting * {
 .zoom-flyout,
 .layer-pill,
 .nb-add-popover,
+.signature-picker,
 .be-menu,
 .be-toolbar {
   border: 0;
@@ -5772,4 +6020,128 @@ body.is-block-sorting * {
   box-shadow: var(--popover-shadow);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+/* ---------- Signature picker ---------- */
+
+.signature-picker {
+  position: fixed;
+  z-index: 200;
+  display: grid;
+  gap: 6px;
+  width: 260px;
+  padding: 8px;
+  border-radius: 14px;
+  animation: pop-in 140ms var(--ease-out);
+}
+
+.signature-picker-head {
+  padding: 2px 6px 0;
+  color: var(--soft);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.signature-list {
+  display: grid;
+  gap: 4px;
+  max-height: 280px;
+  padding: 2px;
+  overflow: auto;
+}
+
+.signature-item {
+  position: relative;
+}
+
+.signature-choice {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 64px;
+  padding: 6px 28px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: #1f1f1f;
+}
+
+/* Quiet states: a darker hairline on hover or keyboard focus, and a slightly stronger one with a soft
+   tint for the signature used last. */
+.signature-choice:hover,
+.signature-choice:focus-visible {
+  border-color: color-mix(in srgb, #1f1f1f 28%, transparent);
+  outline: none;
+}
+
+.signature-choice:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.signature-item.is-active .signature-choice {
+  border-color: color-mix(in srgb, #1f1f1f 22%, transparent);
+  background: #f6f7f9;
+}
+
+.signature-choice svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 0.018;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.signature-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  opacity: 0;
+}
+
+.signature-item:hover .signature-delete,
+.signature-delete:focus-visible {
+  opacity: 1;
+}
+
+.signature-delete:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #1f1f1f;
+}
+
+.signature-delete svg {
+  width: 13px;
+  height: 13px;
+}
+
+.signature-new {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+.signature-new:hover {
+  background: var(--surface-hover);
+}
+
+.signature-new svg {
+  width: 14px;
+  height: 14px;
 }

@@ -6,8 +6,8 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 // PDF.js only writes annotation-storage entries with this prefix into saved files.
 const EDITOR_PREFIX = "pdfjs_internal_editor_";
 const TEXT_TOOLS = new Set(["highlight", "underline", "strike"]);
-const DRAW_TOOLS = new Set(["pen", "rect", "ellipse", "arrow", "line", "text", "signature"]);
-const TOOL_KEYS = { v: "select", h: "highlight", u: "underline", s: "strike", p: "pen", r: "rect", o: "ellipse", a: "arrow", l: "line", t: "text" };
+const DRAW_TOOLS = new Set(["pen", "eraser", "rect", "ellipse", "arrow", "line", "text", "signature"]);
+const TOOL_KEYS = { v: "select", h: "highlight", u: "underline", s: "strike", p: "pen", e: "eraser", r: "rect", o: "ellipse", a: "arrow", l: "line", t: "text" };
 const WIDTH_TO_FONT_SIZE = { 1: 11, 2: 14, 4: 20 };
 const TEXT_LINE_HEIGHT = 1.25;
 const HISTORY_LIMIT = 100;
@@ -25,7 +25,18 @@ const LABELS = {
   redact: t("Redaction")
 };
 const FONT_STEPS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48];
-const SWATCHES = ["#1f1f1f", "#e03131", "#4dabf7", "#51cf66", "#fcc419", "#f783ac"];
+// One palette, in the markup bar's order, wherever a colour is picked.
+const SWATCHES = [
+  ["#fcc419", "Yellow"],
+  ["#51cf66", "Green"],
+  ["#4dabf7", "Blue"],
+  ["#f783ac", "Pink"],
+  ["#e03131", "Red"],
+  ["#1f1f1f", "Black"]
+];
+const SHAPE_TYPES = new Set(["rect", "ellipse", "arrow", "line"]);
+// How far the eraser reaches around the pointer, in screen pixels.
+const ERASER_RADIUS = 9;
 // Tools that feel like "the same pen" share one remembered color, like Preview.
 const COLOR_GROUPS = {
   highlight: "highlight",
@@ -318,7 +329,7 @@ function translateAnnotation(target, original, dx, dy) {
   }
 }
 
-export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, goToPage, toast, onChange, onVisibilityChange }) {
+export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, getCurrentPage, goToPage, toast, onChange, onVisibilityChange }) {
   const undoButton = bar.querySelector("#undoBtn");
   const redoButton = bar.querySelector("#redoBtn");
   const deleteButton = bar.querySelector("#deleteBtn");
@@ -335,7 +346,14 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   let selectedId = null;
   let colors = { ...DEFAULT_COLORS };
   let strokeWidth = 2;
-  let signature = null;
+  // Saved signatures ([{ id, aspect, paths }]); the signature tool places the chosen one.
+  let signatures = [];
+  let activeSignatureId = null;
+  let picker = null;
+  let pickerDone = null;
+  let padDone = null;
+  // Markup copied with ⌘C: { annotation, pastes }. Kept in memory so it can go onto any page or document.
+  let clipboard = null;
   let measureContext = null;
   let saveTimer = 0;
   let pendingSave = null;
@@ -352,8 +370,14 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       syncBar();
     }
   });
-  getItem("signature").then(saved => {
-    signature = saved;
+  // Before there could be several, one signature was saved under "signature".
+  Promise.all([getItem("signatures", null), getItem("signature", null)]).then(([saved, legacy]) => {
+    signatures = Array.isArray(saved) ? saved.filter(entry => entry?.id && Array.isArray(entry.paths)) : [];
+    if (!signatures.length && legacy?.paths) {
+      signatures = [{ id: uid(), aspect: legacy.aspect, paths: legacy.paths, createdAt: Date.now() }];
+      setItem("signatures", signatures).then(() => removeItem("signature"));
+    }
+    activeSignatureId = signatures.at(-1)?.id || null;
   });
 
   // ---------- State & persistence ----------
@@ -533,7 +557,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     }
 
     const selected = findAnnotation(selectedId);
-    if (selected?.page === number && selected.type === "text") {
+    if (selected?.page === number) {
       showMiniToolbar(entry, selected);
     } else if (mini && mini.parentElement === entry.page.shell) {
       hideMiniToolbar();
@@ -761,18 +785,24 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
   // ---------- Mini toolbar for text boxes ----------
 
+  // The small bar over a selected piece of markup: colour and delete for everything, plus editing
+  // and text size for text boxes.
   function buildMiniToolbar() {
     const bar = document.createElement("div");
     bar.className = "markup-mini glass";
     bar.setAttribute("role", "toolbar");
     bar.innerHTML = `
-      <button type="button" data-mini="edit" title="${t("Edit text (Enter)")}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg></button>
-      <button type="button" data-mini="smaller" title="${t("Smaller text")}">A−</button>
-      <button type="button" data-mini="larger" title="${t("Larger text")}">A+</button>
-      <span class="mini-divider"></span>
-      ${SWATCHES.map(color => `<button type="button" class="mini-swatch" data-mini="color" data-color="${color}" style="--swatch:${color}" title="${color}"></button>`).join("")}
-      <span class="mini-divider"></span>
-      <button type="button" data-mini="delete" title="${t("Delete (⌫)")}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
+      <span class="mini-text-tools">
+        <button type="button" data-mini="edit" title="${t("Edit text (Enter)")}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.4 3.6a2.1 2.1 0 0 1 3 3L7.4 18.6a2 2 0 0 1-.9.5l-2.9.9a.5.5 0 0 1-.6-.6l.9-2.9a2 2 0 0 1 .5-.9z"></path></svg></button>
+        <button type="button" data-mini="smaller" title="${t("Smaller text")}">A−</button>
+        <button type="button" data-mini="larger" title="${t("Larger text")}">A+</button>
+        <span class="mini-divider"></span>
+      </span>
+      <span class="mini-colors">
+        ${SWATCHES.map(([color, name]) => `<button type="button" class="swatch mini-swatch" data-mini="color" data-color="${color}" style="--swatch:${color}" title="${t(name)}" aria-label="${t(name)}"></button>`).join("")}
+        <span class="mini-divider"></span>
+      </span>
+      <button type="button" data-mini="delete" title="${t("Delete (⌫)")}" aria-label="${t("Delete")}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>`;
     bar.addEventListener("pointerdown", event => event.preventDefault());
     bar.addEventListener("click", event => {
       const button = event.target.closest("button");
@@ -805,13 +835,20 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     if (mini.parentElement !== entry.page.shell) {
       entry.page.shell.append(mini);
     }
-    const { width } = measureText(annotation);
-    mini.style.left = `${clamp((annotation.x / entry.page.width) * 100, 0, 100)}%`;
-    mini.style.top = `${(annotation.y / entry.page.height) * 100}%`;
-    mini.classList.toggle("is-below", annotation.y < 40);
-    mini.style.setProperty("--anchor-w", `${(width / entry.page.width) * 100}%`);
+    const isText = annotation.type === "text";
+    const bounds = getBounds(annotation);
+    const pad = isText ? 0 : 3 + (annotation.width || 0) / 2;
+    // Above the markup, or under it when there's no room above.
+    const below = bounds.y - pad < 40;
+    mini.style.left = `${clamp(((bounds.x - pad) / entry.page.width) * 100, 0, 100)}%`;
+    mini.style.top = `${(((below && !isText ? bounds.y + bounds.height + pad : bounds.y - pad)) / entry.page.height) * 100}%`;
+    mini.classList.toggle("is-below", below && isText);
+    mini.classList.toggle("is-under", below && !isText);
+    mini.querySelector(".mini-text-tools").hidden = !isText;
+    // Redactions are black or nothing; their colour isn't a choice.
+    mini.querySelector(".mini-colors").hidden = annotation.type === "redact";
     for (const swatch of mini.querySelectorAll(".mini-swatch")) {
-      swatch.classList.toggle("is-active", swatch.dataset.color === annotation.color.toLowerCase());
+      swatch.classList.toggle("is-active", swatch.dataset.color === String(annotation.color ?? "").toLowerCase());
     }
     mini.hidden = Boolean(editing) || !isVisible(annotation);
   }
@@ -974,21 +1011,24 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
     const nextTool = button.dataset.tool;
     if (nextTool) {
-      if (nextTool === "signature" && (tool === "signature" || !signature)) {
-        openSignaturePad();
+      if (nextTool === "signature") {
+        chooseSignature(button).then(id => {
+          if (id) {
+            activeSignatureId = id;
+            setTool("signature");
+            toast(t("Click on the page to place your signature"));
+          }
+        });
         return;
       }
       if (TEXT_TOOLS.has(nextTool)) {
         const range = currentPdfRange();
         if (range) {
-          addTextMarkup(nextTool, range);
+          toggleTextMarkup(nextTool, range);
           return;
         }
       }
       setTool(nextTool);
-      if (nextTool === "signature") {
-        toast(t("Click on the page to place your signature"));
-      }
       return;
     }
 
@@ -1028,6 +1068,10 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     }
     if (tool === "signature") {
       placeSignature(entry, start);
+      return;
+    }
+    if (tool === "eraser") {
+      startErasing(event, entry, start);
       return;
     }
 
@@ -1256,17 +1300,18 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
   // ---------- Text markup ----------
 
-  function addTextMarkup(type, range) {
+  // The selection's line boxes, per page, in page units.
+  function rangeRects(range) {
     const clientRects = [...range.getClientRects()].filter(rect => rect.width > 0.5 && rect.height > 0.5);
+    const rectsByPage = new Map();
     if (!clientRects.length) {
-      return false;
+      return rectsByPage;
     }
 
     const bounds = range.getBoundingClientRect();
     const candidates = [...layers.values()]
       .map(entry => ({ entry, rect: entry.layer.getBoundingClientRect() }))
       .filter(({ rect }) => rect.bottom >= bounds.top && rect.top <= bounds.bottom);
-    const rectsByPage = new Map();
 
     for (const clientRect of clientRects) {
       const cx = clientRect.left + clientRect.width / 2;
@@ -1288,7 +1333,40 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       ]);
       rectsByPage.set(entry.page.number, pageRects);
     }
+    return rectsByPage;
+  }
 
+  // Markup of `type` that covers any of the selected text; touching line boxes don't count.
+  function overlappingMarkup(type, rectsByPage) {
+    const overlaps = ([ax, ay, aw, ah], [bx, by, bw, bh]) =>
+      Math.min(ax + aw, bx + bw) - Math.max(ax, bx) > 1 &&
+      Math.min(ay + ah, by + bh) - Math.max(ay, by) > Math.min(ah, bh) * 0.3;
+    return annotations.filter(annotation => annotation.type === type && isVisible(annotation) &&
+      (rectsByPage.get(annotation.page) || []).some(rect => annotation.rects.some(own => overlaps(rect, own))));
+  }
+
+  // Which of highlight, underline and strikethrough the selection already has.
+  function markupTypesAt(range) {
+    const rectsByPage = rangeRects(range);
+    return [...TEXT_TOOLS].filter(type => overlappingMarkup(type, rectsByPage).length);
+  }
+
+  // Marking text that's already marked the same way takes the mark off, the whole of it.
+  function toggleTextMarkup(type, range) {
+    const rectsByPage = rangeRects(range);
+    const existing = overlappingMarkup(type, rectsByPage);
+    if (!existing.length) {
+      return addTextMarkup(type, range, rectsByPage);
+    }
+    const ids = new Set(existing.map(annotation => annotation.id));
+    commit(() => {
+      annotations = annotations.filter(annotation => !ids.has(annotation.id));
+    });
+    window.getSelection()?.removeAllRanges();
+    return true;
+  }
+
+  function addTextMarkup(type, range, rectsByPage = rangeRects(range)) {
     if (!rectsByPage.size) {
       return false;
     }
@@ -1308,6 +1386,194 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     });
     window.getSelection()?.removeAllRanges();
     return true;
+  }
+
+  // ---------- Eraser ----------
+  // Pen strokes lose just the part the eraser passes over; shapes and signatures it touches go whole.
+  // Text boxes, highlights and redactions aren't drawings, so it leaves them alone.
+
+  function distanceToSegment(px, py, ax, ay, bx, by) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const length = dx * dx + dy * dy;
+    const along = length ? clamp(((px - ax) * dx + (py - ay) * dy) / length, 0, 1) : 0;
+    return Math.hypot(px - (ax + along * dx), py - (ay + along * dy));
+  }
+
+  function segmentsDistance(ax, ay, bx, by, cx, cy, dx, dy) {
+    const cross = (ox, oy, px, py, qx, qy) => (px - ox) * (qy - oy) - (py - oy) * (qx - ox);
+    const d1 = cross(cx, cy, dx, dy, ax, ay);
+    const d2 = cross(cx, cy, dx, dy, bx, by);
+    const d3 = cross(ax, ay, bx, by, cx, cy);
+    const d4 = cross(ax, ay, bx, by, dx, dy);
+    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+      return 0;
+    }
+    return Math.min(
+      distanceToSegment(ax, ay, cx, cy, dx, dy),
+      distanceToSegment(bx, by, cx, cy, dx, dy),
+      distanceToSegment(cx, cy, ax, ay, bx, by),
+      distanceToSegment(dx, dy, ax, ay, bx, by)
+    );
+  }
+
+  // A stroke's points with extra ones filled in where a long segment passes the eraser, so a quick
+  // straight stroke is cut where it's crossed, not only at the points it happened to record.
+  function densifyNear(path, from, to, reach) {
+    const points = [path[0], path[1]];
+    const step = Math.max(0.5, reach / 2);
+    for (let i = 2; i < path.length; i += 2) {
+      const ax = path[i - 2];
+      const ay = path[i - 1];
+      const bx = path[i];
+      const by = path[i + 1];
+      const length = Math.hypot(bx - ax, by - ay);
+      if (length > step && segmentsDistance(ax, ay, bx, by, from.x, from.y, to.x, to.y) <= reach) {
+        const count = Math.ceil(length / step);
+        for (let j = 1; j < count; j += 1) {
+          points.push(round(ax + ((bx - ax) * j) / count), round(ay + ((by - ay) * j) / count));
+        }
+      }
+      points.push(bx, by);
+    }
+    return points;
+  }
+
+  // Points along a shape's outline, no further apart than `step`.
+  function outlinePoints(annotation, step) {
+    const corners = [];
+    const { x1, y1, x2, y2 } = annotation;
+    if (annotation.type === "rect") {
+      corners.push([x1, y1, x2, y1], [x2, y1, x2, y2], [x2, y2, x1, y2], [x1, y2, x1, y1]);
+    } else if (annotation.type === "ellipse") {
+      const points = ellipsePoints(annotation);
+      for (let i = 0; i < points.length - 2; i += 2) {
+        corners.push([points[i], points[i + 1], points[i + 2], points[i + 3]]);
+      }
+    } else {
+      corners.push([x1, y1, x2, y2]);
+      if (annotation.type === "arrow") {
+        for (const [hx, hy] of arrowHead(annotation)) {
+          corners.push([hx, hy, x2, y2]);
+        }
+      }
+    }
+    const points = [];
+    for (const [ax, ay, bx, by] of corners) {
+      const count = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+      for (let i = 0; i <= count; i += 1) {
+        points.push([ax + ((bx - ax) * i) / count, ay + ((by - ay) * i) / count]);
+      }
+    }
+    return points;
+  }
+
+  // Erases along the pointer's movement from `from` to `to` on one page. Returns whether anything changed.
+  function eraseAlong(pageNumber, from, to, radius) {
+    let erased = false;
+    const kept = [];
+    for (const annotation of annotations) {
+      const erasable = annotation.page === pageNumber && isVisible(annotation) && (annotation.type === "ink" || SHAPE_TYPES.has(annotation.type));
+      if (!erasable) {
+        kept.push(annotation);
+        continue;
+      }
+      const reach = radius + (annotation.width || 0) / 2;
+      const near = (x, y) => distanceToSegment(x, y, from.x, from.y, to.x, to.y) <= reach;
+
+      if (annotation.type === "ink" && annotation.kind !== "signature") {
+        let cut = false;
+        const paths = [];
+        for (const original of annotation.paths) {
+          const path = densifyNear(original, from, to, reach);
+          let piece = [];
+          let pathCut = false;
+          for (let i = 0; i < path.length; i += 2) {
+            if (near(path[i], path[i + 1])) {
+              pathCut = true;
+              if (piece.length >= 4) {
+                paths.push(piece);
+              }
+              piece = [];
+            } else {
+              piece.push(path[i], path[i + 1]);
+            }
+          }
+          if (!pathCut) {
+            paths.push(original);
+          } else if (piece.length >= 4) {
+            paths.push(piece);
+          }
+          cut ||= pathCut;
+        }
+        if (cut) {
+          erased = true;
+          if (paths.length) {
+            kept.push({ ...annotation, paths });
+          }
+        } else {
+          kept.push(annotation);
+        }
+        continue;
+      }
+
+      const touched = annotation.type === "ink"
+        ? annotation.paths.some(path => {
+          for (let i = 0; i < path.length; i += 2) {
+            if (near(path[i], path[i + 1])) {
+              return true;
+            }
+          }
+          return false;
+        })
+        : outlinePoints(annotation, Math.max(1, radius / 2)).some(([x, y]) => near(x, y));
+      if (touched) {
+        erased = true;
+      } else {
+        kept.push(annotation);
+      }
+    }
+    if (erased) {
+      annotations = kept;
+    }
+    return erased;
+  }
+
+  function startErasing(event, entry, start) {
+    const before = snapshot();
+    const rect = entry.layer.getBoundingClientRect();
+    const radius = ERASER_RADIUS * (entry.page.width / rect.width);
+    let last = start;
+    let erased = eraseAlong(entry.page.number, start, start, radius);
+    if (erased) {
+      renderPage(entry.page.number);
+    }
+    entry.surface.setPointerCapture(event.pointerId);
+
+    const move = moveEvent => {
+      let changedNow = false;
+      for (const sample of moveEvent.getCoalescedEvents?.() || [moveEvent]) {
+        const point = pagePoint(entry, sample);
+        changedNow = eraseAlong(entry.page.number, last, point, radius) || changedNow;
+        last = point;
+      }
+      if (changedNow) {
+        erased = true;
+        renderPage(entry.page.number);
+      }
+    };
+    const end = () => {
+      entry.surface.removeEventListener("pointermove", move);
+      entry.surface.removeEventListener("pointerup", end);
+      entry.surface.removeEventListener("pointercancel", end);
+      if (erased) {
+        pushHistory(before);
+        changed();
+      }
+    };
+    entry.surface.addEventListener("pointermove", move);
+    entry.surface.addEventListener("pointerup", end);
+    entry.surface.addEventListener("pointercancel", end);
   }
 
   // ---------- Signature ----------
@@ -1338,11 +1604,128 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     ];
   }
 
+  function findSignature(id) {
+    return signatures.find(entry => entry.id === id) || null;
+  }
+
+  function saveSignatures() {
+    setItem("signatures", signatures);
+  }
+
+  // Opens the pad; resolves with the new signature's id, or null if it's closed without saving.
   function openSignaturePad() {
     padStrokes = [];
     redrawPad();
     signatureDialog.showModal();
+    return new Promise(resolve => {
+      padDone = resolve;
+    });
   }
+
+  signatureDialog.addEventListener("close", () => {
+    padDone?.(null);
+    padDone = null;
+  });
+
+  function signaturePreview(entry) {
+    const height = Math.max(0.05, entry.aspect || 0.3);
+    const paths = entry.paths.map(path => `<path d="${smoothPath(path)}"></path>`).join("");
+    return `<svg viewBox="-0.04 -0.04 1.08 ${round(height + 0.08)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${paths}</svg>`;
+  }
+
+  function closePicker(result = null) {
+    picker?.remove();
+    picker = null;
+    const done = pickerDone;
+    pickerDone = null;
+    done?.(result);
+  }
+
+  function renderPicker() {
+    picker.innerHTML = `
+      <div class="signature-picker-head">${t("Choose a signature")}</div>
+      <div class="signature-list">${signatures.map(entry => `
+        <div class="signature-item${entry.id === activeSignatureId ? " is-active" : ""}">
+          <button type="button" class="signature-choice" data-signature="${entry.id}" title="${t("Use this signature")}" aria-label="${t("Use this signature")}">${signaturePreview(entry)}</button>
+          <button type="button" class="signature-delete" data-delete-signature="${entry.id}" title="${t("Delete signature")}" aria-label="${t("Delete signature")}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+        </div>`).join("")}
+      </div>
+      <button type="button" class="signature-new" data-new-signature><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg><span>${t("New signature")}</span></button>`;
+  }
+
+  function positionPicker(anchor) {
+    const box = anchor?.getBoundingClientRect?.();
+    const width = picker.offsetWidth;
+    const height = picker.offsetHeight;
+    if (!box) {
+      picker.style.left = `${Math.max(8, (window.innerWidth - width) / 2)}px`;
+      picker.style.top = `${Math.max(8, (window.innerHeight - height) / 2)}px`;
+      return;
+    }
+    const top = box.bottom + 8 + height > window.innerHeight - 8 ? box.top - height - 8 : box.bottom + 8;
+    picker.style.left = `${clamp(box.left + box.width / 2 - width / 2, 8, window.innerWidth - width - 8)}px`;
+    picker.style.top = `${clamp(top, 8, window.innerHeight - height - 8)}px`;
+  }
+
+  // Lets the reader pick one of their saved signatures, or draw a new one. Resolves with its id, or
+  // null if they close the picker. With none saved yet it goes straight to the pad.
+  function chooseSignature(anchor) {
+    closePicker(null);
+    if (!signatures.length) {
+      return openSignaturePad();
+    }
+    return new Promise(resolve => {
+      pickerDone = resolve;
+      picker = document.createElement("div");
+      picker.className = "signature-picker glass";
+      picker.setAttribute("role", "dialog");
+      picker.setAttribute("aria-label", t("Choose a signature"));
+      renderPicker();
+      picker.addEventListener("pointerdown", pickerEvent => pickerEvent.stopPropagation());
+      picker.addEventListener("click", pickerEvent => {
+        const button = pickerEvent.target.closest("button");
+        if (!button) {
+          return;
+        }
+        if (button.dataset.signature) {
+          activeSignatureId = button.dataset.signature;
+          closePicker(button.dataset.signature);
+        } else if (button.dataset.deleteSignature) {
+          signatures = signatures.filter(entry => entry.id !== button.dataset.deleteSignature);
+          if (activeSignatureId === button.dataset.deleteSignature) {
+            activeSignatureId = signatures.at(-1)?.id || null;
+          }
+          saveSignatures();
+          if (!signatures.length) {
+            closePicker(null);
+            return;
+          }
+          renderPicker();
+          positionPicker(anchor);
+        } else if (button.hasAttribute("data-new-signature")) {
+          const done = pickerDone;
+          pickerDone = null;
+          closePicker(null);
+          openSignaturePad().then(done);
+        }
+      });
+      document.body.append(picker);
+      positionPicker(anchor);
+      picker.querySelector(".signature-item.is-active .signature-choice, .signature-choice")?.focus();
+    });
+  }
+
+  document.addEventListener("pointerdown", () => {
+    if (picker) {
+      closePicker(null);
+    }
+  });
+  document.addEventListener("keydown", event => {
+    if (picker && event.key === "Escape") {
+      event.preventDefault();
+      closePicker(null);
+    }
+  });
 
   signaturePad.addEventListener("pointerdown", event => {
     signaturePad.setPointerCapture(event.pointerId);
@@ -1388,19 +1771,25 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     }
 
     const width = Math.max(1, maxX - minX);
-    signature = {
+    const entry = {
+      id: uid(),
       aspect: Math.max(1, maxY - minY) / width,
-      paths: padStrokes.map(stroke => stroke.map((value, i) => Math.round(((value - (i % 2 === 0 ? minX : minY)) / width) * 1000) / 1000))
+      paths: padStrokes.map(stroke => stroke.map((value, i) => Math.round(((value - (i % 2 === 0 ? minX : minY)) / width) * 1000) / 1000)),
+      createdAt: Date.now()
     };
-    setItem("signature", signature);
+    signatures.push(entry);
+    activeSignatureId = entry.id;
+    saveSignatures();
+    const done = padDone;
+    padDone = null;
     signatureDialog.close();
-    setTool("signature");
-    toast(t("Click on the page to place your signature"));
+    done?.(entry.id);
   });
 
   function placeSignature(entry, point) {
+    const signature = findSignature(activeSignatureId);
     if (!signature) {
-      openSignaturePad();
+      setTool("select");
       return;
     }
 
@@ -1424,12 +1813,11 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     select(annotation.id);
   }
 
-  // The assistant proposes a box (page units) and the reader approves it; the saved signature is
-  // fitted inside the box, resting on its bottom edge (the signature line). Without a saved signature
-  // the pad opens and nothing is placed.
-  function placeSignatureInBox(pageNumber, box) {
+  // The assistant proposes a box (page units) and the reader approves it with a signature they pick;
+  // it is fitted inside the box, resting on its bottom edge (the signature line).
+  function placeSignatureInBox(pageNumber, box, signatureId) {
+    const signature = findSignature(signatureId);
     if (!signature) {
-      openSignaturePad();
       return null;
     }
     const width = Math.max(10, Math.min(box.width, box.height / signature.aspect));
@@ -1451,6 +1839,69 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     return annotation.id;
   }
 
+  // ---------- Copy and paste ----------
+  // Text boxes, drawings, shapes and signatures can be copied and pasted; highlights and redactions
+  // belong to the text or place they cover, so they stay put.
+
+  const COPYABLE = new Set(["text", "ink", "rect", "ellipse", "arrow", "line"]);
+
+  function hasTextSelection() {
+    const selection = window.getSelection();
+    return Boolean(selection && !selection.isCollapsed && selection.toString().trim());
+  }
+
+  function copySelected() {
+    const selected = findAnnotation(selectedId);
+    if (!selected || !COPYABLE.has(selected.type)) {
+      return false;
+    }
+    clipboard = { annotation: JSON.parse(JSON.stringify(selected)), pastes: 0 };
+    // A text box's words also go to the system clipboard, for pasting outside the PDF.
+    if (selected.type === "text" && selected.text) {
+      navigator.clipboard?.writeText(selected.text).catch(() => {});
+    }
+    toast(t("Copied"));
+    return true;
+  }
+
+  // Pastes onto the page being read: in the same spot on another page, a little down and right of the
+  // original on its own page, and further along with each paste so copies don't stack exactly.
+  function pasteClipboard() {
+    if (!clipboard) {
+      return false;
+    }
+    const original = clipboard.annotation;
+    const pageNumber = Number(getCurrentPage?.()) || original.page;
+    const entry = layers.get(pageNumber);
+    if (!entry) {
+      return false;
+    }
+    const step = 14 * (clipboard.pastes + (pageNumber === original.page ? 1 : 0));
+    const copy = JSON.parse(JSON.stringify(original));
+    translateAnnotation(copy, original, step, step);
+    // Keep the copy on the page.
+    const bounds = getBounds(copy);
+    const dx = bounds.x + bounds.width > entry.page.width ? entry.page.width - bounds.x - bounds.width : bounds.x < 0 ? -bounds.x : 0;
+    const dy = bounds.y + bounds.height > entry.page.height ? entry.page.height - bounds.y - bounds.height : bounds.y < 0 ? -bounds.y : 0;
+    if (dx || dy) {
+      translateAnnotation(copy, JSON.parse(JSON.stringify(copy)), dx, dy);
+    }
+    copy.id = uid();
+    copy.page = pageNumber;
+    delete copy.layer;
+    clipboard.pastes += 1;
+    commit(() => {
+      annotations.push(copy);
+    });
+    select(copy.id);
+    return true;
+  }
+
+  // Copying text anywhere else means the next ⌘V is for that text, not for markup.
+  document.addEventListener("copy", () => {
+    clipboard = null;
+  });
+
   // ---------- Keyboard ----------
 
   function handleKeydown(event) {
@@ -1465,6 +1916,15 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       return handled;
     }
     if (mod && key === "y" && redo()) {
+      event.preventDefault();
+      return true;
+    }
+    // Copying selected PDF text takes priority over the selected markup.
+    if (mod && key === "c" && !event.shiftKey && selectedId && !editing && !hasTextSelection() && copySelected()) {
+      event.preventDefault();
+      return true;
+    }
+    if (mod && key === "v" && !event.shiftKey && !editing && pasteClipboard()) {
       event.preventDefault();
       return true;
     }
@@ -1723,7 +2183,8 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   }
 
   // Paints markup onto an offscreen page render (page units × scale) so the assistant can see its own edits.
-  function drawOnCanvas(context, pageNumber, scale, { forExport = false } = {}) {
+  // `maskText` rewrites what text boxes say, for page images that leave the reader's machine.
+  function drawOnCanvas(context, pageNumber, scale, { forExport = false, maskText = null } = {}) {
     context.save();
     context.scale(scale, scale);
     context.lineCap = "round";
@@ -1770,7 +2231,8 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
           context.stroke();
         }
       } else if (annotation.type === "text") {
-        const { lines, width, height } = layoutText(annotation);
+        const shown = maskText ? { ...annotation, text: maskText(annotation.text) } : annotation;
+        const { lines, width, height } = layoutText(shown);
         if (annotation.background) {
           context.fillStyle = annotation.background;
           context.fillRect(annotation.x, annotation.y, width, height);
@@ -1798,6 +2260,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     addAnnotations,
     addTextMarkup,
     attachPage,
+    chooseSignature,
     count: () => annotations.length,
     countRedactions,
     defaultColor,
@@ -1811,6 +2274,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     isOpen: () => open,
     isTextTool: () => open && TEXT_TOOLS.has(tool),
     listAnnotations,
+    markupTypesAt,
     placeSignatureInBox,
     removeAnnotations,
     revealAnnotation,
@@ -1818,6 +2282,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     setLayerVisible,
     setOpen,
     textDepth,
+    toggleTextMarkup,
     updateAnnotations,
     updatePageSize
   };

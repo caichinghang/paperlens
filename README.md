@@ -119,7 +119,8 @@ Open the workspace next to the chat and each PDF gets its own notebook. The assi
 - **Edit in place** with a block editor: `/` for blocks, Markdown shortcuts, a format bar, tables, flashcards and clickable page citations.
 - **Organise** pages into folders and drag to reorder. Copy a page as Markdown or export the notebook.
 - **To-do page**: actions the assistant finds (deadlines, documents to prepare, revision tasks) land as checkboxes on the notebook's To-do page, each linked to its page. Tick, edit or reorder them like any other block.
-- **Profile** keeps your details for forms: names, date of birth, nationality, ID and passport numbers, contact details and your own fields. It's stored locally, and the assistant only saves to it after you say yes.
+- **Profile** keeps your details for forms in groups: name, basic information, identity documents, contact and other details. Add fields to any group, rename them ("ID card number" → "Hong Kong ID"), or add groups of your own such as School. It's stored locally, and the assistant only saves to it after you say yes.
+- **Private details.** Close the eye on any detail to make it private. It's hidden on screen, and the assistant never sees it: it gets a placeholder like `{{profile:idNumber}}` and passes it back when filling a form, and PaperLens puts the real value in locally. ID and passport numbers start private.
 
 ![Study notes the assistant saved to the notebook, with a table and page citations, next to the chat](docs/screenshots/en/workspace.png)
 
@@ -189,6 +190,7 @@ To update, pull the latest code and click **Reload** on the PaperLens card in `c
 - **Stored locally.** API keys, chats, notebooks, profile, markup, form values, signatures and settings stay in Chrome's extension storage.
 - **Only what's needed is sent.** Each request sends the messages and the page text or images for that request to the AI provider you set. Option explanations send only the cropped region.
 - **Web search is visible.** Search queries go to Tavily, Bing or DuckDuckGo, and a result page may be fetched to read it. You can turn web search off.
+- **Private details stay on your machine.** A detail with a closed eye never goes to the AI provider. The assistant fills forms with a placeholder, and anything on its way out (tool results, page images, messages, even a number you paste into the chat) has private values swapped back to their placeholder. Only values saved in your profile are covered: if a PDF already has your ID number printed in it, page images still show it.
 - **Your profile is yours.** The assistant asks before saving personal details, and you can edit or clear them at any time.
 - **Redactions are real.** A redacted download is flattened to images so the covered text is removed, not just hidden.
 
@@ -217,7 +219,8 @@ PaperLens is plain HTML, CSS and JavaScript modules. There's no framework, no bu
 | `src/markup.js` | Drawing, highlights, text boxes, layers, signatures, PDF export |
 | `src/workspace.js` | Notebook (including the To-do page) and profile panel |
 | `src/editor.js`, `src/blocks.js` | Block editor for notebook pages and Markdown conversion |
-| `src/profile.js`, `src/todos.js` | Profile fields for forms; to-do items on the notebook's To-do page |
+| `src/profile.js`, `src/todos.js` | Profile groups and fields; to-do items on the notebook's To-do page |
+| `src/privacy.js` | Placeholders for private profile details, and masking them out of what goes to the AI |
 | `src/web.js` | Web search and readable-page extraction |
 | `src/rules.js` | Blank lines on a page, so dates and signatures sit on them |
 | `src/pdf-writer.js`, `src/ics.js` | Image-only PDF for redactions; calendar export |

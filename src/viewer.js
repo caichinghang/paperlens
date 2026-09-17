@@ -1,10 +1,12 @@
 import * as pdfjsLib from "../vendor/pdfjs/pdf.mjs";
 import { createAssistant } from "./ai.js";
-import { t, translateDom } from "./i18n.js";
+import { t, translateDom, translationTarget } from "./i18n.js";
 import { createLens } from "./lens.js";
 import { createMarkup } from "./markup.js";
 import { buildImagePdf, dataUrlToBytes } from "./pdf-writer.js";
 import { createReferences } from "./references.js";
+import { compileSecrets, maskText } from "./privacy.js";
+import { headingCandidates } from "./headings.js";
 import { collectRules, snapBoxToRule, snapTextToRule } from "./rules.js";
 import { getItem, removeItem, setItem } from "./store.js";
 import { createWorkspace } from "./workspace.js";
@@ -47,6 +49,10 @@ const elements = {
   searchNext: $("#searchNext"),
   searchPrev: $("#searchPrev"),
   searchToggle: $("#searchToggle"),
+  pageToggle: $("#pageToggle"),
+  pageToggleNumber: $("#pageToggleNumber"),
+  pageBox: $("#pageBox"),
+  pageClose: $("#pageClose"),
   selectionPopover: $("#selectionPopover"),
   sidebar: $("#sidebar"),
   sidebarBody: $(".sidebar-body"),
@@ -83,6 +89,8 @@ const MAX_CANVAS_PIXELS = 16_777_216;
 const THUMBNAIL_WIDTH = 120;
 const AUTO_FIT_MAX_WIDTH = 1080;
 const AGENT_GRID = 1000;
+const MARK_ADD_LABELS = { highlight: "Highlight", underline: "Underline", strike: "Strikethrough" };
+const MARK_REMOVE_LABELS = { highlight: "Remove highlight", underline: "Remove underline", strike: "Remove strikethrough" };
 const AGENT_IMAGE_LONG_SIDE = 1600;
 const REGION_IMAGE_LONG_SIDE = 1200;
 const FLATTEN_SCALE = 150 / 72;
@@ -153,6 +161,7 @@ const markup = createMarkup({
   list: elements.annotationList,
   signatureDialog: elements.signatureDialog,
   getPages: () => state.pages,
+  getCurrentPage: () => state.currentPage,
   goToPage: scrollToPage,
   toast,
   onChange: () => {
@@ -183,6 +192,7 @@ const assistant = createAssistant({
     renderRegionImage: agentRenderRegionImage,
     getPageText: async number => (await getPageText(agentPage(number).number)).readable,
     getPageLayout: agentGetPageLayout,
+    getHeadingCandidates: agentGetHeadingCandidates,
     getPageRules: agentGetPageRules,
     searchDocument: agentSearchDocument,
     getOutline: agentGetOutline,
@@ -204,10 +214,11 @@ const assistant = createAssistant({
     setLayerVisible: (name, visible) => markup.setLayerVisible(name, visible),
     goToPage: number => scrollToPage(agentPage(number).number),
     workspace,
-    placeSignature: (number, gridBox) => {
+    placeSignature: (number, gridBox, signatureId) => {
       const page = agentPage(number);
-      return markup.placeSignatureInBox(page.number, gridToUnits(page, gridBox));
+      return markup.placeSignatureInBox(page.number, gridToUnits(page, gridBox), signatureId);
     },
+    chooseSignature: anchor => markup.chooseSignature(anchor),
     snapSignatureBox: agentSnapSignatureBox,
     // Appearance lives in the assistant's settings sheet, the one settings page in the viewer.
     getTheme: () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light"),
@@ -232,6 +243,7 @@ const pageTools = {
   goToPage: (number, offset) => scrollToPage(number, offset),
   flashBox: (number, box) => flashBox(state.pages[number - 1], box),
   toGrid: (number, box) => toGridBox(state.pages[number - 1], box),
+  uncovered: uncoveredArea,
   toast
 };
 const references = createReferences(pageTools, { onExplain: (page, box, text) => lens.explainBox(page, box, text) });
@@ -244,6 +256,40 @@ const lens = createLens(pageTools, {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+// The strip of the viewer that the floating panels leave uncovered, in viewer-stage coordinates, so
+// pop-ups beside the page (the selection bar, explanation bubbles, reference cards) don't slide under
+// the sidebar, the workspace or the assistant.
+function uncoveredArea() {
+  const stage = elements.viewerStage.getBoundingClientRect();
+  let left = 0;
+  let right = stage.width;
+  const shown = element => {
+    const rect = element?.getBoundingClientRect();
+    return rect && rect.width > 0 && getComputedStyle(element).visibility !== "hidden" ? rect : null;
+  };
+  const shell = elements.appShell.classList;
+  if (!narrowScreen.matches) {
+    const sidebar = !shell.contains("sidebar-collapsed") && shown(elements.sidebar);
+    if (sidebar) {
+      left = Math.max(left, sidebar.right - stage.left + 4);
+    }
+    const workspacePanel = shell.contains("workspace-open") && shown(document.querySelector("#workspace"));
+    if (workspacePanel) {
+      left = Math.max(left, workspacePanel.right - stage.left + 4);
+    }
+    const panel = shell.contains("ai-open") && shown(elements.aiPanel);
+    if (panel) {
+      right = Math.min(right, panel.left - stage.left - 4);
+    }
+  }
+  // Too little left to be useful (a narrow window): fall back to the whole viewer.
+  if (right - left < 240) {
+    left = 0;
+    right = stage.width;
+  }
+  return { left, right, height: stage.height };
 }
 
 function formatFileName(url) {
@@ -335,6 +381,7 @@ function showEmptyState(title, message) {
   elements.documentUrl.textContent = t("No document loaded");
   elements.pageInput.value = "";
   elements.pageCount.textContent = t("of –");
+  setPageToggleNumber(0);
   elements.downloadPdf.disabled = true;
   elements.appShell.classList.add("no-document");
   closeFlyouts();
@@ -1074,15 +1121,15 @@ function outlineButton(title, depth, onClick) {
   return button;
 }
 
-// Shown when the PDF has no bookmarks: the assistant can build a table of contents from the text.
+const SPARKLE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path></svg>';
+
+// Shown when the PDF has no bookmarks: the button to build a table of contents leads, and a small
+// line underneath says why the list is empty.
 function renderOutlineEmpty() {
   elements.outlineList.innerHTML = `
-    <div class="sidebar-empty outline-empty">
-      <span>${t("This PDF has no table of contents")}</span>
-      <button type="button" class="text-button" data-outline-action="generate">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path></svg>
-        ${t("Ask AI to build one")}
-      </button>
+    <div class="outline-empty">
+      <button type="button" class="outline-generate" data-outline-action="generate">${SPARKLE_ICON}<span>${t("Ask AI to build one")}</span></button>
+      <p>${t("This PDF has no table of contents")}</p>
     </div>`;
 }
 
@@ -1091,7 +1138,7 @@ function renderAiOutline(entries) {
   const items = entries.map(entry => outlineButton(entry.title, entry.depth || 0, () => scrollToPage(entry.page)));
   const note = document.createElement("div");
   note.className = "outline-note";
-  note.innerHTML = `<span>${t("Built by AI from the text")}</span><button type="button" data-outline-action="generate">${t("Rebuild")}</button>`;
+  note.innerHTML = `${SPARKLE_ICON}<span>${t("Built by AI from the text")}</span><button type="button" data-outline-action="generate" title="${t("Rebuild")}" aria-label="${t("Rebuild")}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"></path><path d="M21 3v5h-5"></path></svg></button>`;
   elements.outlineList.replaceChildren(note, ...items);
 }
 
@@ -1210,6 +1257,7 @@ function setCurrentPage(number) {
   if (document.activeElement !== elements.pageInput) {
     elements.pageInput.value = String(number);
   }
+  setPageToggleNumber(number);
   elements.documentUrl.textContent = t("Page {page} of {total}", { page: number, total: state.pages.length });
 }
 
@@ -1425,9 +1473,19 @@ function positionFlyout(flyout, anchor) {
   flyout.style.top = `${clamp(top, 8, stage.height - flyout.offsetHeight - 8)}px`;
 }
 
+// The go-to-page button shows the page being read; long numbers get a smaller size to fit.
+function setPageToggleNumber(number) {
+  const text = number ? String(number) : "–";
+  elements.pageToggleNumber.textContent = text;
+  elements.pageToggle.dataset.digits = String(Math.min(text.length, 4));
+}
+
 function closeFlyouts(except = null) {
   if (except !== elements.searchBox && !elements.searchBox.hidden) {
     closeSearch();
+  }
+  if (except !== elements.pageBox && !elements.pageBox.hidden) {
+    closePageBox();
   }
   if (except !== elements.zoomMenu) {
     elements.zoomMenu.hidden = true;
@@ -1437,6 +1495,9 @@ function closeFlyouts(except = null) {
 function repositionFlyouts() {
   if (!elements.searchBox.hidden) {
     positionFlyout(elements.searchBox, elements.searchToggle);
+  }
+  if (!elements.pageBox.hidden) {
+    positionFlyout(elements.pageBox, elements.pageToggle);
   }
   if (!elements.zoomMenu.hidden) {
     positionFlyout(elements.zoomMenu, elements.zoomReset);
@@ -1453,6 +1514,26 @@ function openSearch() {
   elements.searchToggle.setAttribute("aria-pressed", "true");
   elements.searchInput.focus();
   elements.searchInput.select();
+}
+
+function openPageBox() {
+  if (elements.appShell.classList.contains("no-document")) {
+    return;
+  }
+  closeFlyouts(elements.pageBox);
+  elements.pageBox.hidden = false;
+  positionFlyout(elements.pageBox, elements.pageToggle);
+  elements.pageToggle.setAttribute("aria-pressed", "true");
+  elements.pageInput.focus();
+  elements.pageInput.select();
+}
+
+function closePageBox() {
+  elements.pageBox.hidden = true;
+  elements.pageToggle.setAttribute("aria-pressed", "false");
+  if (document.activeElement === elements.pageInput) {
+    elements.pageInput.blur();
+  }
 }
 
 function closeSearch() {
@@ -1705,7 +1786,7 @@ function handleSelectionEnd() {
   }
 
   if (markup.isTextTool()) {
-    markup.addTextMarkup(markup.getTool(), selection.range);
+    markup.toggleTextMarkup(markup.getTool(), selection.range);
     hidePopover();
     return;
   }
@@ -1722,6 +1803,14 @@ function showPopover({ range, text }) {
   popoverSelection = { range: range.cloneRange(), text };
   lastSelectedText = text;
   const popover = elements.selectionPopover;
+  // Marks the selection already has show as on; choosing one again takes it off.
+  const marked = new Set(markup.markupTypesAt(range));
+  for (const button of popover.querySelectorAll('[data-action="highlight"], [data-action="underline"], [data-action="strike"]')) {
+    const on = marked.has(button.dataset.action);
+    button.classList.toggle("is-on", on);
+    button.setAttribute("aria-pressed", String(on));
+    button.title = on ? t(MARK_REMOVE_LABELS[button.dataset.action]) : t(MARK_ADD_LABELS[button.dataset.action]);
+  }
   const stage = elements.viewerStage.getBoundingClientRect();
   popover.hidden = false;
 
@@ -1734,7 +1823,8 @@ function showPopover({ range, text }) {
     top = last.bottom - stage.top + 10;
   }
 
-  popover.style.left = `${clamp(first.left - stage.left, 8, stage.width - width - 8)}px`;
+  const area = uncoveredArea();
+  popover.style.left = `${clamp(first.left - stage.left, area.left + 8, Math.max(area.left + 8, area.right - width - 8))}px`;
   popover.style.top = `${clamp(top, 8, stage.height - height - 8)}px`;
 }
 
@@ -1809,6 +1899,56 @@ function drawCoordinateGrid(context, width, height) {
   context.restore();
 }
 
+// Markup, and form fields and text boxes holding a private profile detail, for an image the
+// assistant will see: the detail is drawn as its token, so it doesn't leave in a picture either.
+// `offset` is where the image starts on the page, in page units.
+async function drawForAssistant(context, page, viewport, scale, offset = { x: 0, y: 0 }) {
+  const secrets = compileSecrets(workspace.privateDetails());
+  const mask = text => maskText(text, secrets);
+  context.save();
+  context.translate(-offset.x * scale, -offset.y * scale);
+  markup.drawOnCanvas(context, page.number, scale, { maskText: secrets.length ? mask : null });
+  context.restore();
+  if (!secrets.length || !state.doc) {
+    return;
+  }
+  const storage = state.doc.annotationStorage;
+  let annotations = [];
+  try {
+    annotations = await pageAnnotations(page);
+  } catch {
+    return;
+  }
+  for (const annotation of annotations) {
+    if (formFieldType(annotation) !== "text") {
+      continue;
+    }
+    const value = String(storage.getRawValue(annotation.id)?.value ?? annotation.fieldValue ?? "");
+    const masked = mask(value);
+    if (!value || masked === value) {
+      continue;
+    }
+    const [x1, y1, x2, y2] = pdfjsLib.Util.normalizeRect(annotation.rect);
+    const [ax, ay] = viewport.convertToViewportPoint(x1, y1);
+    const [bx, by] = viewport.convertToViewportPoint(x2, y2);
+    const left = Math.min(ax, bx);
+    const top = Math.min(ay, by);
+    const width = Math.abs(bx - ax);
+    const height = Math.abs(by - ay);
+    context.save();
+    context.beginPath();
+    context.rect(left, top, width, height);
+    context.clip();
+    context.fillStyle = "#f3f5f8";
+    context.fillRect(left, top, width, height);
+    context.fillStyle = "#1f1f1f";
+    context.font = `${Math.max(8, Math.min(height * 0.62, 11 * scale))}px Helvetica, Arial, sans-serif`;
+    context.textBaseline = "middle";
+    context.fillText(masked, left + 2 * scale, top + height / 2);
+    context.restore();
+  }
+}
+
 async function agentRenderPageImage(number) {
   const page = agentPage(number);
   page.pdfPage ||= await state.doc.getPage(page.number);
@@ -1826,7 +1966,7 @@ async function agentRenderPageImage(number) {
     viewport,
     annotationMode: pdfjsLib.AnnotationMode.ENABLE_STORAGE
   }).promise;
-  markup.drawOnCanvas(context, page.number, scale);
+  await drawForAssistant(context, page, viewport, scale);
   drawCoordinateGrid(context, canvas.width, canvas.height);
 
   const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
@@ -2192,7 +2332,7 @@ function gridToUnits(page, { x1, y1, x2, y2 }) {
 }
 
 // Renders one rectangle of a page (page units) with markup on top; optional coordinate grid for the assistant.
-async function renderRegionUnits(page, box, { grid = false, longSide = REGION_IMAGE_LONG_SIDE, pad = 0 } = {}) {
+async function renderRegionUnits(page, box, { grid = false, longSide = REGION_IMAGE_LONG_SIDE, pad = 0, forAssistant = false } = {}) {
   if (!page) {
     throw new Error("No PDF is open.");
   }
@@ -2217,10 +2357,14 @@ async function renderRegionUnits(page, box, { grid = false, longSide = REGION_IM
     annotationMode: pdfjsLib.AnnotationMode.ENABLE_STORAGE
   }).promise;
 
-  context.save();
-  context.translate(-x * scale, -y * scale);
-  markup.drawOnCanvas(context, page.number, scale);
-  context.restore();
+  if (forAssistant) {
+    await drawForAssistant(context, page, viewport, scale, { x, y });
+  } else {
+    context.save();
+    context.translate(-x * scale, -y * scale);
+    markup.drawOnCanvas(context, page.number, scale);
+    context.restore();
+  }
 
   if (grid) {
     context.save();
@@ -2258,7 +2402,7 @@ async function renderRegionUnits(page, box, { grid = false, longSide = REGION_IM
 
 async function agentRenderRegionImage(number, gridBox) {
   const page = agentPage(number);
-  const { dataUrl } = await renderRegionUnits(page, gridToUnits(page, gridBox), { grid: true });
+  const { dataUrl } = await renderRegionUnits(page, gridToUnits(page, gridBox), { grid: true, forAssistant: true });
   return dataUrl;
 }
 
@@ -2320,6 +2464,24 @@ async function pageLayoutBlocks(number) {
     fontSize: Math.round(block.lines.reduce((sum, line) => sum + line.height, 0) / block.lines.length * 10) / 10
   }));
   return { page, blocks: data.layout };
+}
+
+// Likely headings from every page's text layer, for building a table of contents without viewing pages.
+async function agentGetHeadingCandidates() {
+  if (!state.doc) {
+    throw new Error("No PDF is open.");
+  }
+  const pages = [];
+  let withText = 0;
+  for (const page of state.pages) {
+    const { blocks } = await pageLayoutBlocks(page.number);
+    if (blocks.length) {
+      withText += 1;
+    }
+    pages.push({ page: page.number, blocks });
+  }
+  const { bodySize, candidates, trimmed } = headingCandidates(pages);
+  return { pageCount: state.pages.length, pagesWithText: withText, bodySize, candidates, trimmed };
 }
 
 async function agentGetPageLayout(number) {
@@ -2873,7 +3035,7 @@ elements.pageInput.addEventListener("keydown", event => {
     elements.pageInput.select();
   } else if (event.key === "Escape") {
     event.preventDefault();
-    closeSearch();
+    closePageBox();
   }
 });
 elements.pagePrev.addEventListener("click", () => scrollToPage(state.currentPage - 1));
@@ -2890,6 +3052,24 @@ elements.searchToggle.addEventListener("click", () => {
   }
 });
 elements.searchClose.addEventListener("click", closeSearch);
+elements.pageToggle.addEventListener("click", () => {
+  if (elements.pageBox.hidden) {
+    openPageBox();
+  } else {
+    closePageBox();
+  }
+});
+elements.pageClose.addEventListener("click", closePageBox);
+elements.pageBox.addEventListener("focusout", event => {
+  if (event.relatedTarget === elements.pageToggle) {
+    return;
+  }
+  window.setTimeout(() => {
+    if (!elements.pageBox.hidden && !elements.pageBox.contains(document.activeElement)) {
+      closePageBox();
+    }
+  }, 150);
+});
 elements.searchInput.addEventListener("input", () => {
   clearTimeout(search.timer);
   search.timer = window.setTimeout(() => runSearch(elements.searchInput.value), 180);
@@ -2985,10 +3165,12 @@ elements.selectionPopover.addEventListener("click", async event => {
     if (region) {
       lens.explainBox(region.page, region.box, text, action);
     } else {
-      assistant.open({ quote: text, draft: action === "translate" ? t("Translate this passage.") : t("Explain this passage.") });
+      const target = translationTarget(text);
+      const translateDraft = target === "English" ? t("Translate this passage into English.") : target ? t("Translate this passage into Simplified Chinese.") : t("Translate this passage.");
+      assistant.open({ quote: text, draft: action === "translate" ? translateDraft : t("Explain this passage.") });
     }
   } else {
-    markup.addTextMarkup(action, range);
+    markup.toggleTextMarkup(action, range);
   }
 });
 

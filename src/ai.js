@@ -1,5 +1,7 @@
 import { createAgentTools, formatPages, TOOL_LABELS } from "./agent-tools.js";
 import { replyLanguageName, setLanguagePreference, t, tn, uiLanguage } from "./i18n.js";
+import { formatCost, requestCost } from "./pricing.js";
+import { compileSecrets, maskDeep } from "./privacy.js";
 import { getItem, removeItem, setItem } from "./store.js";
 
 const SETTINGS_KEY = "aiSettings";
@@ -63,6 +65,7 @@ const TOOL_ICONS = {
   search_document: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>',
   find_text: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path></svg>',
   get_outline: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>',
+  get_heading_candidates: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>',
   set_outline: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg>',
   get_page_layout: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18M9 21V9"></path></svg>',
   list_form_fields: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 10h6M7 14h10"></path></svg>',
@@ -147,9 +150,9 @@ const SKILLS = [
       { id: "brief", label: t("Brief"), description: t("What this is, how it's organised, and where the key parts are"), prompt: "Give me a brief of this document: what it is, how it's organised (use get_outline, and search_document or view_pages to skim), its main points or purpose, and where to look for the key parts. Cite pages." },
       { id: "explain-page", label: t("Explain"), description: t("Plain-words explanation of the current page"), prompt: "Explain @{page} in plain words. Define any jargon and walk through any formulas, tables or charts." },
       { id: "summarize", label: t("Summarize"), description: t("A few bullet points for the current page"), prompt: "Summarize @{page} in a few bullet points." },
-      { id: "translate", label: t("Translate"), description: t("Lay a translation over the page as a layer you can switch off"), prompt: "Translate @{page} into {language} in place: call get_page_layout, then add_text_layer with one item per text block (skip page numbers, running headers and footers), keeping each block's box so the layout stays the same. Translate the full text of every block; don't summarise." },
+      { id: "translate", label: t("Translate"), description: t("Lay a translation over the page as a layer you can switch off"), prompt: "Translate @{page} in place, into English if the page is written in Chinese and otherwise into Simplified Chinese: call get_page_layout, then add_text_layer with one item per text block (skip page numbers, running headers and footers), keeping each block's box so the layout stays the same. Translate the full text of every block; don't summarise." },
       { id: "define", label: t("Define"), description: t("Ask what a word or concept means in this document"), inputHint: t("Term to define…"), prompt: "In this document, what does \"{input}\" mean? Cite where it's defined or used." },
-      { id: "outline", label: t("Contents"), description: t("For PDFs without bookmarks: headings and pages in the sidebar"), prompt: "Build a table of contents for this document and put it in the sidebar with set_outline. Skim every page (view_pages a few at a time; get_page_layout shows font sizes when you're unsure what is a heading), collect every heading as printed with its page, use depth 0 for chapters or top-level sections and 1 or 2 for subsections, then call set_outline once with all entries." },
+      { id: "outline", label: t("Contents"), description: t("For PDFs without bookmarks: headings and pages in the sidebar"), prompt: "Build a table of contents for this document and put it in the sidebar with set_outline. Don't view the pages one by one: call get_heading_candidates once for the likely headings of the whole document. From that list keep the real headings exactly as printed with their pages, and drop running headers and footers, captions, and titles that simply repeat on page after page (keep the first of a repeated slide title unless the repeats mark separate sections). Use depth 0 for chapters or top-level sections and 1 or 2 for subsections, judging by type size and numbering. Only if a few candidates are genuinely unclear, view at most 3 pages to check. If the tool reports no text layer, tell me instead. Then call set_outline once with all entries." },
       { id: "notes", label: t("Highlights"), description: t("Group everything you highlighted by topic, with page links and quiz questions"), prompt: "Turn my highlights into study notes: call list_markup to collect every highlight and underline with its text and page. Group them by topic under headings, keep the page citations, and add five quiz questions with answers. Finish with a ```flashcards block (one 'Question :: Answer' per line) I can export. Save the notes, questions and flashcards to the notebook with save_note (kind \"note\")." },
       { id: "quiz", label: t("Quiz"), description: t("Five questions on the current page, one at a time"), prompt: "Quiz me on @{page}: ask one question at a time and wait for my answer. Grade each answer kindly with the correct answer and a page citation, then ask the next. Five questions in total, then a score. When the quiz is over, save the questions, correct answers and my score to the notebook with save_note (kind \"quiz\")." },
       { id: "glossary", label: t("Glossary"), description: t("A table of the important terms and what they mean"), prompt: "List the key terms and concepts on @{page} in a table with a one-line definition for each, in the order they appear. Save the table to the notebook with save_note (kind \"glossary\")." },
@@ -215,7 +218,7 @@ const SCENARIOS = [
 ];
 
 // The workspace sits beside the chat in every scenario.
-const WORKSPACE_GUIDANCE = "The reader has a workspace beside the chat for this document: a notebook (with a To-do page for actions) and a personal profile. Save material worth keeping (notes, glossaries, flashcards, quizzes, reading cards, key-figure tables, summaries, plans) with save_note rather than only writing it in the chat, and keep the chat reply to a short summary. Put actions, deadlines, risks to follow up and documents to prepare on the To-do page with add_todos; call read_workspace first when you might duplicate something. For forms, call get_profile before asking the reader for personal details, and call save_profile only after the reader agrees to save specific details.";
+const WORKSPACE_GUIDANCE = "The reader has a workspace beside the chat for this document: a notebook (with a To-do page for actions) and a personal profile. Save material worth keeping (notes, glossaries, flashcards, quizzes, reading cards, key-figure tables, summaries, plans) with save_note rather than only writing it in the chat, and keep the chat reply to a short summary. Put actions, deadlines, risks to follow up and documents to prepare on the To-do page with add_todos; call read_workspace first when you might duplicate something. For forms, call get_profile before asking the reader for personal details, and call save_profile only after the reader agrees to save specific details. Private details come as tokens such as {{profile:idNumber}}: pass the token unchanged to fill_form_fields or add_text, and in replies name the detail by its label, never the token.";
 // One paragraph for every kind of task, so the assistant behaves the same whichever skill started the chat.
 const TASK_GUIDANCE = "Adapt to what the reader is doing. To help them understand, explain in plain words, define jargon and point to the exact pages; they can also hold ⌥ and point at any part of a page for a quick explanation bubble, and click 'Figure 2'-style references to see them. To help them study, turn the document and their own highlights (list_markup returns them with text and page) into notes, glossaries, quizzes and flashcards: ask quiz questions one at a time, wait for the answer, then grade it kindly with the correct answer and a page citation before the next; end flashcards with a ```flashcards code block containing one 'Question :: Answer' per line. For forms, contracts, invoices and reports, be precise and practical: use report_items to present reviews and extracted facts as a checklist the reader can click through, and a ```csv code block for extracted tables.";
 
@@ -671,6 +674,23 @@ function parseMentions(text, pageCount) {
   return { tokens, pages: [...pages].sort((a, b) => a - b) };
 }
 
+// A page mention is an explicit override for this message. Without one, the page in the viewer is
+// the natural context: the reader should not have to type @59 just because an older turn used @15.
+function resolveTurnPages(text, pageCount, currentPage, attached = [], hasRegions = false) {
+  const mentions = parseMentions(text, pageCount);
+  const explicit = new Set([...attached, ...mentions.pages]);
+  const page = Number(currentPage);
+  const implicit = !explicit.size && !mentions.tokens.length && !hasRegions && Number.isInteger(page) && page >= 1 && page <= pageCount;
+  return {
+    pages: [...(implicit ? new Set([page]) : explicit)].sort((a, b) => a - b),
+    implicit
+  };
+}
+
+function withViewerState(text, page) {
+  return `${text}\n\n[Live viewer state: page ${page} is the page visible for this message. Earlier @page mentions are historical references and do not change the current page.]`;
+}
+
 function rangeLabel({ from, to }) {
   return from === to ? t("Page {page}", { page: from }) : t("Pages {from}–{to}", { from, to });
 }
@@ -917,6 +937,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
           role: "assistant",
           content: message.content,
           docKey: message.docKey,
+          ...(message.usage ? { usage: message.usage } : {}),
           steps: message.steps.map(step => ({ tool: step.tool, label: step.label, status: step.status, undone: Boolean(step.undone), openTab: step.openTab })),
           cards: message.cards,
           timeline: (message.timeline || []).map(entry => entry.type === "step"
@@ -1327,14 +1348,13 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     const info = host.getDocumentInfo();
     const selected = getSelectedText?.() || "";
     const disabled = info.pageCount ? "" : "disabled";
+    // The three ways to add context, each with the key that does the same from the keyboard.
     el.attachMenu.innerHTML = `
-      <button type="button" role="menuitem" data-attach="current" ${disabled}>${t("Current page")}<em>@${info.currentPage}</em></button>
-      <button type="button" role="menuitem" data-attach="pick" ${disabled}>${t("Choose pages…")}<em>@</em></button>
+      <button type="button" role="menuitem" data-attach="pages" ${disabled}><span class="attach-key">@</span>${t("Pages")}</button>
+      <button type="button" role="menuitem" data-attach="commands"><span class="attach-key">/</span>${t("Scenarios and skills")}</button>
       <button type="button" role="menuitem" data-attach="selection" ${selected ? "" : "disabled"}>
-        ${t("Quote selected text")}${selected ? `<em>${escapeHtml(truncate(selected, 16))}</em>` : ""}
-      </button>
-      <hr>
-      <button type="button" role="menuitem" data-attach="commands">${t("Skills…")}<em>/</em></button>`;
+        <span class="attach-key">${ICONS.quote}</span>${t("Quote selected text")}${selected ? `<em>${escapeHtml(truncate(selected, 16))}</em>` : ""}
+      </button>`;
   }
 
   function buildModelMenu() {
@@ -1367,11 +1387,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   function handleAttach(kind) {
-    const info = host.getDocumentInfo();
-    if (kind === "current") {
-      addPageRange({ from: info.currentPage, to: info.currentPage });
-      el.input.focus();
-    } else if (kind === "pick") {
+    if (kind === "pages") {
       insertAtCaret("@");
       updateMention();
     } else if (kind === "commands") {
@@ -1396,22 +1412,24 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       return;
     }
 
+    // Every page, the one being read first; the list scrolls for long documents.
     const query = match[1];
     const items = [];
+    const pageItem = page => ({ token: `@${page}`, label: t("Page {page}", { page }), hint: page === info.currentPage ? t("Current page") : "" });
     if (!query) {
-      items.push({ token: `@${info.currentPage}`, label: t("Page {page}", { page: info.currentPage }), hint: t("Current page") });
-      for (let page = 1; page <= Math.min(info.pageCount, 8); page += 1) {
+      items.push(pageItem(info.currentPage));
+      for (let page = 1; page <= info.pageCount; page += 1) {
         if (page !== info.currentPage) {
-          items.push({ token: `@${page}`, label: t("Page {page}", { page }), hint: "" });
+          items.push(pageItem(page));
         }
       }
       if (info.pageCount > 1 && info.pageCount <= MAX_ATTACHED_PAGES) {
         items.push({ token: `@1-${info.pageCount}`, label: t("All pages"), hint: `1–${info.pageCount}` });
       }
     } else {
-      for (let page = 1; page <= info.pageCount && items.length < 8; page += 1) {
+      for (let page = 1; page <= info.pageCount; page += 1) {
         if (String(page).startsWith(query)) {
-          items.push({ token: `@${page}`, label: t("Page {page}", { page }), hint: page === info.currentPage ? t("Current page") : "" });
+          items.push(pageItem(page));
         }
       }
     }
@@ -1767,9 +1785,14 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
         approve.type = "button";
         approve.className = "is-primary";
         approve.textContent = t("Sign here");
-        approve.addEventListener("click", () => {
+        // The reader picks which saved signature to sign with (or draws one) every time.
+        approve.addEventListener("click", async () => {
           try {
-            if (!host.placeSignature(card.page, card.box)) {
+            const signatureId = await host.chooseSignature(approve);
+            if (!signatureId || card.state) {
+              return;
+            }
+            if (!host.placeSignature(card.page, card.box, signatureId)) {
               toast(t("Draw your signature, then approve again"));
               return;
             }
@@ -2006,6 +2029,46 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
         actions.append(iconButton(ICONS.retry, t("Try again"), () => retryReply(message)));
       }
       actions.append(iconButton(ICONS.share, t("Share"), () => shareReply(message)));
+      if (message.usage && (message.usage.input || message.usage.output)) {
+        const { input, output, cached, reasoning } = message.usage;
+        // The label shows input and output; hovering (or focusing) opens a small card with the breakdown.
+        const usage = document.createElement("span");
+        usage.className = "msg-usage";
+        usage.tabIndex = 0;
+        usage.textContent = `↑ ${formatTokens(input)} ↓ ${formatTokens(output)}`;
+        const lines = [
+          t("{count} input tokens", { count: input.toLocaleString() }),
+          cached ? t("{count} from cache", { count: cached.toLocaleString() }) : "",
+          t("{count} output tokens", { count: output.toLocaleString() }),
+          reasoning ? t("{count} for thinking", { count: reasoning.toLocaleString() }) : ""
+        ].filter(Boolean);
+        // DeepSeek's list price for this reply, in yuan for the Chinese interface and dollars otherwise.
+        const { peakRequests = 0, offPeakRequests = 0 } = message.usage;
+        let costLine = "";
+        if (peakRequests || offPeakRequests) {
+          const currency = uiLanguage === "zh" ? "cny" : "usd";
+          const rate = !offPeakRequests ? t("peak price") : !peakRequests ? t("off-peak price") : t("peak and off-peak prices");
+          costLine = t("Cost ≈ {amount} ({rate})", { amount: formatCost(message.usage[currency] || 0, currency), rate });
+        }
+        usage.setAttribute("aria-label", lines.join(", "));
+        const detail = document.createElement("span");
+        detail.className = "msg-usage-detail";
+        detail.setAttribute("role", "tooltip");
+        detail.replaceChildren(...lines.map(line => Object.assign(document.createElement("span"), { textContent: line })));
+        if (costLine) {
+          usage.setAttribute("aria-label", `${lines.join(", ")}, ${costLine}`);
+          detail.append(Object.assign(document.createElement("strong"), { className: "msg-usage-cost", textContent: costLine }));
+        }
+        usage.append(detail);
+        // Opens above the label unless the chat's top edge would cut it off.
+        const place = () => {
+          const room = usage.getBoundingClientRect().top - el.messages.getBoundingClientRect().top;
+          usage.classList.toggle("is-below", room < detail.offsetHeight + 12);
+        };
+        usage.addEventListener("pointerenter", place);
+        usage.addEventListener("focus", place);
+        actions.append(usage);
+      }
       node.append(actions);
     }
   }
@@ -2162,8 +2225,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       : "Web search is turned off in settings, so you can't look anything up online. If the reader needs current information from the web, say that it can be turned on in settings.";
 
     return [
-      `You are an AI assistant inside a PDF reader, working on "${info.name}" (${info.pageCount} pages). The reader is currently on page ${info.currentPage}. This chat may also contain earlier questions about other documents; only the current document can be viewed or edited now.`,
-      "You only see pages that are attached: the reader attaches them with @ mentions (like @3 or @2-4) or as regions, and you can open any page yourself with view_pages, zoom into a part with view_region, find things with search_document and get_outline. Never guess what a page you haven't seen says.",
+      `You are an AI assistant inside a PDF reader, working on "${info.name}" (${info.pageCount} pages). The live viewer is currently on page ${info.currentPage}. Treat this live page as the current page for the new turn even when older chat messages mention or attach another page. An @page mention refers only to the message where it appears; it never changes the live viewer page. This chat may also contain earlier questions about other documents; only the current document can be viewed or edited now.`,
+      "You only see pages that are attached. PaperLens automatically attaches the live current page when a new message has no explicit page target; the reader can instead attach pages with @ mentions (like @3 or @2-4) or attach regions. You can open any page yourself with view_pages, zoom into a part with view_region, find things with search_document and get_outline. Never guess what a page you haven't seen says.",
       seeing,
       editing,
       web,
@@ -2188,6 +2251,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       }
     }
     const window = turns.slice(first);
+    const latestUser = window.findLast(message => message.role === "user");
 
     const attachmentEntries = [];
     for (const message of window) {
@@ -2204,9 +2268,12 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     for (const message of window) {
       const sameDocument = !message.docKey || message.docKey === docKey;
       if (message.role === "user") {
-        const lead = message.quote
+        let lead = message.quote
           ? `About this passage from the PDF:\n"""\n${message.quote}\n"""\n\n${message.content}`
           : message.content;
+        if (message === latestUser && sameDocument) {
+          lead = withViewerState(lead, message.viewerPage || info.currentPage);
+        }
         const hasAttachments = message.pages.length || message.regions?.length;
         messages.push({
           role: "user",
@@ -2263,10 +2330,15 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
 
   // One streamed model call. Text streams into `reply`; tool calls are collected and returned.
   async function requestTurn(messages, reply, signal, { withTools = true, thinking = settings.thinking } = {}) {
+    // Last line of defence for private profile details: whatever slipped into a message (a pasted
+    // ID number, page text) leaves as its token.
+    const secrets = compileSecrets(host.workspace?.privateDetails?.() || []);
     const body = {
       model: settings.model,
-      messages,
-      stream: true
+      messages: secrets.length ? maskDeep(messages, secrets) : messages,
+      stream: true,
+      // Ask for token counts in the last chunk, for the usage shown under each reply.
+      stream_options: { include_usage: true }
     };
     if (withTools) {
       body.tools = tools.definitions({ allowEdits: settings.allowEdits, allowWeb: settings.webSearch });
@@ -2312,12 +2384,16 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
           continue;
         }
 
-        let delta;
+        let chunk;
         try {
-          delta = JSON.parse(trimmed.slice(5)).choices?.[0]?.delta || {};
+          chunk = JSON.parse(trimmed.slice(5));
         } catch {
           continue;
         }
+        if (chunk.usage) {
+          turn.usage = chunk.usage;
+        }
+        const delta = chunk.choices?.[0]?.delta || {};
 
         if (delta.reasoning_content) {
           turn.reasoning += delta.reasoning_content;
@@ -2379,6 +2455,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
         const messages = await buildRequestMessages();
         signal.throwIfAborted();
         const turn = await requestTurn(messages, reply, signal);
+        addUsage(reply, turn.usage);
 
         // DeepSeek requires reasoning_content to be sent back on later requests that include tools.
         const assistantMessage = { role: "assistant", content: turn.content };
@@ -2483,6 +2560,35 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     }
   }
 
+  // A reply can take several requests (one per tool step); their token counts add up.
+  function addUsage(reply, usage) {
+    if (!usage) {
+      return;
+    }
+    const total = (reply.usage ||= { input: 0, output: 0, cached: 0, reasoning: 0 });
+    total.input += Number(usage.prompt_tokens) || 0;
+    total.output += Number(usage.completion_tokens) || 0;
+    total.cached += Number(usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens) || 0;
+    total.reasoning += Number(usage.completion_tokens_details?.reasoning_tokens) || 0;
+    // Priced at the moment of each request, since a long reply can start before peak hours and end in them.
+    const cost = isDeepSeekHost() ? requestCost(settings.model, usage) : null;
+    if (cost) {
+      total.usd = (total.usd || 0) + cost.usd;
+      total.cny = (total.cny || 0) + cost.cny;
+      total[cost.peak ? "peakRequests" : "offPeakRequests"] = (total[cost.peak ? "peakRequests" : "offPeakRequests"] || 0) + 1;
+    }
+  }
+
+  function formatTokens(count) {
+    if (count >= 1_000_000) {
+      return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+    }
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+    }
+    return String(count);
+  }
+
   function newReply() {
     return { role: "assistant", content: "", steps: [], cards: [], timeline: [], transcript: [], streaming: true, thinking: false, docKey };
   }
@@ -2526,7 +2632,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       return;
     }
 
-    let pages = [...new Set([...attachedPages(), ...parseMentions(content, info.pageCount).pages])].sort((a, b) => a - b);
+    const pageContext = resolveTurnPages(content, info.pageCount, info.currentPage, attachedPages(), regions.length > 0);
+    let pages = pageContext.pages;
     if (pages.length > MAX_ATTACHED_PAGES) {
       toast(t("Only the first {count} pages are attached", { count: MAX_ATTACHED_PAGES }));
       pages = pages.slice(0, MAX_ATTACHED_PAGES);
@@ -2538,7 +2645,20 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     if (history.length && lastDoc !== docKey) {
       history.push({ role: "divider", docName: info.name, docKey });
     }
-    history.push({ role: "user", content, ...(used ? { skill: used.id, note } : {}), pages, pageRanges, regions, quote, docKey, docName: info.name, at: Date.now() });
+    history.push({
+      role: "user",
+      content,
+      ...(used ? { skill: used.id, note } : {}),
+      pages,
+      pageRanges,
+      regions,
+      quote,
+      viewerPage: info.currentPage,
+      implicitPage: pageContext.implicit,
+      docKey,
+      docName: info.name,
+      at: Date.now()
+    });
     quote = "";
     regions = [];
     pageRanges = [];

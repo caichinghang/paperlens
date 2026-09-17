@@ -321,7 +321,8 @@ export function createReferences(host, { onExplain } = {}) {
     if (top + height > stage.height - 12) {
       top = Math.max(12, anchor.top - stage.top - height - 10);
     }
-    left = clamp(left, 12, Math.max(12, stage.width - width - 12));
+    const area = host.uncovered?.() || { left: 0, right: stage.width };
+    left = clamp(left, area.left + 12, Math.max(area.left + 12, area.right - width - 12));
     card.style.left = `${left}px`;
     card.style.top = `${top}px`;
   }
