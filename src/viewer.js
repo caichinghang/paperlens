@@ -8,6 +8,7 @@ import { createReferences } from "./references.js";
 import { compileSecrets, maskText } from "./privacy.js";
 import { headingCandidates } from "./headings.js";
 import { collectRules, snapBoxToRule, snapTextToRule } from "./rules.js";
+import { loadLocalFile, saveLocalFile, saveLocalPage } from "./local-file.js";
 import { getItem, removeItem, setItem } from "./store.js";
 import { createWorkspace } from "./workspace.js";
 
@@ -479,16 +480,79 @@ async function loadFromFile(file) {
       return;
     }
 
-    await openDocument(bytes, {
-      token,
-      name: file.name,
-      key: `file:${file.name}:${file.size}:${file.lastModified}`
-    });
+    const key = `file:${file.name}:${file.size}:${file.lastModified}`;
+    await openDocument(bytes, { token, name: file.name, key });
+    if (token === state.loadToken) {
+      // Reopened after a reload; the copy is replaced whenever another local file is opened.
+      localFileKey = key;
+      setTabLocalFile(key);
+      // PDF.js takes ownership of `bytes`, so save the copy made before it opened.
+      await saveLocalFile({ name: file.name, key, bytes: state.originalBytes.slice().buffer });
+    }
   } catch (error) {
     if (token !== state.loadToken) {
       return;
     }
     resetViewer();
+// The saved local file is reopened when this tab reloads, at the page it was left on. A new tab or
+// window starts blank: sessionStorage belongs to one tab and survives its reloads, so it says
+// which tab the file was opened in.
+const LOCAL_TAB_KEY = "paperlensLocalFile";
+let localFileKey = "";
+
+function tabLocalFile() {
+  try {
+    return sessionStorage.getItem(LOCAL_TAB_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function setTabLocalFile(key) {
+  try {
+    sessionStorage.setItem(LOCAL_TAB_KEY, key);
+  } catch {
+    // Without session storage a reload simply returns to the blank page.
+  }
+}
+let localPageTimer = 0;
+
+function rememberLocalPage(number) {
+  if (!localFileKey || state.docKey !== localFileKey) {
+    return;
+  }
+  clearTimeout(localPageTimer);
+  localPageTimer = setTimeout(() => saveLocalPage(localFileKey, number), 600);
+}
+
+async function restoreLocalFile() {
+  const wanted = tabLocalFile();
+  if (!wanted) {
+    return false;
+  }
+  const record = await loadLocalFile();
+  if (record?.key !== wanted) {
+    return false;
+  }
+  const token = resetViewer();
+  prepareLoading(record.name);
+  try {
+    await openDocument(new Uint8Array(record.bytes), { token, name: record.name, key: record.key });
+    if (token === state.loadToken) {
+      localFileKey = record.key;
+      if (record.page > 1 && record.page <= state.pages.length) {
+        scrollToPage(record.page, 0, "auto");
+      }
+    }
+    return true;
+  } catch {
+    if (token === state.loadToken) {
+      resetViewer();
+    }
+    return false;
+  }
+}
+
     showEmptyState(t("Couldn't open this PDF"), describeLoadError(error, t("Something went wrong while reading this file.")));
   }
 }
@@ -1316,7 +1380,7 @@ function setCurrentPage(number) {
     elements.pageInput.value = String(number);
   }
   setPageToggleNumber(number);
-  elements.documentUrl.textContent = t("Page {page} of {total}", { page: number, total: state.pages.length });
+  rememberLocalPage(number);
 }
 
 function scrollToPage(number, offsetInPoints = 0, behavior = "smooth") {
@@ -3422,5 +3486,6 @@ updateZoomLabel(1);
 if (initialPdfUrl) {
   loadFromUrl(initialPdfUrl);
 } else {
+  restoreLocalFile();
   showEmptyState(t("Open a PDF"), t("Browse to a PDF on the web and it opens here — or drop a file anywhere in this window."));
 }
