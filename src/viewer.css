@@ -18,6 +18,7 @@
   --accent: #2383e2;
   --danger: #d9480f;
   --page-shadow: 0 0 0 1px rgba(15, 15, 15, 0.04), 0 2px 4px rgba(15, 15, 15, 0.04), 0 12px 32px rgba(15, 15, 15, 0.08);
+  --tooltip-bg: color-mix(in srgb, var(--text) 9%, var(--surface-raised));
   --popover-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 4px 10px rgba(15, 15, 15, 0.07), 0 16px 40px rgba(15, 15, 15, 0.12);
   /* Frosted, slightly see-through surfaces for everything that floats. */
   --glass-bg: color-mix(in srgb, var(--bg) 88%, transparent);
@@ -270,7 +271,43 @@ svg {
 }
 
 .panel-icon-button {
+  position: relative;
   background: transparent;
+}
+
+/* Header buttons name themselves right away, in the same grey tag as the floating buttons. The name
+   drops below the button (it is ::before because the workspace button's update dot uses ::after). */
+.panel-icon-button::before {
+  content: attr(aria-label);
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 70;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--tooltip-bg);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition: opacity 100ms ease, transform 100ms ease;
+}
+
+#sidebarClose::before,
+#aiSettingsCancel::before {
+  right: auto;
+  left: 0;
+}
+
+.panel-icon-button:hover::before,
+.panel-icon-button:focus-visible::before {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .panel-icon-button svg,
@@ -308,10 +345,10 @@ svg {
   position: absolute;
   top: 50%;
   padding: 5px 8px;
+  border: 1px solid var(--line-strong);
   border-radius: 7px;
-  background: var(--text);
-  color: var(--bg);
-  box-shadow: var(--popover-shadow);
+  background: var(--tooltip-bg);
+  color: var(--text);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -1122,10 +1159,10 @@ svg {
   right: 44px;
   top: 50%;
   padding: 5px 8px;
+  border: 1px solid var(--line-strong);
   border-radius: 7px;
-  background: var(--text);
-  color: var(--bg);
-  box-shadow: var(--popover-shadow);
+  background: var(--tooltip-bg);
+  color: var(--text);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
