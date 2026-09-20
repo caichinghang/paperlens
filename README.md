@@ -217,6 +217,7 @@ PaperLens is plain HTML, CSS and JavaScript modules. There's no framework, no bu
 | **PDF engine** | [PDF.js](https://mozilla.github.io/pdf.js/), vendored in `vendor/pdfjs`, for rendering, the text layer, form fields and saving annotations |
 | **AI** | Any OpenAI-compatible Chat Completions API with function calling, streamed; DeepSeek by default |
 | **Agent** | A step loop in `ai.js` over the tools in `agent-tools.js`. Skills and scenarios are prompts layered onto the system prompt |
+| **Math** | [KaTeX](https://katex.org/), vendored in `vendor/katex`, renders LaTeX in chat replies and notebook notes |
 | **Storage** | `chrome.storage.local`, falling back to `localStorage` outside the extension |
 
 <details>
@@ -253,4 +254,4 @@ The screenshots use the demo papers in `docs/samples/` (English and Chinese), bu
 
 ## License
 
-PaperLens is released under the [MIT License](LICENSE). PDF.js is licensed under Apache 2.0.
+PaperLens is released under the [MIT License](LICENSE). PDF.js is licensed under Apache 2.0. KaTeX is licensed under MIT.
