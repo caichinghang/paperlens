@@ -811,9 +811,51 @@ svg {
 
 .markup-layer .flash {
   animation: flash 900ms ease;
+/* Resize handles: round dots that stay the same size on screen at any zoom. */
+.markup-layer .resize-handle {
+  pointer-events: none;
 }
 
-/* Text boxes sit in an unblended twin layer so a background can cover the page (translations). */
+.markup-select .markup-layer .resize-handle {
+  pointer-events: stroke;
+}
+
+.markup-layer .resize-handle path {
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.markup-layer .handle-ring {
+  stroke: var(--accent);
+}
+
+.markup-layer .handle-core {
+  stroke: #ffffff;
+}
+
+.markup-select .markup-layer .resize-handle[data-handle="nw"],
+.markup-select .markup-layer .resize-handle[data-handle="se"] {
+  cursor: nwse-resize;
+}
+
+.markup-select .markup-layer .resize-handle[data-handle="ne"],
+.markup-select .markup-layer .resize-handle[data-handle="sw"] {
+  cursor: nesw-resize;
+}
+
+.markup-select .markup-layer .resize-handle[data-handle="p1"],
+.markup-select .markup-layer .resize-handle[data-handle="p2"] {
+  cursor: crosshair;
+}
+
+.markup-mini button.is-active {
+  background: var(--sidebar-selected);
+}
+
+}
+
+/* Shapes, pen strokes, signatures and text boxes sit in an unblended twin layer, so they are fully
+   opaque and can cover the page; only highlights and underlines multiply. */
 .markup-layer.markup-texts {
   z-index: 5;
   mix-blend-mode: normal;
@@ -893,11 +935,13 @@ svg {
 .markup-mini .mini-text-tools,
 .markup-mini .mini-colors {
   display: contents;
+.markup-mini .mini-fill,
 }
 
 .markup-mini .mini-text-tools[hidden],
 .markup-mini .mini-colors[hidden] {
   display: none;
+.markup-mini .mini-fill[hidden],
 }
 
 .markup-mini button {
