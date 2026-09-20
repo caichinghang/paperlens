@@ -175,7 +175,9 @@ Open the assistant and click **API Settings**.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| Currency | Follows the language | Shows the cost of each reply in US dollars ($) or yuan (¥) |
+| Appearance | Auto | Auto follows the system light/dark setting; or pick Light or Dark |
+| Language | Auto | Auto follows the browser's language (中文 or English); or pick one |
+| Currency | Auto | Auto follows the browser's language (yuan for Chinese, dollars otherwise); or pick US dollars ($) or yuan (¥) |
 | DeepSeek API key | — | The link under the settings opens [DeepSeek's API keys page](https://platform.deepseek.com/api_keys) |
 | API base URL | `https://api.deepseek.com` | Any OpenAI-compatible endpoint works |
 | Model ID | `deepseek-flash` | Type the model's ID; use one with tool calling for agent features |

@@ -1,6 +1,6 @@
 import { createAgentTools, formatPages, TOOL_LABELS } from "./agent-tools.js";
 import { parseCsv, parseFlashcards } from "./blocks.js";
-import { replyLanguageName, setLanguagePreference, t, tn, uiLanguage } from "./i18n.js";
+import { browserLanguage, getLanguagePreference, replyLanguageName, setLanguagePreference, t, tn, uiLanguage } from "./i18n.js";
 import { formatCost, requestCost } from "./pricing.js";
 import { displayMathOpening, mathHtml, protectMath } from "./math.js";
 import { compileSecrets, maskDeep } from "./privacy.js";
@@ -26,7 +26,7 @@ const DEFAULT_SETTINGS = {
   allowEdits: true,
   webSearch: true,
   tavilyKey: "",
-  // "usd" or "cny" for the reply cost; empty follows the interface language.
+  // "usd" or "cny" for the reply cost; anything else follows the browser language.
   currency: ""
 };
 // Model IDs from DeepSeek's model list (September 2026). `vision` decides how pages are sent in "auto" mode.
@@ -1249,7 +1249,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   function costCurrency() {
-    return settings.currency === "usd" || settings.currency === "cny" ? settings.currency : uiLanguage === "zh" ? "cny" : "usd";
+    return settings.currency === "usd" || settings.currency === "cny" ? settings.currency : browserLanguage() === "zh" ? "cny" : "usd";
   }
 
   function setCurrencyChoice(value) {
@@ -1288,8 +1288,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       el.allowEdits.checked = settings.allowEdits;
       el.webSearch.checked = settings.webSearch;
       el.tavilyKey.value = settings.tavilyKey;
-      setLanguageChoice(uiLanguage);
-      setCurrencyChoice(costCurrency());
+      setLanguageChoice(getLanguagePreference());
+      setCurrencyChoice(settings.currency === "usd" || settings.currency === "cny" ? settings.currency : "auto");
       setThemeChoice(host.getTheme());
     }
   }

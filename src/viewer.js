@@ -117,9 +117,17 @@ const pageByShell = new WeakMap();
 const zoomAnimation = { frame: 0, target: 1, focalX: 0, focalY: 0, last: 0 };
 const search = { query: "", matches: [], index: -1, token: 0, timer: 0, pendingScroll: false, truncated: false };
 
+// "auto" (the default) follows the system colour scheme and updates when it changes.
+let themePreference = "auto";
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+  themePreference = theme === "dark" || theme === "light" ? theme : "auto";
+  const dark = themePreference === "auto" ? systemDark.matches : themePreference === "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
 }
+
+systemDark.addEventListener("change", () => applyTheme(themePreference));
 
 let pageObserver = null;
 let thumbnailObserver = null;
@@ -222,7 +230,7 @@ const assistant = createAssistant({
     chooseSignature: anchor => markup.chooseSignature(anchor),
     snapSignatureBox: agentSnapSignatureBox,
     // Appearance lives in the assistant's settings sheet, the one settings page in the viewer.
-    getTheme: () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light"),
+    getTheme: () => themePreference,
     setTheme: theme => {
       applyTheme(theme);
       setItem("theme", theme);
@@ -3382,7 +3390,7 @@ window.addEventListener("pagehide", () => {
 // ---------- Start ----------
 
 elements.appShell.classList.add("no-transition");
-getItem("theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light").then(applyTheme);
+getItem("theme", "auto").then(applyTheme);
 Promise.all([
   getItem("sidebarWidth", null),
   getItem("aiWidth", null),
