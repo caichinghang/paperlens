@@ -151,6 +151,16 @@ export function markdownToBlocks(source) {
       blocks.push(fenceBlock(match[2].toLowerCase(), body.join("\n")));
     } else if (!line.trim()) {
       paragraph = null;
+    } else if ((match = displayMathOpening(line))) {
+      // A display equation over several lines stays one paragraph, even if a line looks like a list.
+      paragraph = null;
+      const body = [line.trim()];
+      while (index + 1 < lines.length) {
+        index += 1;
+        body.push(lines[index].trim());
+        if (lines[index].includes(match)) break;
+      }
+      blocks.push(createBlock("paragraph", { text: body.join("\n") }));
     } else if ((match = line.match(HEADING))) {
       paragraph = null;
       blocks.push(createBlock(`heading${Math.min(match[1].length, 3)}`, { text: match[2] }));
@@ -286,6 +296,47 @@ export function blocksToMarkdown(blocks) {
 
 // ---------- Inline Markdown ----------
 
+// ---------- Math ----------
+// $…$ and \(…\) inline; $$…$$ and \[…\] for display. Rendering lives in math.js.
+
+const PAIRS = [["$$", "$$", true], ["\\[", "\\]", true], ["\\(", "\\)", false]];
+
+// The math span starting at `index`, or null. A single $ follows Pandoc's rules so prices like
+// "$5 and $10" stay text: no space just inside either dollar, and no digit right after the closing one.
+export function matchMath(text, index) {
+  if (text[index - 1] === "\\") return null;
+  for (const [open, close, display] of PAIRS) {
+    if (!text.startsWith(open, index)) continue;
+    const start = index + open.length;
+    const end = text.indexOf(close, start);
+    const tex = end > start ? text.slice(start, end) : "";
+    return tex.trim() && (display || !tex.includes("\n"))
+      ? { tex: tex.trim(), display, end: end + close.length, raw: text.slice(index, end + close.length) }
+      : null;
+  }
+  if (text[index] !== "$" || /\s|\$/.test(text[index + 1] || " ")) return null;
+  for (let end = index + 1; end < text.length && text[end] !== "\n"; end += 1) {
+    if (text[end] === "\\") {
+      end += 1;
+      continue;
+    }
+    if (text[end] === "$") {
+      if (/\s/.test(text[end - 1]) || /\d/.test(text[end + 1] || "")) return null;
+      return { tex: text.slice(index + 1, end), display: false, end: end + 1, raw: text.slice(index, end + 1) };
+    }
+  }
+  return null;
+}
+
+// Opening line of a display block written across several lines, e.g. "$$" then the TeX then "$$".
+export function displayMathOpening(line) {
+  const match = line.trim().match(/^(\$\$|\\\[)(.*)$/);
+  if (!match) return null;
+  const close = match[1] === "$$" ? "$$" : "\\]";
+  return match[2].includes(close) ? null : close;
+}
+
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, character => ({
     "&": "&amp;",
@@ -314,6 +365,13 @@ function findClose(source, mark, from) {
         continue;
       }
     }
+    if (source[index] === "$" || source[index] === "\\") {
+      const math = matchMath(source, index);
+      if (math) {
+        index = math.end;
+        continue;
+      }
+    }
     if (source.startsWith(mark, index)) {
       if (mark.length === 1 && source[index + 1] === mark) {
         index += 2;
@@ -326,9 +384,10 @@ function findClose(source, mark, from) {
   return -1;
 }
 
-// Everything is escaped, so only the tags built here reach the DOM. Citations become atoms the
-// editor can't type into; `citeLabel` names them in the reader's language.
-export function inlineToHtml(source, { citeLabel = raw => raw } = {}) {
+// Everything is escaped, so only the tags built here reach the DOM. Citations and math become atoms
+// the editor can't type into; `citeLabel` names citations in the reader's language and `renderMath`
+// turns TeX into markup (without it, math atoms show their source).
+export function inlineToHtml(source, { citeLabel = raw => raw, renderMath = null } = {}) {
   const text = String(source ?? "");
   let html = "";
   let buffer = "";
@@ -344,7 +403,7 @@ export function inlineToHtml(source, { citeLabel = raw => raw } = {}) {
         return false;
       }
       flush();
-      html += `<${tag}>${inlineToHtml(text.slice(index + mark.length, end), { citeLabel })}</${tag}>`;
+      html += `<${tag}>${inlineToHtml(text.slice(index + mark.length, end), { citeLabel, renderMath })}</${tag}>`;
       index = end + mark.length;
       return true;
     }
@@ -353,6 +412,13 @@ export function inlineToHtml(source, { citeLabel = raw => raw } = {}) {
 
   while (index < text.length) {
     const character = text[index];
+    const math = (character === "$" || character === "\\") && matchMath(text, index);
+    if (math) {
+      flush();
+      html += `<span class="be-math${math.display ? " be-math-display" : ""}" contenteditable="false" data-md="${escapeHtml(math.raw)}">${renderMath ? renderMath(math) : escapeHtml(math.raw)}</span>`;
+      index = math.end;
+      continue;
+    }
     if (character === "\\" && /[\\*_`~[\]]/.test(text[index + 1] || "")) {
       buffer += text[index + 1];
       index += 2;
@@ -399,7 +465,7 @@ export function inlineToHtml(source, { citeLabel = raw => raw } = {}) {
       match = rest.match(LINK);
       if (match) {
         flush();
-        html += `<a href="${escapeHtml(match[2])}" target="_blank" rel="noopener noreferrer">${inlineToHtml(match[1], { citeLabel })}</a>`;
+        html += `<a href="${escapeHtml(match[2])}" target="_blank" rel="noopener noreferrer">${inlineToHtml(match[1], { citeLabel, renderMath })}</a>`;
         index += match[0].length;
         continue;
       }
@@ -413,11 +479,26 @@ export function inlineToHtml(source, { citeLabel = raw => raw } = {}) {
 
 // Inline Markdown without its marks, for plain-text copies (flashcards to Anki, tables to CSV).
 export function inlineToPlain(source) {
-  return String(source ?? "")
+  const spans = [];
+  let text = "";
+  const input = String(source ?? "");
+  for (let index = 0; index < input.length;) {
+    const math = (input[index] === "$" || input[index] === "\\") && matchMath(input, index);
+    if (math) {
+      spans.push(math.raw);
+      text += `\uE002${spans.length - 1}\uE003`;
+      index = math.end;
+    } else {
+      text += input[index];
+      index += 1;
+    }
+  }
+  return text
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
     .replace(/\*\*|__|~~|`/g, "")
     .replace(/(^|[^\w\\])[*_](?=\S)|(?<=\S)[*_](?!\w)/g, "$1")
-    .replace(/\\([\\*_`~[\]])/g, "$1");
+    .replace(/\\([\\*_`~[\]])/g, "$1")
+    .replace(/\uE002(\d+)\uE003/g, (_, i) => spans[Number(i)]);
 }
 
 // Plain text written as inline Markdown: marks the parser would read are escaped.

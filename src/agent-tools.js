@@ -314,7 +314,7 @@ const DEFINITIONS = [
   },
   {
     name: "save_note",
-    description: "Save something worth keeping to the reader's notebook in the workspace beside the chat, attached to this document: study notes, a glossary, flashcards (as a ```flashcards block), quiz questions with answers, a paper reading card, a key-figures table, a summary or a revision plan. Write the full content in Markdown with page citations like [p. 3], then keep the chat reply short and say it was saved.",
+    description: "Save something worth keeping to the reader's notebook in the workspace beside the chat, attached to this document: study notes, a glossary, flashcards (as a ```flashcards block), quiz questions with answers, a paper reading card, a key-figures table, a summary or a revision plan. Write the full content in Markdown with page citations like [p. 3] and formulas in LaTeX ($...$ inline, $$...$$ on its own line), then keep the chat reply short and say it was saved.",
     parameters: {
       type: "object",
       properties: {

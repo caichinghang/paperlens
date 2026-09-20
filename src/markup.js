@@ -330,6 +330,71 @@ function translateAnnotation(target, original, dx, dy) {
   }
 }
 
+const MIN_SHAPE_SIZE = 4;
+const MIN_SIGNATURE_WIDTH = 16;
+const FILLABLE = new Set(["rect", "ellipse"]);
+
+function isSignature(annotation) {
+  return annotation.type === "ink" && annotation.kind === "signature";
+}
+
+// Shapes and signatures can be resized by handles; hand-drawn ink and text can't.
+function isResizable(annotation) {
+  return SHAPE_TYPES.has(annotation.type) || isSignature(annotation);
+}
+
+// Drag handles: two ends for a line or arrow, the four corners of the box otherwise.
+function handlePoints(annotation) {
+  if (annotation.type === "line" || annotation.type === "arrow") {
+    return [{ key: "p1", x: annotation.x1, y: annotation.y1 }, { key: "p2", x: annotation.x2, y: annotation.y2 }];
+  }
+  const { x, y, width, height } = getBounds(annotation);
+  return [
+    { key: "nw", x, y },
+    { key: "ne", x: x + width, y },
+    { key: "se", x: x + width, y: y + height },
+    { key: "sw", x, y: y + height }
+  ];
+}
+
+// Moves one handle of `original` to `point` and writes the result onto `target`.
+function resizeAnnotation(target, original, key, point) {
+  if (key === "p1" || key === "p2") {
+    const [xKey, yKey] = key === "p1" ? ["x1", "y1"] : ["x2", "y2"];
+    target[xKey] = round(point.x);
+    target[yKey] = round(point.y);
+    return;
+  }
+
+  const box = getBounds(original);
+  // The corner opposite the handle stays put.
+  const anchor = {
+    x: key === "nw" || key === "sw" ? box.x + box.width : box.x,
+    y: key === "nw" || key === "ne" ? box.y + box.height : box.y
+  };
+
+  if (isSignature(original)) {
+    // Scale about the anchor, keeping the proportions; the pen thickness scales with it.
+    const scale = Math.max(
+      Math.abs(point.x - anchor.x) / (box.width || 1),
+      Math.abs(point.y - anchor.y) / (box.height || 1),
+      MIN_SIGNATURE_WIDTH / (box.width || 1)
+    );
+    target.paths = original.paths.map(path => path.map((value, i) => {
+      const from = i % 2 === 0 ? anchor.x : anchor.y;
+      return round(from + (value - from) * scale);
+    }));
+    target.width = round(clamp(original.width * scale, 0.6, 6));
+    return;
+  }
+
+  const size = (from, to) => (Math.abs(to - from) < MIN_SHAPE_SIZE ? from + MIN_SHAPE_SIZE * (to < from ? -1 : 1) : to);
+  target.x1 = round(anchor.x);
+  target.y1 = round(anchor.y);
+  target.x2 = round(size(anchor.x, point.x));
+  target.y2 = round(size(anchor.y, point.y));
+}
+
 export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, getCurrentPage, goToPage, toast, onChange, onVisibilityChange }) {
   const undoButton = bar.querySelector("#undoBtn");
   const redoButton = bar.querySelector("#redoBtn");
@@ -361,6 +426,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
   let pendingSave = null;
   let editing = null;
   let dragging = null;
+  let resizing = null;
   let padStrokes = [];
   let hiddenLayers = new Set();
   let mini = null;
@@ -530,18 +596,22 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     }
     const layer = document.createElement("div");
     layer.className = "markup-layer";
-    const svg = svgElement("svg", { preserveAspectRatio: "none" });
-    layer.append(svg);
+    // Highlights and underlines multiply into the page so the text under them stays readable.
+    const marks = svgElement("svg", { preserveAspectRatio: "none" });
+    layer.append(marks);
 
-    // Text boxes live in a second, unblended layer so their backgrounds can cover the page (translations).
+    // Everything else lives in a second, unblended layer, so shapes, pen strokes, signatures and text
+    // box backgrounds are fully opaque and can cover what is on the page.
     const texts = document.createElement("div");
     texts.className = "markup-layer markup-texts";
+    const svg = svgElement("svg", { preserveAspectRatio: "none" });
+    texts.append(svg);
 
     const surface = document.createElement("div");
     surface.className = "draw-surface";
     page.shell.append(layer, texts, surface);
 
-    const entry = { page, layer, svg, surface, texts };
+    const entry = { page, layer, svg, marks, surface, texts };
     layers.set(page.number, entry);
     surface.addEventListener("pointerdown", event => startDrawing(event, entry));
     updatePageSize(page);
@@ -566,6 +636,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     if (entry) {
       entry.page = page;
       entry.svg.setAttribute("viewBox", `0 0 ${page.width} ${page.height}`);
+      entry.marks.setAttribute("viewBox", `0 0 ${page.width} ${page.height}`);
       renderPage(page.number);
     }
   }
@@ -583,6 +654,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     }
 
     entry.svg.replaceChildren();
+    entry.marks.replaceChildren();
     for (const element of entry.texts.querySelectorAll(".markup-text")) {
       if (element !== editing?.element) {
         element.remove();
@@ -613,9 +685,19 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
         rx: 2
       }));
     }
+    if (selected?.page === number && open && tool === "select" && isResizable(selected)) {
+      for (const { key, x, y } of handlePoints(selected)) {
+        // A zero-length line with round caps is a dot that keeps its screen size at any zoom.
+        const dot = (className, strokeWidth) => svgElement("path", { d: `M${x} ${y}h0`, class: className, "stroke-width": strokeWidth });
+        const handle = svgElement("g", { class: "resize-handle", "data-handle": key });
+        handle.append(dot("handle-ring", 12), dot("handle-core", 8));
+        entry.svg.append(handle);
+      }
+    }
   }
 
-  function drawAnnotation({ svg, texts, page }, annotation) {
+  function drawAnnotation({ svg: shapes, marks, texts, page }, annotation) {
+    const svg = TEXT_TOOLS.has(annotation.type) ? marks : shapes;
     if (annotation.type === "text") {
       if (editing?.id === annotation.id) {
         return;
@@ -677,7 +759,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       group.append(
         svgElement("path", {
           d,
-          fill: "none",
+          fill: annotation.fill && FILLABLE.has(annotation.type) ? annotation.color : "none",
           stroke: annotation.color,
           "stroke-width": annotation.width,
           "stroke-linecap": "round",
@@ -840,6 +922,11 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
         <button type="button" data-mini="larger" title="${t("Larger text")}">A+</button>
         <span class="mini-divider"></span>
       </span>
+      <span class="mini-fill">
+        <button type="button" data-mini="fill" data-fill="0" title="${t("Outline")}" aria-label="${t("Outline")}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg></button>
+        <button type="button" data-mini="fill" data-fill="1" title="${t("Solid")}" aria-label="${t("Solid")}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"></rect></svg></button>
+        <span class="mini-divider"></span>
+      </span>
       <span class="mini-colors">
         ${SWATCHES.map(([color, name]) => `<button type="button" class="swatch mini-swatch" data-mini="color" data-color="${color}" style="--swatch:${color}" title="${t(name)}" aria-label="${t(name)}"></button>`).join("")}
         <span class="mini-divider"></span>
@@ -863,6 +950,10 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
             selected.fontSize = next;
           }, [selected.page]);
         }
+      } else if (action === "fill") {
+        commit(() => {
+          selected.fill = button.dataset.fill === "1";
+        }, [selected.page]);
       } else if (action === "color") {
         setColor(button.dataset.color);
       } else if (action === "delete") {
@@ -887,6 +978,11 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     mini.classList.toggle("is-below", below && isText);
     mini.classList.toggle("is-under", below && !isText);
     mini.querySelector(".mini-text-tools").hidden = !isText;
+    const fillable = FILLABLE.has(annotation.type);
+    mini.querySelector(".mini-fill").hidden = !fillable;
+    for (const button of mini.querySelectorAll("[data-fill]")) {
+      button.classList.toggle("is-active", (button.dataset.fill === "1") === Boolean(annotation.fill));
+    }
     // Redactions are black or nothing; their colour isn't a choice.
     mini.querySelector(".mini-colors").hidden = annotation.type === "redact";
     for (const swatch of mini.querySelectorAll(".mini-swatch")) {
@@ -1269,6 +1365,12 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
       return;
     }
 
+    const handle = event.target.closest?.(".markup-layer .resize-handle");
+    if (handle) {
+      startResize(event, handle.dataset.handle);
+      return;
+    }
+
     const selectMode = open && tool === "select";
     const target = event.target.closest?.(".markup-layer [data-id]");
     if (!target || (!selectMode && !target.classList.contains("markup-text"))) {
@@ -1309,6 +1411,40 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
     window.addEventListener("pointerup", dragEnd, { once: true });
     window.addEventListener("pointercancel", dragEnd, { once: true });
   });
+
+  // Dragging a handle of the selected shape or signature resizes it; the whole drag is one undo step.
+  function startResize(event, key) {
+    const annotation = findAnnotation(selectedId);
+    const entry = annotation && layers.get(annotation.page);
+    if (!entry || !isResizable(annotation)) {
+      return;
+    }
+    event.preventDefault();
+    resizing = { annotation, entry, key, original: JSON.parse(JSON.stringify(annotation)), before: snapshot([annotation.page]), moved: false };
+    window.addEventListener("pointermove", resizeMove);
+    window.addEventListener("pointerup", resizeEnd, { once: true });
+    window.addEventListener("pointercancel", resizeEnd, { once: true });
+  }
+
+  function resizeMove(event) {
+    if (!resizing) {
+      return;
+    }
+    resizing.moved = true;
+    resizeAnnotation(resizing.annotation, resizing.original, resizing.key, pagePoint(resizing.entry, event));
+    renderPage(resizing.annotation.page);
+  }
+
+  function resizeEnd() {
+    window.removeEventListener("pointermove", resizeMove);
+    window.removeEventListener("pointerup", resizeEnd);
+    window.removeEventListener("pointercancel", resizeEnd);
+    if (resizing?.moved) {
+      pushHistory(resizing.before);
+      changed([resizing.annotation.page]);
+    }
+    resizing = null;
+  }
 
   function dragMove(event) {
     if (!dragging) {
@@ -2319,9 +2455,14 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
           context.fillText(line, annotation.x, annotation.y + leading + index * annotation.fontSize * TEXT_LINE_HEIGHT);
         });
       } else {
+        const path = new Path2D(shapePath(annotation));
+        if (annotation.fill && FILLABLE.has(annotation.type)) {
+          context.fillStyle = annotation.color;
+          context.fill(path);
+        }
         context.strokeStyle = annotation.color;
         context.lineWidth = annotation.width;
-        context.stroke(new Path2D(shapePath(annotation)));
+        context.stroke(path);
       }
     }
 

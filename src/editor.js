@@ -2,7 +2,8 @@
 // type, Markdown shortcuts ("# ", "- ", "[] ") convert as you type, selected text gets a format bar,
 // and the handle beside a block drags it or opens its options. Blocks keep inline Markdown as text.
 
-import { createBlock, escapeInline, inlineToHtml, inlineToPlain, LIST_TYPES, listNumbers, markdownToBlocks, MAX_INDENT, TEXT_TYPES } from "./blocks.js";
+import { createBlock, escapeInline, inlineToHtml, inlineToPlain, LIST_TYPES, listNumbers, markdownToBlocks, matchMath, MAX_INDENT, TEXT_TYPES } from "./blocks.js";
+import { renderTex } from "./math.js";
 import { t, tn } from "./i18n.js";
 import { popupNearCaret } from "./popup-position.js";
 
@@ -94,7 +95,7 @@ function citeLabel(inner, page) {
 }
 
 function textHtml(markdown) {
-  const html = inlineToHtml(markdown, { citeLabel });
+  const html = inlineToHtml(markdown, { citeLabel, renderMath: ({ tex, display }) => renderTex(tex, display) });
   // A trailing line break needs a second <br> to show as an empty line.
   return markdown.endsWith("\n") ? `${html}<br>` : html;
 }
@@ -102,7 +103,7 @@ function textHtml(markdown) {
 // ---------- DOM ↔ inline Markdown ----------
 
 function isAtom(node) {
-  return node.nodeType === 1 && (node.tagName === "BR" || node.classList.contains("be-cite"));
+  return node.nodeType === 1 && (node.tagName === "BR" || node.classList.contains("be-cite") || node.classList.contains("be-math"));
 }
 
 function nodeLength(node) {
@@ -128,9 +129,24 @@ function wrap(inner, mark) {
   return match[2] ? `${match[1]}${mark}${match[2]}${mark}${match[3]}` : inner;
 }
 
+// Typed text is escaped as Markdown, except TeX typed between math delimiters, which keeps its backslashes.
+function escapeText(text) {
+  let markdown = "";
+  let from = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const math = (text[index] === "$" || text[index] === "\\") && matchMath(text, index);
+    if (math) {
+      markdown += escapeInline(text.slice(from, index)) + math.raw;
+      from = math.end;
+      index = math.end - 1;
+    }
+  }
+  return markdown + escapeInline(text.slice(from));
+}
+
 function serializeNode(node) {
   if (node.nodeType === 3) {
-    return escapeInline(node.nodeValue.replace(/​/g, "").replace(/ /g, " "));
+    return escapeText(node.nodeValue.replace(/​/g, "").replace(/ /g, " "));
   }
   if (node.nodeType !== 1) {
     return "";
@@ -138,7 +154,7 @@ function serializeNode(node) {
   if (node.tagName === "BR") {
     return "\n";
   }
-  if (node.classList.contains("be-cite")) {
+  if (node.classList.contains("be-cite") || node.classList.contains("be-math")) {
     return node.dataset.md || "";
   }
   const inner = serializeChildren(node);
@@ -1675,6 +1691,23 @@ export function createBlockEditor({ root, blocks: initialBlocks, onChange, onCit
       onCite?.(Number(cite.dataset.page));
       return;
     }
+    // Clicking an equation opens its TeX for editing; it renders again when the text loses focus.
+    const math = event.target.closest(".be-math");
+    const mathElement = math?.closest(EDITABLE);
+    if (mathElement) {
+      record();
+      const source = document.createTextNode(math.dataset.md || "");
+      math.replaceWith(source);
+      mathElement.focus({ preventScroll: true });
+      const range = document.createRange();
+      range.setStart(source, Math.max(0, source.nodeValue.length - (source.nodeValue.startsWith("$$") || source.nodeValue.startsWith("\\") ? 2 : 1)));
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      sync(mathElement);
+      return;
+    }
     const link = event.target.closest("a[href]");
     if (link && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
@@ -1728,6 +1761,20 @@ export function createBlockEditor({ root, blocks: initialBlocks, onChange, onCit
       emit();
     } else if (action === "copy-cards") {
       copyCards(block);
+    }
+  }
+
+  // TeX typed or opened for editing turns back into an equation once the caret leaves the text.
+  function onFocusOut(event) {
+    const element = event.target.closest?.(EDITABLE);
+    if (!element?.isContentEditable || element.matches(".be-code")) {
+      return;
+    }
+    const markdown = serializeEditable(element);
+    const holder = document.createElement("div");
+    holder.innerHTML = inlineToHtml(markdown);
+    if (holder.querySelectorAll(".be-math").length !== element.querySelectorAll(".be-math").length) {
+      element.innerHTML = textHtml(markdown);
     }
   }
 
@@ -1790,6 +1837,7 @@ export function createBlockEditor({ root, blocks: initialBlocks, onChange, onCit
   root.addEventListener("paste", onPaste);
   root.addEventListener("click", onClick);
   root.addEventListener("focusin", onFocusIn);
+  root.addEventListener("focusout", onFocusOut);
   document.addEventListener("selectionchange", onSelectionChange);
   document.addEventListener("pointerdown", onDocumentPointerDown, true);
   document.addEventListener("pointerup", onDocumentPointerUp, true);

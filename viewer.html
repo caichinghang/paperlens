@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PaperLens</title>
     <link rel="icon" href="icons/icon32.png">
+    <link rel="stylesheet" href="vendor/katex/katex.min.css">
     <link rel="stylesheet" href="src/viewer.css">
   </head>
   <body>
@@ -28,10 +29,6 @@
               </button>
             </div>
           </div>
-          <div class="doc-info">
-            <h1 id="documentTitle">PaperLens</h1>
-            <p id="documentUrl">No document loaded</p>
-          </div>
           <div class="sidebar-body">
             <div id="thumbnailList" class="thumbnail-list" data-panel-body="thumbnails">
               <div class="sidebar-empty">No document loaded</div>
@@ -49,7 +46,7 @@
 
       <!-- Reading area -->
       <section id="viewerStage" class="viewer-stage" aria-label="PDF preview">
-        <button id="sidebarOpen" class="corner-button corner-left glass" type="button" title="Show sidebar" aria-label="Show sidebar">
+        <button id="sidebarOpen" class="corner-button corner-left glass" type="button" title="Show pages &amp; outline" aria-label="Show pages &amp; outline">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M9 3v18"></path></svg>
         </button>
         <button id="aiToggle" class="corner-button corner-right glass" type="button" title="Show AI assistant" aria-label="Show AI assistant" aria-expanded="false" aria-controls="aiPanel">
@@ -348,21 +345,24 @@
                   <div class="settings-row">
                     <span class="settings-label">Appearance</span>
                     <div id="aiTheme" class="settings-segmented" role="radiogroup" aria-label="Appearance">
-                      <button type="button" role="radio" data-appearance="light" aria-checked="true" class="is-active">Light</button>
+                      <button type="button" role="radio" data-appearance="auto" aria-checked="true" class="is-active">Auto</button>
+                      <button type="button" role="radio" data-appearance="light" aria-checked="false">Light</button>
                       <button type="button" role="radio" data-appearance="dark" aria-checked="false">Dark</button>
                     </div>
                   </div>
                   <div class="settings-row">
                     <span class="settings-label">Language</span>
                     <div id="aiLanguage" class="settings-segmented" role="radiogroup" aria-label="Language">
-                      <button type="button" role="radio" data-language="en" aria-checked="true" class="is-active">English</button>
+                      <button type="button" role="radio" data-language="auto" aria-checked="true" class="is-active">Auto</button>
+                      <button type="button" role="radio" data-language="en" aria-checked="false">English</button>
                       <button type="button" role="radio" data-language="zh" aria-checked="false">中文</button>
                     </div>
                   </div>
                   <div class="settings-row">
                     <span class="settings-label">Currency</span>
                     <div id="aiCurrency" class="settings-segmented" role="radiogroup" aria-label="Currency">
-                      <button type="button" role="radio" data-currency="usd" aria-checked="true" class="is-active">$ USD</button>
+                      <button type="button" role="radio" data-currency="auto" aria-checked="true" class="is-active">Auto</button>
+                      <button type="button" role="radio" data-currency="usd" aria-checked="false">$ USD</button>
                       <button type="button" role="radio" data-currency="cny" aria-checked="false">¥ CNY</button>
                     </div>
                   </div>
@@ -406,7 +406,7 @@
               </section>
 
               <section class="settings-group">
-                <h3>Editing</h3>
+                <h3>Editing &amp; web</h3>
                 <div class="settings-card">
                   <label class="settings-switch">
                     <span>
@@ -415,12 +415,6 @@
                     </span>
                     <input id="aiAllowEdits" type="checkbox" class="switch">
                   </label>
-                </div>
-              </section>
-
-              <section class="settings-group">
-                <h3>Web</h3>
-                <div class="settings-card">
                   <label class="settings-switch">
                     <span>
                       <strong>Let the AI search the web</strong>
@@ -455,32 +449,18 @@
                   </button>
                   <div id="aiAttachMenu" class="menu ai-menu glass menu-above" role="menu" hidden></div>
                 </div>
-                <textarea id="aiInput" rows="1" placeholder="Ask AI · @ pages · / skills"></textarea>
-                <button id="aiMic" class="composer-icon" type="button" title="Dictate" aria-label="Dictate">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
-                </button>
+                <textarea id="aiInput" rows="1" placeholder="Type / for skills"></textarea>
+                <div class="menu-anchor">
+                  <button id="aiThinking" class="thinking-button" type="button" title="Thinking" aria-label="Thinking" aria-haspopup="menu" data-menu-trigger>
+                    <span id="aiThinkingLabel"></span>
+                    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                  </button>
+                  <div id="aiThinkingMenu" class="menu ai-menu glass menu-above menu-right effort-menu" role="dialog" aria-label="Reasoning effort" hidden></div>
+                </div>
                 <button id="aiSend" class="ai-send" type="submit" title="Send" aria-label="Send">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
                 </button>
               </form>
-
-              <div class="ai-meta-row">
-                <div class="ai-meta-left">
-                  <button id="aiSettingsBtn" class="meta-button" type="button">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 5h-6M11 5H3M21 12h-9M8 12H3M21 19h-5M12 19H3"></path><path d="M15 3v4M8 10v4M16 17v4"></path></svg>
-                    <span>API Settings</span>
-                  </button>
-                </div>
-                <div class="menu-anchor">
-                  <button id="aiModelButton" class="meta-button model-button" type="button" aria-haspopup="menu" data-menu-trigger>
-                    <img class="deepseek-logo" src="icons/deepseek.svg" alt="" aria-hidden="true">
-                    <span id="aiModelLabel">DeepSeek Flash</span>
-                    <span id="aiModelEffort" class="model-effort"></span>
-                    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-                  </button>
-                  <div id="aiModelMenu" class="menu ai-menu glass menu-above menu-right" role="menu" hidden></div>
-                </div>
-              </div>
             </div>
           </div>
         </div>

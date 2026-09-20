@@ -5,39 +5,41 @@
 const STORAGE_KEY = "uiLanguage";
 const LANGUAGES = ["en", "zh"];
 
-function browserLanguage() {
+export function browserLanguage() {
   return /^zh\b/i.test(navigator.language || "") ? "zh" : "en";
 }
 
-// The first time the extension opens, the browser's language picks the interface language. That
-// choice is saved, and from then on only the settings change it.
-function initialLanguage() {
+// "auto" (the default) follows the browser's language on every load; "en" and "zh" are fixed choices.
+export function getLanguagePreference() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (LANGUAGES.includes(saved)) {
-      return saved;
-    }
-    const detected = browserLanguage();
-    localStorage.setItem(STORAGE_KEY, detected);
-    return detected;
+    return LANGUAGES.includes(saved) ? saved : "auto";
   } catch {
-    return browserLanguage();
+    return "auto";
   }
 }
 
-export const uiLanguage = initialLanguage();
+export function resolveLanguage(preference) {
+  return LANGUAGES.includes(preference) ? preference : browserLanguage();
+}
 
-// Returns true when the language changed, so the page has to reload to show it.
+export const uiLanguage = resolveLanguage(getLanguagePreference());
+
+// Saves the preference. Returns true when the interface language changes, so the page has to reload.
 export function setLanguagePreference(language) {
-  if (!LANGUAGES.includes(language) || language === uiLanguage) {
+  if (![...LANGUAGES, "auto"].includes(language) || language === getLanguagePreference()) {
     return false;
   }
   try {
-    localStorage.setItem(STORAGE_KEY, language);
+    if (language === "auto") {
+      localStorage.removeItem(STORAGE_KEY);
+    } else {
+      localStorage.setItem(STORAGE_KEY, language);
+    }
   } catch {
     return false;
   }
-  return true;
+  return resolveLanguage(language) !== uiLanguage;
 }
 
 // Translations always go between Chinese and English, whatever the interface language: Chinese text
@@ -76,7 +78,7 @@ export function replyLanguageName() {
 const ZH = {
   // Sidebar, dock and page chrome
   "Hide sidebar": "隐藏侧边栏",
-  "Show sidebar": "显示侧边栏",
+  "Show pages & outline": "显示页面与目录",
   "Sidebar view": "侧边栏视图",
   "Thumbnails": "缩略图",
   "Table of contents": "目录",
@@ -135,8 +137,6 @@ const ZH = {
   "Choose a file": "选择文件",
   "this site": "此网站",
   "Loading…": "加载中…",
-  "Loading from {host}…": "正在从 {host} 加载…",
-  "Opening…": "正在打开…",
   "Couldn't open this PDF": "无法打开这个 PDF",
   "This PDF is password-protected, which this viewer doesn't support yet.": "这个 PDF 有密码保护，暂不支持打开。",
   "This file doesn't look like a valid PDF.": "这个文件不是有效的 PDF。",
@@ -145,7 +145,6 @@ const ZH = {
   "Page {page}": "第 {page} 页",
   "Pages {from}–{to}": "第 {from}–{to} 页",
   "Go to page {page}": "跳转到第 {page} 页",
-  "Page {page} of {total}": "第 {page} 页，共 {total} 页",
   "p. {page}": "第 {page} 页",
   "Untitled": "无标题",
   "This PDF has no table of contents": "这个 PDF 没有目录",
@@ -290,9 +289,9 @@ const ZH = {
   "Close AI assistant": "关闭 AI 助手",
   "Back to chat": "返回对话",
   "Settings": "设置",
-  "API Settings": "API 设置",
   "General": "通用",
   "Appearance": "外观",
+  "Auto": "自动",
   "Light": "浅色",
   "Dark": "深色",
   "Model & API": "模型与 API",
@@ -309,6 +308,9 @@ const ZH = {
   "Text only": "仅文字",
   "Get an API key at platform.deepseek.com": "在 platform.deepseek.com 获取 API 密钥",
   "Editing": "编辑",
+  "Editing & web": "编辑与联网",
+  "Outline": "空心",
+  "Solid": "实心",
   "Let the AI edit the PDF": "允许 AI 编辑 PDF",
   "Fill forms, add markup and text layers, propose redactions. Off means answers only.": "填写表单、添加标注和文字图层、建议涂黑。关闭后只回答问题。",
   "Web": "联网",
@@ -326,17 +328,15 @@ const ZH = {
   "Ask AI · @ pages · / skills": "问 AI · @ 页面 · / 技能",
   "Add details (optional)": "补充说明（可选）",
   "{skill}: {hint}": "{skill}：{hint}",
-  "Dictate": "语音输入",
   "Send": "发送",
   "Stop": "停止",
   "Reads images": "可读图片",
   "Custom": "自定义",
-  "Off": "关",
   "Low": "低",
   "High": "高",
-  "Max": "最高",
+  "Medium": "中",
+  "Reasoning effort": "推理强度",
   "Thinking": "思考",
-  "Custom model & API…": "自定义模型和 API…",
   "Current page": "当前页",
   "Scenarios and skills": "场景和技能",
   "Quote selected text": "引用选中文字",
@@ -376,9 +376,6 @@ const ZH = {
   "DeepSeek is busy right now — try again shortly.": "DeepSeek 当前繁忙，请稍后再试。",
   "Request failed (HTTP {status}).": "请求失败（HTTP {status}）。",
   "If this model can't read images, choose DeepSeek Flash, or set “Send pages as” to Text in API settings.": "如果该模型无法读取图片，请选择 DeepSeek Flash，或在设置中把“页面发送方式”改为“仅文字”。",
-  "Microphone access is blocked for dictation": "麦克风权限被拒绝，无法语音输入",
-  "Dictation stopped": "语音输入已停止",
-  "No speech was recognised. This browser may not provide a speech recognition service — try Google Chrome, or use macOS dictation (press Fn twice).": "没有识别到文字。当前浏览器可能没有语音识别服务，可以改用 Google Chrome，或使用 macOS 自带听写（连按两下 Fn 键）。",
 
   // Scenarios and workspace
   "Scenarios": "场景",

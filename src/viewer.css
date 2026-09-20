@@ -3,7 +3,7 @@
   --bg: #ffffff;
   --sidebar: #f7f7f5;
   --sidebar-hover: rgba(55, 53, 47, 0.06);
-  --sidebar-selected: rgba(55, 53, 47, 0.08);
+  --sidebar-selected: rgba(55, 53, 47, 0.11);
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --surface-hover: rgba(55, 53, 47, 0.07);
@@ -50,7 +50,7 @@
     --bg: #191919;
     --sidebar: #202020;
     --sidebar-hover: rgba(255, 255, 255, 0.055);
-    --sidebar-selected: rgba(255, 255, 255, 0.075);
+    --sidebar-selected: rgba(255, 255, 255, 0.1);
     --surface: #191919;
     --surface-raised: #252525;
     --surface-hover: rgba(255, 255, 255, 0.075);
@@ -81,7 +81,7 @@
   --bg: #191919;
   --sidebar: #202020;
   --sidebar-hover: rgba(255, 255, 255, 0.055);
-  --sidebar-selected: rgba(255, 255, 255, 0.075);
+  --sidebar-selected: rgba(255, 255, 255, 0.1);
   --surface: #191919;
   --surface-raised: #252525;
   --surface-hover: rgba(255, 255, 255, 0.075);
@@ -302,6 +302,41 @@ svg {
   left: 16px;
 }
 
+/* The same immediate name as the dock buttons, beside the corner button and toward the page. */
+.corner-button::after {
+  content: attr(aria-label);
+  position: absolute;
+  top: 50%;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: var(--popover-shadow);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease, transform 100ms ease;
+}
+
+.corner-left::after {
+  left: 54px;
+  transform: translate(-4px, -50%);
+}
+
+.corner-right::after {
+  right: 54px;
+  transform: translate(4px, -50%);
+}
+
+.corner-button:hover::after,
+.corner-button:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
 .corner-right {
   right: 16px;
 }
@@ -353,35 +388,6 @@ svg {
   justify-content: space-between;
   flex: 0 0 var(--panel-header-height);
   padding: 0 13px;
-}
-
-.doc-info {
-  padding: 0 16px 10px;
-}
-
-.doc-info h1,
-.doc-info p {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.doc-info h1 {
-  display: -webkit-box;
-  font-size: 13.5px;
-  font-weight: 600;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.doc-info p {
-  margin-top: 2px;
-  color: var(--soft);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .sidebar-body {
@@ -472,10 +478,6 @@ svg {
   background: var(--page);
   box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.08), 0 2px 6px rgba(15, 15, 15, 0.06);
   transition: box-shadow 140ms ease;
-}
-
-.thumbnail-item.is-selected .thumbnail-preview {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 42%, transparent), 0 2px 6px rgba(15, 15, 15, 0.08);
 }
 
 .thumbnail-preview canvas {
@@ -809,11 +811,53 @@ svg {
   pointer-events: none;
 }
 
+/* Resize handles: round dots that stay the same size on screen at any zoom. */
+.markup-layer .resize-handle {
+  pointer-events: none;
+}
+
+.markup-select .markup-layer .resize-handle {
+  pointer-events: stroke;
+}
+
+.markup-layer .resize-handle path {
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.markup-layer .handle-ring {
+  stroke: var(--accent);
+}
+
+.markup-layer .handle-core {
+  stroke: #ffffff;
+}
+
+.markup-select .markup-layer .resize-handle[data-handle="nw"],
+.markup-select .markup-layer .resize-handle[data-handle="se"] {
+  cursor: nwse-resize;
+}
+
+.markup-select .markup-layer .resize-handle[data-handle="ne"],
+.markup-select .markup-layer .resize-handle[data-handle="sw"] {
+  cursor: nesw-resize;
+}
+
+.markup-select .markup-layer .resize-handle[data-handle="p1"],
+.markup-select .markup-layer .resize-handle[data-handle="p2"] {
+  cursor: crosshair;
+}
+
+.markup-mini button.is-active {
+  background: var(--sidebar-selected);
+}
+
 .markup-layer .flash {
   animation: flash 900ms ease;
 }
 
-/* Text boxes sit in an unblended twin layer so a background can cover the page (translations). */
+/* Shapes, pen strokes, signatures and text boxes sit in an unblended twin layer, so they are fully
+   opaque and can cover the page; only highlights and underlines multiply. */
 .markup-layer.markup-texts {
   z-index: 5;
   mix-blend-mode: normal;
@@ -891,11 +935,13 @@ svg {
 }
 
 .markup-mini .mini-text-tools,
+.markup-mini .mini-fill,
 .markup-mini .mini-colors {
   display: contents;
 }
 
 .markup-mini .mini-text-tools[hidden],
+.markup-mini .mini-fill[hidden],
 .markup-mini .mini-colors[hidden] {
   display: none;
 }
@@ -2237,10 +2283,134 @@ svg {
   border: 1px solid var(--line-strong);
 }
 
-#aiMic.is-listening {
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-  color: var(--danger);
-  animation: pulse 1.4s infinite ease-in-out;
+/* How hard the model thinks: a quiet grey word and chevron before the send button, opening a slider. */
+.thinking-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px 0 14px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--soft);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.thinking-button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.thinking-button .chevron {
+  width: 13px;
+  height: 13px;
+}
+
+.effort-menu {
+  width: 224px;
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+
+.effort-title {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* The thumb is taller than the track, so at the first step it covers the track's end completely. */
+.effort-slider {
+  --thumb: 30px;
+  --track: 25px;
+  position: relative;
+  height: var(--thumb);
+  cursor: pointer;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.effort-track,
+.effort-fill {
+  position: absolute;
+  top: calc((var(--thumb) - var(--track)) / 2);
+  left: 0;
+  height: var(--track);
+  border-radius: 999px;
+}
+
+.effort-track {
+  right: 0;
+  background: var(--sidebar-selected);
+}
+
+/* Starts 1px in and is never narrower than the track is tall, so at the first step it stays a round
+   shape entirely inside the thumb and no blue peeks out around it. */
+.effort-fill {
+  left: 1px;
+  width: max(calc(var(--track) - 2px), calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--p) - 1px));
+  background: var(--accent);
+}
+
+.effort-dot {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--p));
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--soft);
+  opacity: 0.7;
+  transform: translate(-50%, -50%);
+  transition: transform 150ms var(--ease-out), opacity 150ms ease;
+}
+
+/* The dots are tiny, so an invisible ring around each one makes them easy to hover. */
+.effort-dot::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+
+.effort-dot:hover {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.4);
+}
+
+.effort-thumb {
+  position: absolute;
+  top: 0;
+  left: calc((100% - var(--thumb)) * var(--p));
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+  transition: transform 150ms var(--ease-out);
+}
+
+.effort-thumb:hover,
+.effort-slider.is-dragging .effort-thumb {
+  transform: scale(1.08);
+}
+
+/* Settling on a step glides; following the pointer doesn't lag. */
+.effort-slider:not(.is-dragging) .effort-thumb {
+  transition: left 280ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.effort-slider:not(.is-dragging) .effort-fill {
+  transition: left 280ms var(--ease-out), width 280ms var(--ease-out);
+}
+
+.effort-slider:focus-visible .effort-thumb {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .ai-composer textarea {
@@ -2287,72 +2457,6 @@ svg {
 .ai-send.is-stop svg {
   fill: currentColor;
   stroke: none;
-}
-
-.ai-meta-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 4px 0;
-}
-
-.ai-meta-left {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.meta-button {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: none;
-  height: 28px;
-  padding: 0 7px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12.5px;
-}
-
-.meta-button:hover {
-  background: var(--sidebar-hover);
-  color: var(--text);
-}
-
-.meta-button svg {
-  width: 15px;
-  height: 15px;
-}
-
-.model-button .deepseek-logo {
-  width: 17px;
-  height: 13px;
-  flex: none;
-  object-fit: contain;
-}
-
-.meta-button .chevron {
-  width: 13px;
-  height: 13px;
-  color: var(--soft);
-}
-
-.model-button span {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.model-button .model-effort {
-  color: var(--soft);
-  font-weight: 500;
-}
-
-.model-effort:empty {
-  display: none;
 }
 
 /* ---------- Settings ---------- */
@@ -3283,7 +3387,7 @@ svg {
 
 /* ---------- AI panel: actions, cards ---------- */
 
-/* Chat history under the title: New chat and search stay on top; chats scroll below in date groups
+/* Chat history under the title: search stays on top; chats scroll below in date groups
    whose labels stay pinned. The open chat's title is bold; delete shows on hover. The menu never
    grows past the panel, however narrow or short the panel is dragged. */
 .history-menu {
@@ -3301,51 +3405,24 @@ svg {
 }
 
 .history-head {
-  display: grid;
-  padding: 4px 4px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 8px 8px 4px;
 }
 
-.history-head > .history-new {
-  margin-bottom: 4px;
-}
-
-.menu .history-new {
-  justify-content: flex-start;
-  align-items: center;
-  gap: 9px;
-  font-weight: 500;
-}
-
-.history-new svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* Search looks like the toolbar's Search document row: an icon and a bare field, under a hairline.
-   Its icon and text line up with New chat's above. */
+/* A rounded field with a soft fill and no divider under it. */
 .history-search {
-  position: relative;
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
-  column-gap: 9px;
-  height: 42px;
-  padding: 0 10px;
+  column-gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--sidebar-hover);
+  color: var(--soft);
 }
 
 .history-search .flyout-input {
   padding: 0;
-}
-
-.history-search::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 8px;
-  left: 8px;
-  height: 1px;
-  background: var(--line);
 }
 
 .history-list {
@@ -6115,4 +6192,34 @@ body.is-block-sorting * {
 .signature-new svg {
   width: 14px;
   height: 14px;
+}
+
+/* ---------- Math (KaTeX) ---------- */
+
+.katex {
+  font-size: 1.1em;
+}
+
+.math-display,
+.be-math-display {
+  display: block;
+  max-width: 100%;
+  margin: 0.5em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+.math-display .katex-display,
+.be-math-display .katex-display {
+  margin: 0;
+}
+
+.be-math {
+  cursor: text;
+  border-radius: 4px;
+}
+
+.be-math:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
 }

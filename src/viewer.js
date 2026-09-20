@@ -8,6 +8,7 @@ import { createReferences } from "./references.js";
 import { compileSecrets, maskText } from "./privacy.js";
 import { headingCandidates } from "./headings.js";
 import { collectRules, snapBoxToRule, snapTextToRule } from "./rules.js";
+import { loadLocalFile, saveLocalFile, saveLocalPage } from "./local-file.js";
 import { getItem, removeItem, setItem } from "./store.js";
 import { createWorkspace } from "./workspace.js";
 
@@ -24,8 +25,6 @@ const elements = {
   aiResizerY: $("#aiResizerY"),
   annotationList: $("#annotationList"),
   appShell: $("#appShell"),
-  documentTitle: $("#documentTitle"),
-  documentUrl: $("#documentUrl"),
   downloadPdf: $("#downloadPdf"),
   dropOverlay: $("#dropOverlay"),
   emptyOpenFile: $("#emptyOpenFile"),
@@ -88,6 +87,7 @@ const RENDER_SETTLE_MS = 110;
 const MAX_CANVAS_PIXELS = 16_777_216;
 const THUMBNAIL_WIDTH = 120;
 const AUTO_FIT_MAX_WIDTH = 1080;
+const FIT_WIDTH_BREATHING_ROOM = 0.92;
 const AGENT_GRID = 1000;
 const MARK_ADD_LABELS = { highlight: "Highlight", underline: "Underline", strike: "Strikethrough" };
 const MARK_REMOVE_LABELS = { highlight: "Remove highlight", underline: "Remove underline", strike: "Remove strikethrough" };
@@ -117,9 +117,17 @@ const pageByShell = new WeakMap();
 const zoomAnimation = { frame: 0, target: 1, focalX: 0, focalY: 0, last: 0 };
 const search = { query: "", matches: [], index: -1, token: 0, timer: 0, pendingScroll: false, truncated: false };
 
+// "auto" (the default) follows the system colour scheme and updates when it changes.
+let themePreference = "auto";
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+
 function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+  themePreference = theme === "dark" || theme === "light" ? theme : "auto";
+  const dark = themePreference === "auto" ? systemDark.matches : themePreference === "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
 }
+
+systemDark.addEventListener("change", () => applyTheme(themePreference));
 
 let pageObserver = null;
 let thumbnailObserver = null;
@@ -222,7 +230,7 @@ const assistant = createAssistant({
     chooseSignature: anchor => markup.chooseSignature(anchor),
     snapSignatureBox: agentSnapSignatureBox,
     // Appearance lives in the assistant's settings sheet, the one settings page in the viewer.
-    getTheme: () => (document.documentElement.dataset.theme === "dark" ? "dark" : "light"),
+    getTheme: () => themePreference,
     setTheme: theme => {
       applyTheme(theme);
       setItem("theme", theme);
@@ -402,8 +410,7 @@ function showEmptyState(title, message) {
   elements.emptyState.querySelector("p").textContent = message;
   elements.thumbnailList.innerHTML = `<div class="sidebar-empty">${t("No document loaded")}</div>`;
   elements.outlineList.innerHTML = `<div class="sidebar-empty">${t("No table of contents")}</div>`;
-  elements.documentTitle.textContent = "PaperLens";
-  elements.documentUrl.textContent = t("No document loaded");
+  document.title = "PaperLens";
   elements.pageInput.value = "";
   elements.pageCount.textContent = t("of –");
   setPageToggleNumber(0);
@@ -412,13 +419,11 @@ function showEmptyState(title, message) {
   closeFlyouts();
 }
 
-function prepareLoading(name, status) {
+function prepareLoading(name) {
   elements.appShell.classList.remove("no-document");
   elements.emptyState.hidden = true;
   elements.pdfShell.hidden = false;
-  elements.documentTitle.textContent = name;
   document.title = name;
-  elements.documentUrl.textContent = status;
   elements.thumbnailList.innerHTML = `<div class="sidebar-empty">${t("Loading…")}</div>`;
   elements.outlineList.innerHTML = `<div class="sidebar-empty">${t("Loading…")}</div>`;
   elements.downloadPdf.disabled = true;
@@ -437,7 +442,7 @@ function describeLoadError(error, fallback) {
 async function loadFromUrl(url) {
   const token = resetViewer();
   const name = formatFileName(url);
-  prepareLoading(name, t("Loading from {host}…", { host: formatHost(url) }));
+  prepareLoading(name);
 
   try {
     const response = await fetch(url, { credentials: "include" });
@@ -463,7 +468,7 @@ async function loadFromUrl(url) {
 
 async function loadFromFile(file) {
   const token = resetViewer();
-  prepareLoading(file.name, t("Opening…"));
+  prepareLoading(file.name);
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -471,17 +476,80 @@ async function loadFromFile(file) {
       return;
     }
 
-    await openDocument(bytes, {
-      token,
-      name: file.name,
-      key: `file:${file.name}:${file.size}:${file.lastModified}`
-    });
+    const key = `file:${file.name}:${file.size}:${file.lastModified}`;
+    await openDocument(bytes, { token, name: file.name, key });
+    if (token === state.loadToken) {
+      // Reopened after a reload; the copy is replaced whenever another local file is opened.
+      localFileKey = key;
+      setTabLocalFile(key);
+      // PDF.js takes ownership of `bytes`, so save the copy made before it opened.
+      await saveLocalFile({ name: file.name, key, bytes: state.originalBytes.slice().buffer });
+    }
   } catch (error) {
     if (token !== state.loadToken) {
       return;
     }
     resetViewer();
     showEmptyState(t("Couldn't open this PDF"), describeLoadError(error, t("Something went wrong while reading this file.")));
+  }
+}
+
+// The saved local file is reopened when this tab reloads, at the page it was left on. A new tab or
+// window starts blank: sessionStorage belongs to one tab and survives its reloads, so it says
+// which tab the file was opened in.
+const LOCAL_TAB_KEY = "paperlensLocalFile";
+let localFileKey = "";
+
+function tabLocalFile() {
+  try {
+    return sessionStorage.getItem(LOCAL_TAB_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function setTabLocalFile(key) {
+  try {
+    sessionStorage.setItem(LOCAL_TAB_KEY, key);
+  } catch {
+    // Without session storage a reload simply returns to the blank page.
+  }
+}
+let localPageTimer = 0;
+
+function rememberLocalPage(number) {
+  if (!localFileKey || state.docKey !== localFileKey) {
+    return;
+  }
+  clearTimeout(localPageTimer);
+  localPageTimer = setTimeout(() => saveLocalPage(localFileKey, number), 600);
+}
+
+async function restoreLocalFile() {
+  const wanted = tabLocalFile();
+  if (!wanted) {
+    return false;
+  }
+  const record = await loadLocalFile();
+  if (record?.key !== wanted) {
+    return false;
+  }
+  const token = resetViewer();
+  prepareLoading(record.name);
+  try {
+    await openDocument(new Uint8Array(record.bytes), { token, name: record.name, key: record.key });
+    if (token === state.loadToken) {
+      localFileKey = record.key;
+      if (record.page > 1 && record.page <= state.pages.length) {
+        scrollToPage(record.page, 0, "auto");
+      }
+    }
+    return true;
+  } catch {
+    if (token === state.loadToken) {
+      resetViewer();
+    }
+    return false;
   }
 }
 
@@ -1308,7 +1376,7 @@ function setCurrentPage(number) {
     elements.pageInput.value = String(number);
   }
   setPageToggleNumber(number);
-  elements.documentUrl.textContent = t("Page {page} of {total}", { page: number, total: state.pages.length });
+  rememberLocalPage(number);
 }
 
 function scrollToPage(number, offsetInPoints = 0, behavior = "smooth") {
@@ -1397,6 +1465,9 @@ function computeFitZoom(mode) {
 
   if (mode === "auto") {
     zoom = Math.min(availableWidth, AUTO_FIT_MAX_WIDTH) / (page.width * CSS_UNITS);
+  } else if (mode === "fit-width") {
+    // Leave a little air so the page doesn't touch the edges of the panel.
+    zoom *= FIT_WIDTH_BREATHING_ROOM;
   } else if (mode === "fit-page") {
     zoom = Math.min(zoom, (elements.pdfShell.clientHeight - 48) / (page.height * CSS_UNITS));
   }
@@ -3382,7 +3453,7 @@ window.addEventListener("pagehide", () => {
 // ---------- Start ----------
 
 elements.appShell.classList.add("no-transition");
-getItem("theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light").then(applyTheme);
+getItem("theme", "auto").then(applyTheme);
 Promise.all([
   getItem("sidebarWidth", null),
   getItem("aiWidth", null),
@@ -3415,4 +3486,5 @@ if (initialPdfUrl) {
   loadFromUrl(initialPdfUrl);
 } else {
   showEmptyState(t("Open a PDF"), t("Browse to a PDF on the web and it opens here — or drop a file anywhere in this window."));
+  restoreLocalFile();
 }

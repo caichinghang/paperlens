@@ -150,7 +150,7 @@ Open the workspace next to the chat and each PDF gets its own notebook. The assi
 | **Markup** | Pen, highlighter, underline, strike-through, rectangles, ellipses, lines, arrows and text boxes in any colour and width; an eraser; copy and paste markup; undo and redo |
 | **Forms and signatures** | Real form fields you can type into; draw and save several signatures and pick one each time |
 | **Chat context** | Attach `@3` or `@2-4` for pages, selected text, or a region you draw |
-| **Chat** | Saved chats with short titles written for you, grouped by date and searchable; page citations you can click; web sources; retry, copy, share and dictation; token count and cost for each reply |
+| **Chat** | Saved chats with short titles written for you, grouped by date and searchable; page citations you can click; web sources; retry, copy and share; token count and cost for each reply |
 | **Export** | Annotated PDF, image-only redacted PDF, Markdown notes, flashcards as TSV, tables as CSV, BibTeX and `.ics` calendars |
 | **Settings** | English or Chinese, light or dark, cost in dollars or yuan, model and thinking level, document edits and web search on or off |
 
@@ -171,16 +171,18 @@ PaperLens isn't on the Chrome Web Store yet. Load it as an unpacked extension:
 
 ### Connect the assistant
 
-Open the assistant and click **API Settings**.
+Open the assistant and click the gear (**Settings**) in the toolbar at the bottom right.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| Currency | Follows the language | Shows the cost of each reply in US dollars ($) or yuan (¥) |
+| Appearance | Auto | Auto follows the system light/dark setting; or pick Light or Dark |
+| Language | Auto | Auto follows the browser's language (中文 or English); or pick one |
+| Currency | Auto | Auto follows the browser's language (yuan for Chinese, dollars otherwise); or pick US dollars ($) or yuan (¥) |
 | DeepSeek API key | — | The link under the settings opens [DeepSeek's API keys page](https://platform.deepseek.com/api_keys) |
 | API base URL | `https://api.deepseek.com` | Any OpenAI-compatible endpoint works |
 | Model ID | `deepseek-flash` | Type the model's ID; use one with tool calling for agent features |
 | Send pages as | Automatic | Choose **Text only** for models that can't read images |
-| Thinking | High | Off, Low, High or Max, from the model menu under the chat |
+| Reasoning effort | Medium | Low, Medium or High, from the slider beside the send button |
 | Let the AI edit the PDF | On | Turn off to stop the assistant changing the PDF |
 | Let the AI search the web | On | Uses Bing (including Bing News), then DuckDuckGo. Add a Tavily key (1,000 free searches a month) for more reliable results |
 
@@ -215,6 +217,7 @@ PaperLens is plain HTML, CSS and JavaScript modules. There's no framework, no bu
 | --- | --- |
 | **Extension** | Chrome Manifest V3. A service worker (`background.js`) and content script send PDF links to `viewer.html` |
 | **PDF engine** | [PDF.js](https://mozilla.github.io/pdf.js/), vendored in `vendor/pdfjs`, for rendering, the text layer, form fields and saving annotations |
+| **Math** | [KaTeX](https://katex.org/), vendored in `vendor/katex`, renders LaTeX in chat replies and notebook notes |
 | **AI** | Any OpenAI-compatible Chat Completions API with function calling, streamed; DeepSeek by default |
 | **Agent** | A step loop in `ai.js` over the tools in `agent-tools.js`. Skills and scenarios are prompts layered onto the system prompt |
 | **Storage** | `chrome.storage.local`, falling back to `localStorage` outside the extension |
@@ -253,4 +256,4 @@ The screenshots use the demo papers in `docs/samples/` (English and Chinese), bu
 
 ## License
 
-PaperLens is released under the [MIT License](LICENSE). PDF.js is licensed under Apache 2.0.
+PaperLens is released under the [MIT License](LICENSE). PDF.js is licensed under Apache 2.0. KaTeX is licensed under MIT.
