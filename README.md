@@ -171,7 +171,7 @@ PaperLens isn't on the Chrome Web Store yet. Load it as an unpacked extension:
 
 ### Connect the assistant
 
-Open the assistant and click **API Settings**.
+Open the assistant and click the gear (**Settings**) in the toolbar at the bottom right.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
@@ -217,9 +217,9 @@ PaperLens is plain HTML, CSS and JavaScript modules. There's no framework, no bu
 | --- | --- |
 | **Extension** | Chrome Manifest V3. A service worker (`background.js`) and content script send PDF links to `viewer.html` |
 | **PDF engine** | [PDF.js](https://mozilla.github.io/pdf.js/), vendored in `vendor/pdfjs`, for rendering, the text layer, form fields and saving annotations |
+| **Math** | [KaTeX](https://katex.org/), vendored in `vendor/katex`, renders LaTeX in chat replies and notebook notes |
 | **AI** | Any OpenAI-compatible Chat Completions API with function calling, streamed; DeepSeek by default |
 | **Agent** | A step loop in `ai.js` over the tools in `agent-tools.js`. Skills and scenarios are prompts layered onto the system prompt |
-| **Math** | [KaTeX](https://katex.org/), vendored in `vendor/katex`, renders LaTeX in chat replies and notebook notes |
 | **Storage** | `chrome.storage.local`, falling back to `localStorage` outside the extension |
 
 <details>

@@ -25,8 +25,6 @@ const elements = {
   aiResizerY: $("#aiResizerY"),
   annotationList: $("#annotationList"),
   appShell: $("#appShell"),
-  documentTitle: $("#documentTitle"),
-  documentUrl: $("#documentUrl"),
   downloadPdf: $("#downloadPdf"),
   dropOverlay: $("#dropOverlay"),
   emptyOpenFile: $("#emptyOpenFile"),
@@ -89,6 +87,7 @@ const RENDER_SETTLE_MS = 110;
 const MAX_CANVAS_PIXELS = 16_777_216;
 const THUMBNAIL_WIDTH = 120;
 const AUTO_FIT_MAX_WIDTH = 1080;
+const FIT_WIDTH_BREATHING_ROOM = 0.92;
 const AGENT_GRID = 1000;
 const MARK_ADD_LABELS = { highlight: "Highlight", underline: "Underline", strike: "Strikethrough" };
 const MARK_REMOVE_LABELS = { highlight: "Remove highlight", underline: "Remove underline", strike: "Remove strikethrough" };
@@ -411,8 +410,7 @@ function showEmptyState(title, message) {
   elements.emptyState.querySelector("p").textContent = message;
   elements.thumbnailList.innerHTML = `<div class="sidebar-empty">${t("No document loaded")}</div>`;
   elements.outlineList.innerHTML = `<div class="sidebar-empty">${t("No table of contents")}</div>`;
-  elements.documentTitle.textContent = "PaperLens";
-  elements.documentUrl.textContent = t("No document loaded");
+  document.title = "PaperLens";
   elements.pageInput.value = "";
   elements.pageCount.textContent = t("of –");
   setPageToggleNumber(0);
@@ -421,13 +419,11 @@ function showEmptyState(title, message) {
   closeFlyouts();
 }
 
-function prepareLoading(name, status) {
+function prepareLoading(name) {
   elements.appShell.classList.remove("no-document");
   elements.emptyState.hidden = true;
   elements.pdfShell.hidden = false;
-  elements.documentTitle.textContent = name;
   document.title = name;
-  elements.documentUrl.textContent = status;
   elements.thumbnailList.innerHTML = `<div class="sidebar-empty">${t("Loading…")}</div>`;
   elements.outlineList.innerHTML = `<div class="sidebar-empty">${t("Loading…")}</div>`;
   elements.downloadPdf.disabled = true;
@@ -446,7 +442,7 @@ function describeLoadError(error, fallback) {
 async function loadFromUrl(url) {
   const token = resetViewer();
   const name = formatFileName(url);
-  prepareLoading(name, t("Loading from {host}…", { host: formatHost(url) }));
+  prepareLoading(name);
 
   try {
     const response = await fetch(url, { credentials: "include" });
@@ -472,7 +468,7 @@ async function loadFromUrl(url) {
 
 async function loadFromFile(file) {
   const token = resetViewer();
-  prepareLoading(file.name, t("Opening…"));
+  prepareLoading(file.name);
 
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -494,6 +490,10 @@ async function loadFromFile(file) {
       return;
     }
     resetViewer();
+    showEmptyState(t("Couldn't open this PDF"), describeLoadError(error, t("Something went wrong while reading this file.")));
+  }
+}
+
 // The saved local file is reopened when this tab reloads, at the page it was left on. A new tab or
 // window starts blank: sessionStorage belongs to one tab and survives its reloads, so it says
 // which tab the file was opened in.
@@ -550,10 +550,6 @@ async function restoreLocalFile() {
       resetViewer();
     }
     return false;
-  }
-}
-
-    showEmptyState(t("Couldn't open this PDF"), describeLoadError(error, t("Something went wrong while reading this file.")));
   }
 }
 
@@ -1469,6 +1465,9 @@ function computeFitZoom(mode) {
 
   if (mode === "auto") {
     zoom = Math.min(availableWidth, AUTO_FIT_MAX_WIDTH) / (page.width * CSS_UNITS);
+  } else if (mode === "fit-width") {
+    // Leave a little air so the page doesn't touch the edges of the panel.
+    zoom *= FIT_WIDTH_BREATHING_ROOM;
   } else if (mode === "fit-page") {
     zoom = Math.min(zoom, (elements.pdfShell.clientHeight - 48) / (page.height * CSS_UNITS));
   }
@@ -3486,6 +3485,6 @@ updateZoomLabel(1);
 if (initialPdfUrl) {
   loadFromUrl(initialPdfUrl);
 } else {
-  restoreLocalFile();
   showEmptyState(t("Open a PDF"), t("Browse to a PDF on the web and it opens here — or drop a file anywhere in this window."));
+  restoreLocalFile();
 }

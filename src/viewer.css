@@ -3,7 +3,7 @@
   --bg: #ffffff;
   --sidebar: #f7f7f5;
   --sidebar-hover: rgba(55, 53, 47, 0.06);
-  --sidebar-selected: rgba(55, 53, 47, 0.08);
+  --sidebar-selected: rgba(55, 53, 47, 0.11);
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --surface-hover: rgba(55, 53, 47, 0.07);
@@ -50,7 +50,7 @@
     --bg: #191919;
     --sidebar: #202020;
     --sidebar-hover: rgba(255, 255, 255, 0.055);
-    --sidebar-selected: rgba(255, 255, 255, 0.075);
+    --sidebar-selected: rgba(255, 255, 255, 0.1);
     --surface: #191919;
     --surface-raised: #252525;
     --surface-hover: rgba(255, 255, 255, 0.075);
@@ -81,7 +81,7 @@
   --bg: #191919;
   --sidebar: #202020;
   --sidebar-hover: rgba(255, 255, 255, 0.055);
-  --sidebar-selected: rgba(255, 255, 255, 0.075);
+  --sidebar-selected: rgba(255, 255, 255, 0.1);
   --surface: #191919;
   --surface-raised: #252525;
   --surface-hover: rgba(255, 255, 255, 0.075);
@@ -302,6 +302,41 @@ svg {
   left: 16px;
 }
 
+/* The same immediate name as the dock buttons, beside the corner button and toward the page. */
+.corner-button::after {
+  content: attr(aria-label);
+  position: absolute;
+  top: 50%;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: var(--popover-shadow);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease, transform 100ms ease;
+}
+
+.corner-left::after {
+  left: 54px;
+  transform: translate(-4px, -50%);
+}
+
+.corner-right::after {
+  right: 54px;
+  transform: translate(4px, -50%);
+}
+
+.corner-button:hover::after,
+.corner-button:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
 .corner-right {
   right: 16px;
 }
@@ -353,35 +388,6 @@ svg {
   justify-content: space-between;
   flex: 0 0 var(--panel-header-height);
   padding: 0 13px;
-}
-
-.doc-info {
-  padding: 0 16px 10px;
-}
-
-.doc-info h1,
-.doc-info p {
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.doc-info h1 {
-  display: -webkit-box;
-  font-size: 13.5px;
-  font-weight: 600;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.doc-info p {
-  margin-top: 2px;
-  color: var(--soft);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .sidebar-body {
@@ -472,10 +478,6 @@ svg {
   background: var(--page);
   box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.08), 0 2px 6px rgba(15, 15, 15, 0.06);
   transition: box-shadow 140ms ease;
-}
-
-.thumbnail-item.is-selected .thumbnail-preview {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 42%, transparent), 0 2px 6px rgba(15, 15, 15, 0.08);
 }
 
 .thumbnail-preview canvas {
@@ -809,8 +811,6 @@ svg {
   pointer-events: none;
 }
 
-.markup-layer .flash {
-  animation: flash 900ms ease;
 /* Resize handles: round dots that stay the same size on screen at any zoom. */
 .markup-layer .resize-handle {
   pointer-events: none;
@@ -852,6 +852,8 @@ svg {
   background: var(--sidebar-selected);
 }
 
+.markup-layer .flash {
+  animation: flash 900ms ease;
 }
 
 /* Shapes, pen strokes, signatures and text boxes sit in an unblended twin layer, so they are fully
@@ -933,15 +935,15 @@ svg {
 }
 
 .markup-mini .mini-text-tools,
+.markup-mini .mini-fill,
 .markup-mini .mini-colors {
   display: contents;
-.markup-mini .mini-fill,
 }
 
 .markup-mini .mini-text-tools[hidden],
+.markup-mini .mini-fill[hidden],
 .markup-mini .mini-colors[hidden] {
   display: none;
-.markup-mini .mini-fill[hidden],
 }
 
 .markup-mini button {
@@ -2346,6 +2348,29 @@ svg {
   align-items: center;
   gap: 4px;
   min-width: 0;
+}
+
+.ai-doc-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0 7px;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: default;
+}
+
+.ai-doc-name svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.ai-doc-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meta-button {

@@ -282,7 +282,7 @@ export function renderInline(text) {
     })
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
-  return html.replace(/\uE000(\d+)\uE001/g, (_, index) => `<code>${codes[Number(index)]}</code>`);
+  return math.restore(html.replace(/\uE000(\d+)\uE001/g, (_, index) => `<code>${codes[Number(index)]}</code>`));
 }
 
 const LIST_ITEM = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
@@ -777,7 +777,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     panel: $("#aiPanel"),
     send: $("#aiSend"),
     settings: $("#aiSettings"),
-    settingsButton: $("#aiSettingsBtn"),
+    docName: $("#aiDocName"),
     settingsCancel: $("#aiSettingsCancel"),
     tavilyKey: $("#aiTavilyKey"),
     theme: $("#aiTheme"),
@@ -1226,6 +1226,11 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     el.modelLabel.textContent = preset?.label || settings.model;
     el.modelEffort.textContent = isDeepSeekHost() ? THINKING_LEVELS.find(([value]) => value === settings.thinking)?.[1] || "" : "";
     el.title.textContent = truncate(chatName || chatTitle(history), 30);
+    // The document the chat is about, shortened to fit beside the model picker.
+    const name = host.getDocumentInfo().name;
+    el.docName.hidden = !name;
+    el.docName.title = name;
+    el.docName.lastElementChild.textContent = truncate(name, 22);
   }
 
   function setPageFormatChoice(value) {
@@ -1494,17 +1499,20 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       ? MODEL_PRESETS
       : [...MODEL_PRESETS, { id: settings.model, label: settings.model, hint: t("Custom") }];
 
-    let html = options.map(option => `
+    // A lone model isn't a choice, so the list appears only for a custom model ID (or a non-DeepSeek
+    // host, where the menu would otherwise be empty).
+    const showModels = options.length > 1 || !isDeepSeekHost();
+    let html = showModels ? options.map(option => `
       <button type="button" role="menuitem" data-model="${escapeHtml(option.id)}" class="${option.id === settings.model ? "is-current" : ""}">
         <span>${escapeHtml(option.label)} <em>${escapeHtml(option.hint)}</em></span>
-      </button>`).join("");
+      </button>`).join("") : "";
 
     if (isDeepSeekHost()) {
-      html += `<hr><div class="menu-label">${t("Thinking")}</div>` + THINKING_LEVELS.map(([value, label]) => `
+      html += `${showModels ? "<hr>" : ""}<div class="menu-label">${t("Thinking")}</div>` + THINKING_LEVELS.map(([value, label]) => `
         <button type="button" role="menuitem" data-thinking="${value}" class="${value === settings.thinking ? "is-current" : ""}">${label}</button>`).join("");
     }
 
-    el.modelMenu.innerHTML = `${html}<hr><button type="button" role="menuitem" data-ai-action="settings">${escapeHtml(t("Custom model & API…"))}</button>`;
+    el.modelMenu.innerHTML = html;
   }
 
   function insertAtCaret(text) {
@@ -3137,7 +3145,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     buildModelMenu();
     toggleMenu(el.modelMenu);
   });
-  el.settingsButton.addEventListener("click", () => showSettings(el.settings.hidden));
   el.settingsCancel.addEventListener("click", () => showSettings(false));
   el.keyToggle.addEventListener("click", () => {
     const show = el.key.type === "password";
