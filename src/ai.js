@@ -12,8 +12,6 @@ const SETTINGS_KEY = "aiSettings";
 const HISTORY_KEY = "aiHistory";
 const CHATS_KEY = "aiChats";
 const MAX_CHATS = 50;
-// The chat list gets a search box once it is longer than this.
-const HISTORY_SEARCH_MIN = 8;
 const REOPEN_SETTINGS_KEY = "paperlensReopenSettings";
 // Some Chromium browsers open the microphone for dictation but never return any text.
 const DICTATION_TIMEOUT_MS = 12_000;
@@ -1032,7 +1030,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   // Chats newest first, in date groups whose labels stay pinned while their chats scroll. The open
-  // chat's title is bold; delete shows on hover, and a long list gets a search row.
+  // chat's title is bold; delete shows on hover, and a search row on top.
   function buildTitleMenu() {
     // Only write when something is waiting: another tab may have saved newer chats since this one loaded.
     if (persistTimer) {
@@ -1059,14 +1057,10 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
         <div class="history-group-label">${escapeHtml(label)}</div>
         ${rows}
       </section>`).join("");
-    const search = chats.length > HISTORY_SEARCH_MIN
-      ? `<label class="history-search"><span class="flyout-icon" aria-hidden="true">${ICONS.search}</span><input class="flyout-input" type="search" placeholder="${escapeHtml(t("Search chats"))}" aria-label="${escapeHtml(t("Search chats"))}" autocomplete="off" spellcheck="false"></label>`
-      : "";
+    const search = `<label class="history-search"><span class="flyout-icon" aria-hidden="true">${ICONS.search}</span><input class="flyout-input" type="search" placeholder="${escapeHtml(t("Search chats"))}" aria-label="${escapeHtml(t("Search chats"))}" autocomplete="off" spellcheck="false"></label>`;
+    // New chat is the header's pencil button, so the menu starts with the search field.
     el.titleMenu.innerHTML = `
-      <div class="history-head">
-        <button type="button" role="menuitem" class="history-new" data-ai-action="new">${ICONS.newChat}<span>${escapeHtml(t("New chat"))}</span></button>
-        ${search}
-      </div>
+      <div class="history-head">${search}</div>
       <div class="history-list">
         ${list || `<div class="history-empty">${escapeHtml(t("No chats yet"))}</div>`}
         ${list ? `<div class="history-empty" data-history-no-match hidden>${escapeHtml(t("No matching chats"))}</div>` : ""}
@@ -1095,7 +1089,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   function focusHistory() {
     const target = el.titleMenu.querySelector(".history-search input")
       || el.titleMenu.querySelector(".history-row.is-current .history-open")
-      || el.titleMenu.querySelector(".history-open, .history-new");
+      || el.titleMenu.querySelector(".history-open");
     target?.focus({ preventScroll: true });
     el.titleMenu.querySelector(".history-row.is-current")?.scrollIntoView({ block: "nearest" });
   }
@@ -1155,7 +1149,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       search.value = query;
       filterHistory(query);
     }
-    el.titleMenu.querySelector(".history-search input, .history-open, .history-new")?.focus({ preventScroll: true });
+    el.titleMenu.querySelector(".history-search input, .history-open")?.focus({ preventScroll: true });
     toast(t("Chat deleted"), {
       action: {
         label: t("Undo"),
@@ -3119,7 +3113,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   el.titleMenu.addEventListener("keydown", event => {
     const search = el.titleMenu.querySelector(".history-search input");
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      const items = [...el.titleMenu.querySelectorAll(".history-new, .history-row:not([hidden]) .history-open")]
+      const items = [...el.titleMenu.querySelectorAll(".history-row:not([hidden]) .history-open")]
         .filter(item => !item.closest(".history-group[hidden]"));
       if (!items.length) {
         return;
@@ -3127,7 +3121,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       event.preventDefault();
       const index = items.indexOf(document.activeElement.closest?.(".history-row")?.querySelector(".history-open") || document.activeElement);
       const next = event.key === "ArrowDown"
-        ? items[index === -1 ? (search ? 1 : 0) : Math.min(index + 1, items.length - 1)]
+        ? items[index === -1 ? 0 : Math.min(index + 1, items.length - 1)]
         : index <= 0 ? (search || items[0]) : items[index - 1];
       next?.focus();
       next?.closest(".history-row")?.scrollIntoView({ block: "nearest" });

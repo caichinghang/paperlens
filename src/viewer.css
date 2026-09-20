@@ -3352,7 +3352,7 @@ svg {
 
 /* ---------- AI panel: actions, cards ---------- */
 
-/* Chat history under the title: New chat and search stay on top; chats scroll below in date groups
+/* Chat history under the title: search stays on top; chats scroll below in date groups
    whose labels stay pinned. The open chat's title is bold; delete shows on hover. The menu never
    grows past the panel, however narrow or short the panel is dragged. */
 .history-menu {
@@ -3370,51 +3370,24 @@ svg {
 }
 
 .history-head {
-  display: grid;
-  padding: 4px 4px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 8px 8px 4px;
 }
 
-.history-head > .history-new {
-  margin-bottom: 4px;
-}
-
-.menu .history-new {
-  justify-content: flex-start;
-  align-items: center;
-  gap: 9px;
-  font-weight: 500;
-}
-
-.history-new svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* Search looks like the toolbar's Search document row: an icon and a bare field, under a hairline.
-   Its icon and text line up with New chat's above. */
+/* A rounded field with a soft fill and no divider under it. */
 .history-search {
-  position: relative;
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
-  column-gap: 9px;
-  height: 42px;
-  padding: 0 10px;
+  column-gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--sidebar-hover);
+  color: var(--soft);
 }
 
 .history-search .flyout-input {
   padding: 0;
-}
-
-.history-search::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 8px;
-  left: 8px;
-  height: 1px;
-  background: var(--line);
 }
 
 .history-list {
