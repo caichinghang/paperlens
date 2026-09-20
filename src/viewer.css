@@ -2283,10 +2283,134 @@ svg {
   border: 1px solid var(--line-strong);
 }
 
-#aiMic.is-listening {
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-  color: var(--danger);
-  animation: pulse 1.4s infinite ease-in-out;
+/* How hard the model thinks: a quiet grey word and chevron before the send button, opening a slider. */
+.thinking-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px 0 14px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--soft);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.thinking-button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.thinking-button .chevron {
+  width: 13px;
+  height: 13px;
+}
+
+.effort-menu {
+  width: 224px;
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+
+.effort-title {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* The thumb is taller than the track, so at the first step it covers the track's end completely. */
+.effort-slider {
+  --thumb: 30px;
+  --track: 25px;
+  position: relative;
+  height: var(--thumb);
+  cursor: pointer;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+
+.effort-track,
+.effort-fill {
+  position: absolute;
+  top: calc((var(--thumb) - var(--track)) / 2);
+  left: 0;
+  height: var(--track);
+  border-radius: 999px;
+}
+
+.effort-track {
+  right: 0;
+  background: var(--sidebar-selected);
+}
+
+/* Starts 1px in and is never narrower than the track is tall, so at the first step it stays a round
+   shape entirely inside the thumb and no blue peeks out around it. */
+.effort-fill {
+  left: 1px;
+  width: max(calc(var(--track) - 2px), calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--p) - 1px));
+  background: var(--accent);
+}
+
+.effort-dot {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--p));
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--soft);
+  opacity: 0.7;
+  transform: translate(-50%, -50%);
+  transition: transform 150ms var(--ease-out), opacity 150ms ease;
+}
+
+/* The dots are tiny, so an invisible ring around each one makes them easy to hover. */
+.effort-dot::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+
+.effort-dot:hover {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.4);
+}
+
+.effort-thumb {
+  position: absolute;
+  top: 0;
+  left: calc((100% - var(--thumb)) * var(--p));
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+  transition: transform 150ms var(--ease-out);
+}
+
+.effort-thumb:hover,
+.effort-slider.is-dragging .effort-thumb {
+  transform: scale(1.08);
+}
+
+/* Settling on a step glides; following the pointer doesn't lag. */
+.effort-slider:not(.is-dragging) .effort-thumb {
+  transition: left 280ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.effort-slider:not(.is-dragging) .effort-fill {
+  transition: left 280ms var(--ease-out), width 280ms var(--ease-out);
+}
+
+.effort-slider:focus-visible .effort-thumb {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .ai-composer textarea {
@@ -2333,95 +2457,6 @@ svg {
 .ai-send.is-stop svg {
   fill: currentColor;
   stroke: none;
-}
-
-.ai-meta-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 4px 0;
-}
-
-.ai-meta-left {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.ai-doc-name {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  padding: 0 7px;
-  color: var(--muted);
-  font-size: 12.5px;
-  cursor: default;
-}
-
-.ai-doc-name svg {
-  flex: none;
-  width: 15px;
-  height: 15px;
-}
-
-.ai-doc-name span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.meta-button {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: none;
-  height: 28px;
-  padding: 0 7px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12.5px;
-}
-
-.meta-button:hover {
-  background: var(--sidebar-hover);
-  color: var(--text);
-}
-
-.meta-button svg {
-  width: 15px;
-  height: 15px;
-}
-
-.model-button .deepseek-logo {
-  width: 17px;
-  height: 13px;
-  flex: none;
-  object-fit: contain;
-}
-
-.meta-button .chevron {
-  width: 13px;
-  height: 13px;
-  color: var(--soft);
-}
-
-.model-button span {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.model-button .model-effort {
-  color: var(--soft);
-  font-weight: 500;
-}
-
-.model-effort:empty {
-  display: none;
 }
 
 /* ---------- Settings ---------- */

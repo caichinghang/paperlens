@@ -150,7 +150,7 @@ Open the workspace next to the chat and each PDF gets its own notebook. The assi
 | **Markup** | Pen, highlighter, underline, strike-through, rectangles, ellipses, lines, arrows and text boxes in any colour and width; an eraser; copy and paste markup; undo and redo |
 | **Forms and signatures** | Real form fields you can type into; draw and save several signatures and pick one each time |
 | **Chat context** | Attach `@3` or `@2-4` for pages, selected text, or a region you draw |
-| **Chat** | Saved chats with short titles written for you, grouped by date and searchable; page citations you can click; web sources; retry, copy, share and dictation; token count and cost for each reply |
+| **Chat** | Saved chats with short titles written for you, grouped by date and searchable; page citations you can click; web sources; retry, copy and share; token count and cost for each reply |
 | **Export** | Annotated PDF, image-only redacted PDF, Markdown notes, flashcards as TSV, tables as CSV, BibTeX and `.ics` calendars |
 | **Settings** | English or Chinese, light or dark, cost in dollars or yuan, model and thinking level, document edits and web search on or off |
 
@@ -182,7 +182,7 @@ Open the assistant and click the gear (**Settings**) in the toolbar at the botto
 | API base URL | `https://api.deepseek.com` | Any OpenAI-compatible endpoint works |
 | Model ID | `deepseek-flash` | Type the model's ID; use one with tool calling for agent features |
 | Send pages as | Automatic | Choose **Text only** for models that can't read images |
-| Thinking | High | Off, Low, High or Max, from the model menu under the chat |
+| Reasoning effort | Medium | Low, Medium or High, from the slider beside the send button |
 | Let the AI edit the PDF | On | Turn off to stop the assistant changing the PDF |
 | Let the AI search the web | On | Uses Bing (including Bing News), then DuckDuckGo. Add a Tavily key (1,000 free searches a month) for more reliable results |
 

@@ -449,32 +449,18 @@
                   </button>
                   <div id="aiAttachMenu" class="menu ai-menu glass menu-above" role="menu" hidden></div>
                 </div>
-                <textarea id="aiInput" rows="1" placeholder="Ask AI · @ pages · / skills"></textarea>
-                <button id="aiMic" class="composer-icon" type="button" title="Dictate" aria-label="Dictate">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg>
-                </button>
+                <textarea id="aiInput" rows="1" placeholder="Type / for skills"></textarea>
+                <div class="menu-anchor">
+                  <button id="aiThinking" class="thinking-button" type="button" title="Thinking" aria-label="Thinking" aria-haspopup="menu" data-menu-trigger>
+                    <span id="aiThinkingLabel"></span>
+                    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                  </button>
+                  <div id="aiThinkingMenu" class="menu ai-menu glass menu-above menu-right effort-menu" role="dialog" aria-label="Reasoning effort" hidden></div>
+                </div>
                 <button id="aiSend" class="ai-send" type="submit" title="Send" aria-label="Send">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"></path><path d="m5 12 7-7 7 7"></path></svg>
                 </button>
               </form>
-
-              <div class="ai-meta-row">
-                <div class="ai-meta-left">
-                  <span id="aiDocName" class="ai-doc-name" hidden>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
-                    <span></span>
-                  </span>
-                </div>
-                <div class="menu-anchor">
-                  <button id="aiModelButton" class="meta-button model-button" type="button" aria-haspopup="menu" data-menu-trigger>
-                    <img class="deepseek-logo" src="icons/deepseek.svg" alt="" aria-hidden="true">
-                    <span id="aiModelLabel">DeepSeek Flash</span>
-                    <span id="aiModelEffort" class="model-effort"></span>
-                    <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-                  </button>
-                  <div id="aiModelMenu" class="menu ai-menu glass menu-above menu-right" role="menu" hidden></div>
-                </div>
-              </div>
             </div>
           </div>
         </div>

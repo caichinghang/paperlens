@@ -13,8 +13,6 @@ const HISTORY_KEY = "aiHistory";
 const CHATS_KEY = "aiChats";
 const MAX_CHATS = 50;
 const REOPEN_SETTINGS_KEY = "paperlensReopenSettings";
-// Some Chromium browsers open the microphone for dictation but never return any text.
-const DICTATION_TIMEOUT_MS = 12_000;
 const DEFAULT_SETTINGS = {
   apiKey: "",
   model: "deepseek-flash",
@@ -33,7 +31,8 @@ const MODEL_PRESETS = [
 ];
 // Earlier versions of this extension defaulted to these IDs; DeepSeek no longer lists them.
 const RETIRED_DEFAULT_MODELS = new Set(["deepseek-chat", "deepseek-reasoner"]);
-const THINKING_LEVELS = [["none", t("Off")], ["low", t("Low")], ["high", t("High")], ["max", t("Max")]];
+// Three steps on the slider; each shows one word and sends the API value beside it.
+const THINKING_LEVELS = [["low", t("Low")], ["high", t("Medium")], ["max", t("High")]];
 const MAX_ATTACHED_PAGES = 8;
 const MAX_ATTACHED_REGIONS = 4;
 // Older page images are replaced by a short note so long chats don't resend every image.
@@ -765,17 +764,14 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     language: $("#aiLanguage"),
     mentionMenu: $("#aiMentionMenu"),
     messages: $("#aiMessages"),
-    mic: $("#aiMic"),
     model: $("#aiModel"),
-    modelButton: $("#aiModelButton"),
-    modelEffort: $("#aiModelEffort"),
-    modelLabel: $("#aiModelLabel"),
-    modelMenu: $("#aiModelMenu"),
+    thinkingButton: $("#aiThinking"),
+    thinkingLabel: $("#aiThinkingLabel"),
+    thinkingMenu: $("#aiThinkingMenu"),
     pageFormat: $("#aiPageFormat"),
     panel: $("#aiPanel"),
     send: $("#aiSend"),
     settings: $("#aiSettings"),
-    docName: $("#aiDocName"),
     settingsCancel: $("#aiSettingsCancel"),
     tavilyKey: $("#aiTavilyKey"),
     theme: $("#aiTheme"),
@@ -785,8 +781,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     toggle: $("#aiToggle"),
     webSearch: $("#aiWebSearch")
   };
-  const menus = [el.titleMenu, el.attachMenu, el.modelMenu, el.mentionMenu, el.commandMenu];
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const menus = [el.titleMenu, el.attachMenu, el.thinkingMenu, el.mentionMenu, el.commandMenu];
   const tools = createAgentTools(host);
   const imageCache = new Map();
 
@@ -797,7 +792,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   let controller = null;
   let docKey = "";
   let updateFrame = 0;
-  let recognition = null;
   let mention = null;
   let command = null;
   let skill = null;
@@ -815,7 +809,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   let autoName = true;
 
   el.panel.inert = true;
-  el.mic.hidden = !SpeechRecognition;
   // Menus inside the panel size themselves to it, so they fit however narrow or short it is dragged.
   new ResizeObserver(([entry]) => {
     el.panel.style.setProperty("--ai-panel-width", `${Math.round(entry.contentRect.width)}px`);
@@ -829,6 +822,10 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       settings.model = DEFAULT_SETTINGS.model;
     }
     delete settings.mode;
+    // Thinking can no longer be switched off; a chat that had it off starts at the lowest step.
+    if (!THINKING_LEVELS.some(([value]) => value === settings.thinking)) {
+      settings.thinking = THINKING_LEVELS[0][0];
+    }
 
     chats = Array.isArray(savedChats?.chats) ? savedChats.chats.filter(chat => chat?.id && Array.isArray(chat.messages)) : [];
     let activeId = savedChats?.activeId;
@@ -1208,7 +1205,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
 
   function close() {
     closeMenus();
-    recognition?.stop();
     el.appShell.classList.remove("ai-open");
     el.panel.inert = true;
     el.toggle.setAttribute("aria-expanded", "false");
@@ -1216,15 +1212,10 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   function updateMeta() {
-    const preset = MODEL_PRESETS.find(entry => entry.id === settings.model);
-    el.modelLabel.textContent = preset?.label || settings.model;
-    el.modelEffort.textContent = isDeepSeekHost() ? THINKING_LEVELS.find(([value]) => value === settings.thinking)?.[1] || "" : "";
+    // How hard the model thinks only applies to DeepSeek endpoints.
+    el.thinkingButton.parentElement.hidden = !isDeepSeekHost();
+    el.thinkingLabel.textContent = THINKING_LEVELS[thinkingIndex()][1];
     el.title.textContent = truncate(chatName || chatTitle(history), 30);
-    // The document the chat is about, shortened to fit beside the model picker.
-    const name = host.getDocumentInfo().name;
-    el.docName.hidden = !name;
-    el.docName.title = name;
-    el.docName.lastElementChild.textContent = truncate(name, 22);
   }
 
   function setPageFormatChoice(value) {
@@ -1488,25 +1479,40 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       </button>`;
   }
 
-  function buildModelMenu() {
-    const options = MODEL_PRESETS.some(preset => preset.id === settings.model)
-      ? MODEL_PRESETS
-      : [...MODEL_PRESETS, { id: settings.model, label: settings.model, hint: t("Custom") }];
+  function thinkingIndex() {
+    return Math.max(0, THINKING_LEVELS.findIndex(([value]) => value === settings.thinking));
+  }
 
-    // A lone model isn't a choice, so the list appears only for a custom model ID (or a non-DeepSeek
-    // host, where the menu would otherwise be empty).
-    const showModels = options.length > 1 || !isDeepSeekHost();
-    let html = showModels ? options.map(option => `
-      <button type="button" role="menuitem" data-model="${escapeHtml(option.id)}" class="${option.id === settings.model ? "is-current" : ""}">
-        <span>${escapeHtml(option.label)} <em>${escapeHtml(option.hint)}</em></span>
-      </button>`).join("") : "";
+  // Only how hard the model thinks is a choice here (a slider); the model itself is set in Settings.
+  // The thumb follows the pointer freely while it is held, then settles on the nearest step.
+  function buildThinkingMenu() {
+    const last = THINKING_LEVELS.length - 1;
+    const index = thinkingIndex();
+    const dots = THINKING_LEVELS.map((_, step) => `<span class="effort-dot" style="--p:${step / last}"></span>`).join("");
+    el.thinkingMenu.innerHTML = `
+      <div class="effort-title">${escapeHtml(THINKING_LEVELS[index][1])}</div>
+      <div class="effort-slider" role="slider" tabindex="0" aria-label="${escapeHtml(t("Reasoning effort"))}" aria-valuemin="0" aria-valuemax="${last}" aria-valuenow="${index}" aria-valuetext="${escapeHtml(THINKING_LEVELS[index][1])}" style="--p:${index / last}">
+        <span class="effort-track"></span><span class="effort-fill"></span>${dots}<span class="effort-thumb"></span>
+      </div>`;
+  }
 
-    if (isDeepSeekHost()) {
-      html += `${showModels ? "<hr>" : ""}<div class="menu-label">${t("Thinking")}</div>` + THINKING_LEVELS.map(([value, label]) => `
-        <button type="button" role="menuitem" data-thinking="${value}" class="${value === settings.thinking ? "is-current" : ""}">${label}</button>`).join("");
+  // Shows position `p` (0–1) on the slider along with the step it is nearest to.
+  function showEffort(slider, p) {
+    const last = THINKING_LEVELS.length - 1;
+    const index = Math.round(p * last);
+    slider.style.setProperty("--p", String(p));
+    slider.setAttribute("aria-valuenow", String(index));
+    slider.setAttribute("aria-valuetext", THINKING_LEVELS[index][1]);
+    el.thinkingMenu.querySelector(".effort-title").textContent = THINKING_LEVELS[index][1];
+    el.thinkingLabel.textContent = THINKING_LEVELS[index][1];
+    return index;
+  }
+
+  async function commitEffort(slider, index) {
+    showEffort(slider, index / (THINKING_LEVELS.length - 1));
+    if (THINKING_LEVELS[index][0] !== settings.thinking) {
+      await saveSettings({ thinking: THINKING_LEVELS[index][0] });
     }
-
-    el.modelMenu.innerHTML = html;
   }
 
   function insertAtCaret(text) {
@@ -3023,73 +3029,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     el.input.style.height = `${Math.min(el.input.scrollHeight, 160)}px`;
   }
 
-  // ---------- Dictation ----------
-
-  // The Web Speech API streams audio to the browser vendor's recognition service. Chrome has one; many
-  // other Chromium browsers (Arc, Aside, Brave…) open the microphone but never return text, so a
-  // session that hears nothing for a while, or fails with a service error, ends with an explanation.
-  function toggleDictation() {
-    if (recognition) {
-      recognition.session.stoppedByUser = true;
-      recognition.stop();
-      return;
-    }
-
-    const base = el.input.value.trim() ? `${el.input.value.trimEnd()} ` : "";
-    const session = { heard: false, noService: false, reported: false, stoppedByUser: false, timer: 0 };
-    const current = new SpeechRecognition();
-    current.session = session;
-    current.lang = uiLanguage === "zh" ? "zh-CN" : navigator.language || "en-US";
-    current.interimResults = true;
-    current.addEventListener("audiostart", () => {
-      session.timer = window.setTimeout(() => {
-        if (!session.heard) {
-          session.noService = true;
-          current.abort();
-        }
-      }, DICTATION_TIMEOUT_MS);
-    });
-    current.addEventListener("result", event => {
-      session.heard = true;
-      clearTimeout(session.timer);
-      el.input.value = base + [...event.results].map(result => result[0].transcript).join("");
-      autosize();
-      renderAttachments();
-    });
-    current.addEventListener("error", event => {
-      if (event.error === "not-allowed") {
-        session.reported = true;
-        toast(t("Microphone access is blocked for dictation"));
-      } else if (event.error === "network" || event.error === "service-not-allowed" || event.error === "language-not-supported") {
-        session.noService = true;
-      } else if (event.error !== "aborted" && event.error !== "no-speech") {
-        session.reported = true;
-        toast(t("Dictation stopped"));
-      }
-    });
-    current.addEventListener("end", () => {
-      clearTimeout(session.timer);
-      if (recognition === current) {
-        recognition = null;
-      }
-      el.mic.classList.remove("is-listening");
-      if (session.noService && !session.heard && !session.stoppedByUser && !session.reported) {
-        toast(t("No speech was recognised. This browser may not provide a speech recognition service — try Google Chrome, or use macOS dictation (press Fn twice)."), 8000);
-      }
-      el.input.focus();
-    });
-
-    recognition = current;
-    el.mic.classList.add("is-listening");
-    try {
-      current.start();
-    } catch {
-      recognition = null;
-      el.mic.classList.remove("is-listening");
-      toast(t("Dictation stopped"));
-    }
-  }
-
   // ---------- Events ----------
 
   el.toggle.addEventListener("click", () => (isOpen() ? close() : open()));
@@ -3135,9 +3074,59 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     buildAttachMenu();
     toggleMenu(el.attachMenu);
   });
-  el.modelButton.addEventListener("click", () => {
-    buildModelMenu();
-    toggleMenu(el.modelMenu);
+  el.thinkingButton.addEventListener("click", () => {
+    buildThinkingMenu();
+    toggleMenu(el.thinkingMenu);
+  });
+  el.thinkingMenu.addEventListener("pointerdown", event => {
+    const slider = event.target.closest(".effort-slider");
+    if (!slider || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    slider.focus({ preventScroll: true });
+    slider.setPointerCapture(event.pointerId);
+    const thumb = slider.querySelector(".effort-thumb").offsetWidth;
+    const last = THINKING_LEVELS.length - 1;
+    const position = moveEvent => {
+      const box = slider.getBoundingClientRect();
+      return Math.min(1, Math.max(0, (moveEvent.clientX - box.left - thumb / 2) / (box.width - thumb)));
+    };
+    // Grabbing the thumb follows the pointer exactly. Pressing the track glides to the nearest step
+    // instead, and only turns into a drag once the pointer moves.
+    let dragging = Boolean(event.target.closest(".effort-thumb"));
+    slider.classList.toggle("is-dragging", dragging);
+    let index = dragging ? showEffort(slider, position(event)) : showEffort(slider, Math.round(position(event) * last) / last);
+    const startX = event.clientX;
+    const move = moveEvent => {
+      if (!dragging && Math.abs(moveEvent.clientX - startX) < 4) {
+        return;
+      }
+      dragging = true;
+      slider.classList.add("is-dragging");
+      index = showEffort(slider, position(moveEvent));
+    };
+    const end = () => {
+      slider.removeEventListener("pointermove", move);
+      slider.removeEventListener("pointerup", end);
+      slider.removeEventListener("pointercancel", end);
+      slider.classList.remove("is-dragging");
+      commitEffort(slider, index);
+    };
+    slider.addEventListener("pointermove", move);
+    slider.addEventListener("pointerup", end);
+    slider.addEventListener("pointercancel", end);
+  });
+  el.thinkingMenu.addEventListener("keydown", event => {
+    const slider = event.target.closest(".effort-slider");
+    const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[event.key];
+    if (!slider || (!step && event.key !== "Home" && event.key !== "End")) {
+      return;
+    }
+    event.preventDefault();
+    const last = THINKING_LEVELS.length - 1;
+    const current = Number(slider.getAttribute("aria-valuenow"));
+    commitEffort(slider, event.key === "Home" ? 0 : event.key === "End" ? last : Math.min(last, Math.max(0, current + step)));
   });
   el.settingsCancel.addEventListener("click", () => showSettings(false));
   el.keyToggle.addEventListener("click", () => {
@@ -3189,7 +3178,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       host.setTheme(button.dataset.appearance);
     }
   });
-  el.mic.addEventListener("click", toggleDictation);
   el.mentionMenu.addEventListener("pointerdown", event => event.preventDefault());
   el.commandMenu.addEventListener("pointerdown", event => event.preventDefault());
 
@@ -3223,12 +3211,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     } else if (dataset.attach) {
       closeMenus();
       handleAttach(dataset.attach);
-    } else if (dataset.model) {
-      closeMenus();
-      await saveSettings({ model: dataset.model });
-    } else if (dataset.thinking) {
-      closeMenus();
-      await saveSettings({ thinking: dataset.thinking });
     } else if (dataset.mentionIndex !== undefined) {
       chooseMention(Number(dataset.mentionIndex));
     } else if (dataset.commandIndex !== undefined) {
