@@ -1,31 +1,38 @@
-// Picks a thinking effort for a question, using TypeSafe's Jev model.
+// Picks a reasoning effort for a question, using TypeSafe's Jev model.
 //
-// Jev is a "System One" model: instead of writing text it answers typed questions and returns a
-// probability for every option, so there is nothing to parse and a hesitant answer is visible as a
-// number rather than hidden in prose. The question here is a Choice over the same four levels the
-// Thinking menu offers. When the probabilities come out flat, the answer is discarded rather than
-// trusted — the effort dial is a convenience, and a wrong guess should never cost more than the
-// default would have.
+// Jev is a "System One" model: instead of writing text it answers typed questions and returns
+// probabilities, so there is nothing to parse. The question here is a Score, not a Choice, because
+// effort is ordered — a Choice would treat "Instant" and "High" as unrelated categories and have to
+// commit to one box, while a Score returns a probability-weighted position along the levels. That
+// matters for the common case: when Jev spreads its answer across two neighbouring levels, a Choice
+// reads as low confidence, but a Score reads as "between these two", which is the useful answer.
 //
-// Docs: https://docs.typesafe.ai/primitives/choice
+// Because the answer is a position, a confused answer degrades on its own: a flat distribution
+// averages to the middle of the scale, which is where an unanswerable question should land anyway.
+// So there is no confidence threshold here. Only a failed request falls back.
+//
+// Docs: https://docs.typesafe.ai/primitives/score
 
 const ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const MODEL = "jev-latest";
 // Jev answers in roughly 70–500 ms. Past this the wait costs more than picking well is worth.
 const TIMEOUT_MS = 1500;
-// Below this the distribution is too flat to act on. See https://docs.typesafe.ai/confidence.
-const MIN_CONFIDENCE = 0.5;
-// Where an unanswerable or unanswered question lands. Matches the effort the dial ships with.
+// Where an unanswered question lands. Matches the effort the slider ships with.
 export const AUTO_FALLBACK = "high";
 
-// Option descriptions are what Jev matches the question against, so they describe the *question*
-// that deserves each level, not the level itself.
-const EFFORT_CRITERIA = {
-  none: "Small talk, greetings, thanks, or a question about the reader's own position in the document (what page am I on). No reasoning required.",
-  low: "A direct lookup or restatement: find a fact, define a term, translate a sentence, summarise a short passage, or fill in a form field. The answer is present in the text and needs no working out.",
-  high: "Needs real reasoning: explain why something holds, compare or contrast several parts of the document, synthesise across pages, evaluate an argument, or plan a multi-step edit to the PDF.",
-  max: "Hard analytical work: follow a mathematical derivation or proof, check a technical argument step by step, debug a contradiction in the source, or reason carefully over many pages at once."
-};
+// The levels in order, low to high, as the API values the assistant sends on. The reader sees these
+// as Instant, Low, Medium and High.
+const EFFORT_LEVELS = ["none", "low", "high", "max"];
+
+// One description per level, in the same order. Each describes the *question* that deserves that
+// level, not the level itself, and stands on its own: Jev reads them independently, so none of them
+// refers to the ones around it.
+const EFFORT_CRITERIA = [
+  "Small talk, greetings, thanks, or a question about the reader's own position in the document (what page am I on). No reasoning required.",
+  "A direct lookup or restatement: find a fact, define a term, translate a sentence, summarise a short passage, or fill in a form field. The answer is present in the text and needs no working out.",
+  "Needs real reasoning: explain why something holds, compare or contrast several parts of the document, synthesise across pages, evaluate an argument, or plan a multi-step edit to the PDF.",
+  "Hard analytical work: follow a mathematical derivation or proof, check a technical argument step by step, debug a contradiction in the source, or reason carefully over many pages at once."
+];
 
 const INSTRUCTIONS = [
   "A reader is asking an AI assistant a question about a PDF they have open.",
@@ -43,9 +50,9 @@ function deadline(signal) {
   return AbortSignal.any ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
-// Asks Jev which effort level fits. Returns null whenever the answer can't be trusted — no key, a
-// failed or slow request, an unknown level, or probabilities too spread out to mean anything — and
-// the caller falls back. Never throws: routing must not be able to break sending a message.
+// Asks Jev how much reasoning the question deserves. Returns null whenever there is no answer to
+// act on — no key, or a request that failed, timed out or came back unreadable — and the caller
+// falls back. Never throws: routing must not be able to break sending a message.
 export async function chooseThinkingEffort({ key, question, context = {}, signal } = {}) {
   if (!key || !question?.trim()) {
     return null;
@@ -72,7 +79,7 @@ export async function chooseThinkingEffort({ key, question, context = {}, signal
           can_edit_pdf: Boolean(context.allowEdits)
         },
         questions: {
-          effort: { type: "choice", instructions: INSTRUCTIONS, criteria: EFFORT_CRITERIA }
+          effort: { type: "score", instructions: INSTRUCTIONS, criteria: EFFORT_CRITERIA }
         }
       })
     });
@@ -92,10 +99,12 @@ export async function chooseThinkingEffort({ key, question, context = {}, signal
     return null;
   }
 
-  const effort = answer?.choice;
-  const confidence = Number(answer?.confidence);
-  if (!Object.hasOwn(EFFORT_CRITERIA, effort) || !(confidence >= MIN_CONFIDENCE)) {
+  // `score` is the probability-weighted position on the levels, so it usually falls between them.
+  // The nearest level is the one to send.
+  const score = Number(answer?.score);
+  if (!Number.isFinite(score)) {
     return null;
   }
-  return { effort, confidence };
+  const index = Math.min(EFFORT_LEVELS.length - 1, Math.max(0, Math.round(score)));
+  return { effort: EFFORT_LEVELS[index], score, confidence: Number(answer?.confidence) };
 }
