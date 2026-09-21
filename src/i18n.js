@@ -309,6 +309,7 @@ const ZH = {
   "Get an API key at platform.deepseek.com": "在 platform.deepseek.com 获取 API 密钥",
   "Editing": "编辑",
   "Editing & web": "编辑与联网",
+  "Chat history": "聊天记录",
   "Outline": "空心",
   "Solid": "实心",
   "Let the AI edit the PDF": "允许 AI 编辑 PDF",

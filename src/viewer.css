@@ -275,9 +275,20 @@ svg {
   background: transparent;
 }
 
+.segmented button,
+.ai-title-button,
+.composer-icon,
+.thinking-button {
+  position: relative;
+}
+
 /* Header buttons name themselves right away, in the same grey tag as the floating buttons. The name
    drops below the button (it is ::before because the workspace button's update dot uses ::after). */
-.panel-icon-button::before {
+.panel-icon-button::before,
+.segmented button::before,
+.ai-title-button::before,
+.composer-icon::before,
+.thinking-button::before {
   content: attr(aria-label);
   position: absolute;
   top: calc(100% + 4px);
@@ -299,15 +310,75 @@ svg {
 }
 
 #sidebarClose::before,
-#aiSettingsCancel::before {
+#aiSettingsCancel::before,
+.segmented button:first-child::before,
+.ai-title-button::before {
   right: auto;
   left: 0;
 }
 
+/* The middle sidebar tab centres its name under itself. */
+.segmented button:not(:first-child):not(:last-child)::before {
+  right: auto;
+  left: 50%;
+  transform: translate(-50%, -3px);
+}
+
+.panel-icon-button[data-tip]::before,
+.segmented button[data-tip]::before,
+.ai-title-button[data-tip]::before,
+.composer-icon[data-tip]::before,
+.thinking-button[data-tip]::before {
+  content: attr(data-tip);
+}
+
+/* The chat history button's own words are the chat's title, so its tag only has data-tip. */
+.ai-title-button:not([data-tip])::before {
+  display: none;
+}
+
+/* Composer buttons sit at the bottom, so their names open above them. */
+.composer-icon::before,
+.thinking-button::before {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translateY(3px);
+}
+
+.composer-icon::before {
+  right: auto;
+  left: 0;
+}
+
+.menu-anchor:has(.ai-menu:not([hidden])) > .composer-icon::before,
+.menu-anchor:has(.ai-menu:not([hidden])) > .thinking-button::before {
+  display: none;
+}
+
 .panel-icon-button:hover::before,
-.panel-icon-button:focus-visible::before {
+.panel-icon-button:focus-visible::before,
+.segmented button:hover::before,
+.segmented button:focus-visible::before,
+.ai-title-button:hover::before,
+.ai-title-button:focus-visible::before,
+.composer-icon:hover::before,
+.composer-icon:focus-visible::before,
+.thinking-button:hover::before,
+.thinking-button:focus-visible::before {
   opacity: 1;
   transform: translateY(0);
+  transition-delay: 1s;
+}
+
+.segmented button:not(:first-child):not(:last-child):hover::before,
+.segmented button:not(:first-child):not(:last-child):focus-visible::before {
+  transform: translate(-50%, 0);
+  transition-delay: 1s;
+}
+
+/* No tag over the chat history menu while it is open. */
+.menu-anchor:has(#aiTitleMenu:not([hidden])) .ai-title-button::before {
+  display: none;
 }
 
 .panel-icon-button svg,
@@ -372,6 +443,11 @@ svg {
 .corner-button:focus-visible::after {
   opacity: 1;
   transform: translate(0, -50%);
+  transition-delay: 1s;
+}
+
+.corner-button[data-tip]::after {
+  content: attr(data-tip);
 }
 
 .corner-right {
@@ -1177,6 +1253,11 @@ svg {
 .dock-button:focus-visible::after {
   opacity: 1;
   transform: translate(0, -50%);
+  transition-delay: 1s;
+}
+
+.dock-button[data-tip]::after {
+  content: attr(data-tip);
 }
 
 .dock-button svg {
@@ -2285,13 +2366,11 @@ svg {
   border: 1px solid var(--line);
   border-radius: 24px;
   background: color-mix(in srgb, var(--bg) 92%, transparent);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.04), 0 6px 18px rgba(15, 15, 15, 0.05);
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition: border-color 140ms ease;
 }
 
 .ai-composer:focus-within {
   border-color: var(--line-strong);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.05), 0 8px 24px rgba(15, 15, 15, 0.08);
 }
 
 .composer-icon {
@@ -2404,7 +2483,13 @@ svg {
   background: var(--soft);
   opacity: 0.7;
   transform: translate(-50%, -50%);
-  transition: transform 150ms var(--ease-out), opacity 150ms ease;
+  transition: transform 150ms var(--ease-out), opacity 150ms ease, background 150ms ease;
+}
+
+/* On the blue part of the bar the grey would be hard to see, so the dot turns white. */
+.effort-dot.is-filled {
+  background: #ffffff;
+  opacity: 0.85;
 }
 
 /* The dots are tiny, so an invisible ring around each one makes them easy to hover. */
@@ -2415,7 +2500,8 @@ svg {
   border-radius: 50%;
 }
 
-.effort-dot:hover {
+.effort-dot:hover,
+.effort-dot.is-filled:hover {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1.4);
 }

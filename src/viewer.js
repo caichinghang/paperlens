@@ -10,12 +10,14 @@ import { headingCandidates } from "./headings.js";
 import { collectRules, snapBoxToRule, snapTextToRule } from "./rules.js";
 import { loadLocalFile, saveLocalFile, saveLocalPage } from "./local-file.js";
 import { getItem, removeItem, setItem } from "./store.js";
+import { initTooltips } from "./tooltips.js";
 import { createWorkspace } from "./workspace.js";
 
 const params = new URLSearchParams(window.location.search);
 const initialPdfUrl = params.get("src") || "";
 
 translateDom();
+initTooltips();
 
 const $ = selector => document.querySelector(selector);
 
