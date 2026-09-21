@@ -45,6 +45,15 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-panel: cubic-bezier(0.32, 0.72, 0, 1);
   --tool-color: #fcc419;
+  /* Skill and scenario icon hues. One per family of skill, dark enough to read as a line drawing
+     on a pale wash of itself. The dark theme lifts each one so it stays legible on #191919. */
+  --i-blue: #2f6fed;
+  --i-violet: #7a56e8;
+  --i-green: #16915a;
+  --i-amber: #b97710;
+  --i-red: #d14a38;
+  --i-teal: #0e8e9c;
+  --i-pink: #cc3f92;
   --deboss-shade: rgba(15, 15, 15, 0.12);
   --deboss-light: rgba(255, 255, 255, 0.9);
   --field-focus-shadow: rgba(15, 15, 15, 0.1);
@@ -81,7 +90,21 @@
     --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
     --stage: #191919;
     --page: #ffffff;
-    --deboss-shade: rgba(0, 0, 0, 0.45);
+    --i-blue: #7aa7ff;
+    --i-violet: #ad93ff;
+    --i-green: #4ecb92;
+    --i-amber: #e0a955;
+    --i-red: #ff8f7c;
+    --i-teal: #45c3d0;
+    --i-pink: #ff85c6;
+    --i-blue: #7aa7ff;
+  --i-violet: #ad93ff;
+  --i-green: #4ecb92;
+  --i-amber: #e0a955;
+  --i-red: #ff8f7c;
+  --i-teal: #45c3d0;
+  --i-pink: #ff85c6;
+  --deboss-shade: rgba(0, 0, 0, 0.45);
     --deboss-light: rgba(255, 255, 255, 0.07);
     --field-focus-shadow: rgba(255, 255, 255, 0.1);
   }
@@ -5675,10 +5698,22 @@ body.is-block-sorting * {
   place-items: center;
   width: 24px;
   height: 24px;
-  border: 1px solid var(--line);
   border-radius: 7px;
-  background: var(--bg);
-  color: var(--text);
+  /* Both the wash and the drawing come from the same hue, so one variable colours the whole tile. */
+  color: var(--icon-hue, var(--text));
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+/* A scenario is a mode rather than an action, so its tile is a circle and its wash is stronger.
+   Shape says which kind of thing it is; colour says which one. */
+.skill-icon.is-scenario {
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 26%, transparent);
+}
+
+/* The closed shape inside an icon carries a second, paler tone of the same hue. */
+.skill-icon svg .ic-fill {
+  fill: color-mix(in srgb, currentColor 30%, transparent);
 }
 
 .skill-icon svg,
@@ -5705,9 +5740,15 @@ body.is-block-sorting * {
   text-overflow: ellipsis;
 }
 
+/* The chip carries the skill's hue so its icon matches the tile it was picked from; the label
+   stays at text colour, since a coloured word would read as a link. */
 .ai-chip.is-skill {
-  color: var(--text);
+  color: var(--icon-hue, var(--text));
   font-weight: 500;
+}
+
+.ai-chip.is-skill > span {
+  color: var(--text);
 }
 
 .msg-skill {

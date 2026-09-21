@@ -123,28 +123,28 @@ const SKILL_ICONS = {
   define: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"></path><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"></path></svg>',
   outline: TOOL_ICONS.get_outline,
   notes: TOOL_ICONS.highlight_text,
-  quiz: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>',
-  glossary: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4z"></path><circle cx="7.5" cy="7.5" r="1"></circle></svg>',
+  quiz: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="ic-fill" cx="12" cy="12" r="9"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>',
+  glossary: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.6 2.6A2 2 0 0 0 11.2 2H4a2 2 0 0 0-2 2v7.2a2 2 0 0 0 .6 1.4l8.7 8.7a2.4 2.4 0 0 0 3.4 0l6.6-6.6a2.4 2.4 0 0 0 0-3.4z"></path><circle class="ic-fill" cx="7.5" cy="7.5" r="1"></circle></svg>',
   "study-notes": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"></path><path d="M2 6h4M2 10h4M2 14h4M2 18h4"></path><path d="M21.4 5.6a2.1 2.1 0 1 0-3-3L13 8l-1 4 4-1z"></path></svg>',
-  flashcards: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2"></rect><path d="M7 3h12a2 2 0 0 1 2 2v12"></path></svg>',
-  "review-form": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg>',
+  flashcards: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="ic-fill" x="3" y="7" width="14" height="14" rx="2"></rect><path d="M7 3h12a2 2 0 0 1 2 2v12"></path></svg>',
+  "review-form": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="ic-fill" x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg>',
   "fill-form": TOOL_ICONS.fill_form_fields,
   extract: TOOL_ICONS.report_items,
-  "table-csv": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18M3 15h18M9 3v18"></path></svg>',
+  "table-csv": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="ic-fill" x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18M3 15h18M9 3v18"></path></svg>',
   redact: TOOL_ICONS.propose_redactions,
   solve: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z"></path><path d="m14 7 3 3"></path></svg>',
-  "review-plan": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>',
-  "paper-card": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 9h10M7 13h6"></path></svg>',
-  critique: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path><path d="M11 8v3M11 14h.01"></path></svg>',
+  "review-plan": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="ic-fill" x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>',
+  "paper-card": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="ic-fill" x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 9h10M7 13h6"></path></svg>',
+  critique: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="ic-fill" cx="11" cy="11" r="7"></circle><path d="m21 21-4.5-4.5"></path><path d="M11 8v3M11 14h.01"></path></svg>',
   citation: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h4v4H6zM14 7h4v4h-4z"></path><path d="M10 11c0 3-1.5 5-4 6M18 11c0 3-1.5 5-4 6"></path></svg>',
   risks: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 4.2 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3l-7.9-13.8a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4M12 17h.01"></path></svg>',
   "plain-terms": '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><path d="M8 9h8M8 13h5"></path></svg>',
   counter: TOOL_ICONS.list_markup,
-  deadlines: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path><path d="M12 13v3l2 1"></path></svg>',
-  "documents-needed": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M9 12h6M9 16h4"></path></svg>',
+  deadlines: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="ic-fill" x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path><path d="M12 13v3l2 1"></path></svg>',
+  "documents-needed": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="ic-fill" x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M9 12h6M9 16h4"></path></svg>',
   sign: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 16c2.5 0 4-9 6.5-9S9 16 11 16s2.5-4 4-4 1 3 2.5 3 2-1 3.5-1"></path><path d="M3 21h18"></path></svg>',
   kpis: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M8 16v-4M13 16V8M18 16v-7"></path></svg>',
-  "check-numbers": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18h8"></path></svg>',
+  "check-numbers": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="ic-fill" x="4" y="2" width="16" height="20" rx="2"></rect><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18h8"></path></svg>',
   memo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M8 12h8M8 15h8M8 18h5"></path></svg>'
 };
 
@@ -152,9 +152,52 @@ const SCENARIO_ICONS = {
   study: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 10 12 5 2 10l10 5 10-5z"></path><path d="M6 12v5c3 2 9 2 12 0v-5"></path></svg>',
   research: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v15H6.5A2.5 2.5 0 0 0 4 19.5z"></path><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"></path></svg>',
   contracts: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 7h14M8 21h8"></path><path d="m5 7-3 7a3.5 3.5 0 0 0 6 0z"></path><path d="m19 7-3 7a3.5 3.5 0 0 0 6 0z"></path></svg>',
-  forms: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg>',
+  forms: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="ic-fill" x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path></svg>',
   reports: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M8 16v-4M13 16V8M18 16v-7"></path></svg>'
 };
+
+// Each icon is tinted by what its skill does, not by which scenario it belongs to, so the colours
+// group the menu into families the eye can skim: reading, studying, filling in, checking risk,
+// pulling out numbers. A skill with no hue falls back to the text colour.
+const HUES = {
+  read: "--i-blue",
+  study: "--i-violet",
+  fill: "--i-green",
+  risk: "--i-red",
+  data: "--i-teal",
+  language: "--i-pink",
+  refs: "--i-amber"
+};
+
+const SKILL_HUES = {
+  brief: HUES.read, "explain-page": HUES.read, summarize: HUES.read, outline: HUES.read,
+  define: HUES.read, "plain-terms": HUES.read,
+  quiz: HUES.study, flashcards: HUES.study, "study-notes": HUES.study, notes: HUES.study,
+  "review-plan": HUES.study, solve: HUES.study, glossary: HUES.study,
+  "fill-form": HUES.fill, "review-form": HUES.fill, "documents-needed": HUES.fill, sign: HUES.fill,
+  risks: HUES.risk, redact: HUES.risk, critique: HUES.risk,
+  kpis: HUES.data, "check-numbers": HUES.data, "table-csv": HUES.data, extract: HUES.data,
+  memo: HUES.data, "paper-card": HUES.data,
+  translate: HUES.language,
+  citation: HUES.refs, counter: HUES.refs, deadlines: HUES.refs
+};
+
+// A scenario takes the hue of the family it mostly draws on, so picking one previews its skills.
+const SCENARIO_HUES = {
+  study: HUES.study,
+  research: HUES.read,
+  contracts: HUES.risk,
+  forms: HUES.fill,
+  reports: HUES.data
+};
+
+// The tile says which kind of thing this is: a skill is a rounded square, a scenario a circle.
+function iconTile(kind, id) {
+  const scenario = kind === "scenario";
+  const hue = (scenario ? SCENARIO_HUES : SKILL_HUES)[id];
+  const icon = (scenario ? SCENARIO_ICONS : SKILL_ICONS)[id] || "";
+  return `<span class="skill-icon${scenario ? " is-scenario" : ""}"${hue ? ` style="--icon-hue: var(${hue})"` : ""}>${icon}</span>`;
+}
 
 // ---------- Skills & scenarios ----------
 // Every skill is reachable by typing "/" in the composer. @{page} is the attached pages (or the
@@ -1709,10 +1752,9 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
         section = item.kind;
         html += `<div class="menu-label">${t(section === "scenario" ? "Scenarios" : "Skills")}</div>`;
       }
-      const icon = (item.kind === "scenario" ? SCENARIO_ICONS : SKILL_ICONS)[item.id] || "";
       html += `
       <button type="button" role="option" data-command-index="${index}" class="command-item ${index === command.active ? "is-active" : ""}" aria-selected="${index === command.active}" title="${escapeHtml(item.description)}">
-        <span class="skill-icon">${icon}</span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.description)}</small>
+        ${iconTile(item.kind, item.id)}<strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.description)}</small>
       </button>`;
     });
     el.commandMenu.innerHTML = html;
@@ -1740,9 +1782,9 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
 
   // ---------- Attachment chips ----------
 
-  function chip(label, key, icon, invalid = false, extraClass = "") {
+  function chip(label, key, icon, invalid = false, extraClass = "", style = "") {
     return `
-      <span class="ai-chip${invalid ? " is-invalid" : ""}${extraClass ? ` ${extraClass}` : ""}">
+      <span class="ai-chip${invalid ? " is-invalid" : ""}${extraClass ? ` ${extraClass}` : ""}"${style ? ` style="${style}"` : ""}>
         ${icon}<span>${escapeHtml(label)}</span>
         <button type="button" data-chip-remove="${key}" aria-label="${escapeHtml(t("Remove {label}", { label }))}">${ICONS.close}</button>
       </span>`;
@@ -1750,7 +1792,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
 
   function renderAttachments() {
     const info = host.getDocumentInfo();
-    let html = skill ? chip(skill.label, "skill", SKILL_ICONS[skill.id] || "", false, "is-skill") : "";
+    const skillHue = skill ? SKILL_HUES[skill.id] : "";
+    let html = skill ? chip(skill.label, "skill", SKILL_ICONS[skill.id] || "", false, "is-skill", skillHue ? `--icon-hue: var(${skillHue})` : "") : "";
     html += quote ? chip(`“${truncate(quote, 36)}”`, "quote", ICONS.quote) : "";
 
     regions.forEach((region, index) => {
