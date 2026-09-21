@@ -2285,13 +2285,11 @@ svg {
   border: 1px solid var(--line);
   border-radius: 24px;
   background: color-mix(in srgb, var(--bg) 92%, transparent);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.04), 0 6px 18px rgba(15, 15, 15, 0.05);
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition: border-color 140ms ease;
 }
 
 .ai-composer:focus-within {
   border-color: var(--line-strong);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.05), 0 8px 24px rgba(15, 15, 15, 0.08);
 }
 
 .composer-icon {
