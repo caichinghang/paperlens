@@ -2436,52 +2436,40 @@ svg {
   color: var(--text);
   font-size: 13.5px;
   font-weight: 600;
-  text-align: center;
 }
 
-/* With a TypeSafe key the title shares its row with the Auto switch, so it stops being centred. */
-.effort-head {
+/* Auto on its own row, then the effort the slider is pointing at. */
+.effort-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  min-height: 22px;
+}
+
+.effort-reading {
+  justify-content: flex-start;
   gap: 8px;
 }
 
-.effort-head .effort-title {
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.effort-name {
+  color: var(--soft);
+  font-size: 12.5px;
+  font-weight: 550;
 }
 
-.effort-auto {
-  flex: none;
-  height: 22px;
-  padding: 0 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 11px;
-  background: transparent;
+.effort-scale {
+  display: grid;
+  gap: 6px;
+}
+
+/* What the two ends of the slider buy you, rather than numbers nobody can read off a dot. */
+.effort-ends {
+  display: flex;
+  justify-content: space-between;
   color: var(--soft);
   font-size: 11.5px;
-  font-weight: 600;
-  line-height: 1;
-  transition: background 150ms var(--ease-out), color 150ms var(--ease-out), border-color 150ms var(--ease-out);
-}
-
-.effort-auto:hover {
-  color: var(--text);
-  background: var(--surface-hover);
-}
-
-.effort-auto[aria-checked="true"] {
-  border-color: transparent;
-  background: var(--accent);
-  color: #ffffff;
-}
-
-.effort-auto:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+  font-weight: 500;
 }
 
 /* While Auto is driving, the slider reports what it chose instead of taking input. */

@@ -100,11 +100,13 @@ export async function chooseThinkingEffort({ key, question, context = {}, signal
   }
 
   // `score` is the probability-weighted position on the levels, so it usually falls between them.
-  // The nearest level is the one to send.
+  // It rounds up rather than to the nearest: between two levels, the more thorough one. Thinking
+  // too hard about an easy question only costs a little time; thinking too little about a hard one
+  // costs the answer.
   const score = Number(answer?.score);
   if (!Number.isFinite(score)) {
     return null;
   }
-  const index = Math.min(EFFORT_LEVELS.length - 1, Math.max(0, Math.round(score)));
+  const index = Math.min(EFFORT_LEVELS.length - 1, Math.max(0, Math.ceil(score)));
   return { effort: EFFORT_LEVELS[index], score, confidence: Number(answer?.confidence) };
 }

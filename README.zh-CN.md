@@ -180,7 +180,7 @@ PaperLens 暂未上架 Chrome 应用商店，请以“已解压的扩展程序�
 | API 地址 | `https://api.deepseek.com` | 任何 OpenAI 兼容接口都可以 |
 | 模型 ID | `deepseek-flash` | 填写模型 ID；Agent 功能需要支持工具调用的模型 |
 | 页面发送方式 | 自动 | 模型不能识图时选择 **仅文字** |
-| 推理强度 | 中 | 低、中、高，在发送按钮旁用滑块选择；填入 TypeSafe 密钥后可开 **自动** |
+| 推理强度 | 中 | 瞬时、低、中、高，在发送按钮旁用滑块选择；填入 TypeSafe 密钥后可开 **自动** |
 | TypeSafe API 密钥 | — | 为该滑块添加 **自动** 开关：由 [Jev](https://docs.typesafe.ai) 为每个问题挑选强度。密钥在 [console.typesafe.ai](https://console.typesafe.ai/keys) 获取 |
 | 允许 AI 编辑 PDF | 开 | 关闭后助手不会修改 PDF |
 | 允许 AI 联网搜索 | 开 | 使用 Bing（含 Bing 新闻），再退回 DuckDuckGo；填入 Tavily 密钥（每月免费 1000 次）结果更稳定 |

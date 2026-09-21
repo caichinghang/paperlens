@@ -36,11 +36,9 @@ const MODEL_PRESETS = [
 ];
 // Earlier versions of this extension defaulted to these IDs; DeepSeek no longer lists them.
 const RETIRED_DEFAULT_MODELS = new Set(["deepseek-chat", "deepseek-reasoner"]);
-// Three steps on the slider; each shows one word and sends the API value beside it.
-const THINKING_LEVELS = [["low", t("Low")], ["high", t("Medium")], ["max", t("High")]];
-// Auto is not a step on the slider — it is an override that picks one. It can also land on "none"
-// for a greeting, a level the slider no longer offers, so that needs a word of its own.
-const EFFORT_LABELS = { none: t("Instant"), ...Object.fromEntries(THINKING_LEVELS) };
+// The steps on the slider, faster to smarter; each shows one word and sends the API value beside
+// it. Auto is not among them: it is a switch that picks one of them per question.
+const THINKING_LEVELS = [["none", t("Instant")], ["low", t("Low")], ["high", t("Medium")], ["max", t("High")]];
 const MAX_ATTACHED_PAGES = 8;
 const MAX_ATTACHED_REGIONS = 4;
 // Older page images are replaced by a short note so long chats don't resend every image.
@@ -783,6 +781,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     settingsCancel: $("#aiSettingsCancel"),
     tavilyKey: $("#aiTavilyKey"),
     typesafeKey: $("#aiTypesafeKey"),
+    typesafeKeyToggle: $("#aiTypesafeKeyToggle"),
     theme: $("#aiTheme"),
     title: $("#aiTitle"),
     titleButton: $("#aiTitleButton"),
@@ -833,9 +832,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       settings.model = DEFAULT_SETTINGS.model;
     }
     delete settings.mode;
-    // Thinking can no longer be switched off; a chat that had it off starts at the lowest step.
     if (!THINKING_LEVELS.some(([value]) => value === settings.thinking)) {
-      settings.thinking = THINKING_LEVELS[0][0];
+      settings.thinking = DEFAULT_SETTINGS.thinking;
     }
 
     chats = Array.isArray(savedChats?.chats) ? savedChats.chats.filter(chat => chat?.id && Array.isArray(chat.messages)) : [];
@@ -1285,6 +1283,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       el.key.value = settings.apiKey;
       el.key.type = "password";
       el.keyToggle.setAttribute("aria-pressed", "false");
+      el.typesafeKey.type = "password";
+      el.typesafeKeyToggle.setAttribute("aria-pressed", "false");
       el.model.value = settings.model;
       el.baseUrl.value = settings.baseUrl;
       setPageFormatChoice(settings.pageFormat);
@@ -1500,10 +1500,14 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   // What the slider points at: the level Auto last picked while it is driving, otherwise the
-  // level the reader set. "none" is not on the slider, so it rests at the lowest step.
+  // level the reader set.
   function thinkingIndex() {
     const level = autoOn() && autoEffort ? autoEffort : settings.thinking;
     return Math.max(0, THINKING_LEVELS.findIndex(([value]) => value === level));
+  }
+
+  function levelLabel(value) {
+    return THINKING_LEVELS.find(([level]) => level === value)?.[1] || "";
   }
 
   // "Medium" on its own, or "Auto · Medium" once Auto has settled on something.
@@ -1511,7 +1515,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     if (!autoOn()) {
       return THINKING_LEVELS[thinkingIndex()][1];
     }
-    const picked = EFFORT_LABELS[autoEffort];
+    const picked = levelLabel(autoEffort);
     return picked ? `${t("Auto")} · ${picked}` : t("Auto");
   }
 
@@ -1522,15 +1526,24 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     const index = thinkingIndex();
     const auto = autoOn();
     const dots = THINKING_LEVELS.map((_, step) => `<span class="effort-dot${step <= index ? " is-filled" : ""}" style="--p:${step / last}"></span>`).join("");
-    const title = `<span class="effort-title">${escapeHtml(effortLabelText())}</span>`;
-    // Without a key there is nothing to toggle, so the menu stays exactly as it was.
-    const head = settings.typesafeKey
-      ? `<div class="effort-head">${title}<button type="button" class="effort-auto" role="switch" aria-checked="${auto}">${escapeHtml(t("Auto"))}</button></div>`
-      : title;
+    // Without a key there is nothing to switch on, so that row is left out entirely.
+    const autoRow = settings.typesafeKey
+      ? `<div class="effort-row">
+        <span class="effort-name">${escapeHtml(t("Auto"))}</span>
+        <input type="checkbox" class="switch effort-auto" role="switch" aria-label="${escapeHtml(t("Pick the effort for each question"))}"${auto ? " checked" : ""}>
+      </div>`
+      : "";
     el.thinkingMenu.innerHTML = `
-      ${head}
-      <div class="effort-slider${auto ? " is-auto" : ""}" role="slider" tabindex="${auto ? -1 : 0}" aria-label="${escapeHtml(t("Reasoning effort"))}" aria-disabled="${auto}" aria-valuemin="0" aria-valuemax="${last}" aria-valuenow="${index}" aria-valuetext="${escapeHtml(THINKING_LEVELS[index][1])}" style="--p:${index / last}">
-        <span class="effort-track"></span><span class="effort-fill"></span>${dots}<span class="effort-thumb"></span>
+      ${autoRow}
+      <div class="effort-row effort-reading">
+        <span class="effort-name">${escapeHtml(t("Effort"))}</span>
+        <span class="effort-title">${escapeHtml(THINKING_LEVELS[index][1])}</span>
+      </div>
+      <div class="effort-scale">
+        <div class="effort-ends"><span>${escapeHtml(t("Faster"))}</span><span>${escapeHtml(t("Smarter"))}</span></div>
+        <div class="effort-slider${auto ? " is-auto" : ""}" role="slider" tabindex="${auto ? -1 : 0}" aria-label="${escapeHtml(t("Reasoning effort"))}" aria-disabled="${auto}" aria-valuemin="0" aria-valuemax="${last}" aria-valuenow="${index}" aria-valuetext="${escapeHtml(THINKING_LEVELS[index][1])}" style="--p:${index / last}">
+          <span class="effort-track"></span><span class="effort-fill"></span>${dots}<span class="effort-thumb"></span>
+        </div>
       </div>`;
   }
 
@@ -3215,13 +3228,15 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     commitEffort(slider, event.key === "Home" ? 0 : event.key === "End" ? last : Math.min(last, Math.max(0, current + step)));
   });
   el.settingsCancel.addEventListener("click", () => showSettings(false));
-  el.keyToggle.addEventListener("click", () => {
-    const show = el.key.type === "password";
-    el.key.type = show ? "text" : "password";
-    el.keyToggle.setAttribute("aria-pressed", String(show));
-    el.keyToggle.title = show ? t("Hide key") : t("Show key");
-    el.key.focus();
-  });
+  function revealKey(input, toggle) {
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    toggle.setAttribute("aria-pressed", String(show));
+    toggle.title = show ? t("Hide key") : t("Show key");
+    input.focus();
+  }
+  el.keyToggle.addEventListener("click", () => revealKey(el.key, el.keyToggle));
+  el.typesafeKeyToggle.addEventListener("click", () => revealKey(el.typesafeKey, el.typesafeKeyToggle));
   el.pageFormat.addEventListener("click", event => {
     const button = event.target.closest("[data-format]");
     if (button) {

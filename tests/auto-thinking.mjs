@@ -17,20 +17,23 @@ function reply(answer, { ok = true, status = 200 } = {}) {
 
 const ask = () => chooseThinkingEffort({ key: "ts-test", question: "Why does the proof hold?" });
 
-// The score is a position on the levels, so the nearest level is the one to send.
+// The score is a position on the levels, and it rounds up: between two levels, take the more
+// thorough one. Only a score of exactly 0 asks for no thinking at all, which is why greetings are
+// short-circuited in ai.js rather than left to the model.
 {
-  for (const [score, effort] of [[0, "none"], [0.4, "none"], [0.6, "low"], [1, "low"], [2.4, "high"], [2.6, "max"], [3, "max"]]) {
+  for (const [score, effort] of [[0, "none"], [0.01, "low"], [0.4, "low"], [1, "low"], [1.01, "high"], [2, "high"], [2.4, "max"], [3, "max"]]) {
     stubFetch(reply({ type: "score", score, confidence: 0.8 }));
     assert.equal((await ask()).effort, effort, `score ${score}`);
   }
 }
 
 // A score spread across two neighbouring levels is an answer, not a failure. Under a Choice this
-// read as low confidence and was thrown away; under a Score it is the position between them.
+// read as low confidence and was thrown away; under a Score it is the position between them, and
+// rounding up sends the more thorough of the two.
 {
   stubFetch(reply({ type: "score", score: 1.45, confidence: 0.18, probabilities: { 1: 0.45, 2: 0.4 } }));
   const answer = await ask();
-  assert.equal(answer.effort, "low");
+  assert.equal(answer.effort, "high");
   assert.equal(answer.score, 1.45);
   assert.equal(answer.confidence, 0.18);
 }
@@ -117,23 +120,32 @@ const ask = () => chooseThinkingEffort({ key: "ts-test", question: "Why does the
 // The fallback is one of the levels the slider offers.
 assert.equal(AUTO_FALLBACK, "high");
 
-// Auto is resolved once per message, not once per agent step.
+// Checks against the assistant's source. These use assert.ok rather than assert.match so a failure
+// prints the rule that broke instead of the whole file.
 {
   const source = readFileSync(new URL("../src/ai.js", import.meta.url), "utf8");
-  assert.match(source, /const effort = await resolveEffort\(signal\);\s+for \(let step = 0/);
-  assert.match(source, /requestTurn\(messages, reply, signal, \{ thinking: effort \}\)/);
+  const has = (pattern, what) => assert.ok(pattern.test(source), what);
 
-  // Auto needs a key: the stored flag alone never turns it on.
-  assert.match(source, /function autoOn\(\) \{\s+return Boolean\(settings\.autoThinking && settings\.typesafeKey\);/);
-  // ...and without a key the switch is not even rendered.
-  assert.match(source, /settings\.typesafeKey\s*\?\s*`<div class="effort-head">/);
+  // Auto is resolved once per message, not once per agent step.
+  has(/const effort = await resolveEffort\(signal\);\s+for \(let step = 0/, "effort resolved before the agent loop");
+  has(/requestTurn\(messages, reply, signal, \{ thinking: effort \}\)/, "resolved effort passed to every turn");
+
+  // Auto needs a key: the stored flag alone never turns it on...
+  has(/function autoOn\(\) \{\s+return Boolean\(settings\.autoThinking && settings\.typesafeKey\);/, "autoOn requires a key");
+  // ...and without a key its row is not rendered at all.
+  has(/settings\.typesafeKey\s*\?\s*`<div class="effort-row">/, "Auto row only rendered with a key");
+
   // While Auto drives the slider, the slider does not take input.
-  assert.match(source, /event\.button !== 0 \|\| autoOn\(\)/);
-  assert.match(source, /if \(!slider \|\| autoOn\(\) \|\|/);
-  // "none" is off the slider, so it rests at the lowest step rather than breaking the index.
-  assert.match(source, /Math\.max\(0, THINKING_LEVELS\.findIndex/);
-  // Every level the score can round to has a word for the label, including the one the slider dropped.
-  assert.match(source, /const EFFORT_LABELS = \{ none: t\("Instant"\), \.\.\.Object\.fromEntries\(THINKING_LEVELS\) \};/);
+  has(/event\.button !== 0 \|\| autoOn\(\)/, "pointer input ignored while Auto is on");
+  has(/if \(!slider \|\| autoOn\(\) \|\|/, "keyboard input ignored while Auto is on");
+
+  // Instant is a step on the slider again, so every level the score can reach has a word of its own.
+  has(/\["none", t\("Instant"\)\], \["low", t\("Low"\)\], \["high", t\("Medium"\)\], \["max", t\("High"\)\]/, "four steps, Instant first");
+  // An unrecognised stored level lands on the shipping default, not on the first step.
+  has(/settings\.thinking = DEFAULT_SETTINGS\.thinking;/, "unknown stored level falls back to the default");
+
+  // The slider reads faster-to-smarter at its ends rather than leaving the dots unexplained.
+  has(/class="effort-ends"/, "slider ends are labelled");
 }
 
 console.log("auto thinking effort checks passed");

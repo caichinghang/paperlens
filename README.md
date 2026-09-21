@@ -182,7 +182,7 @@ Open the assistant and click the gear (**Settings**) in the toolbar at the botto
 | API base URL | `https://api.deepseek.com` | Any OpenAI-compatible endpoint works |
 | Model ID | `deepseek-flash` | Type the model's ID; use one with tool calling for agent features |
 | Send pages as | Automatic | Choose **Text only** for models that can't read images |
-| Reasoning effort | Medium | Low, Medium or High, from the slider beside the send button. Add a TypeSafe key for **Auto** |
+| Reasoning effort | Medium | Instant, Low, Medium or High, from the slider beside the send button. Add a TypeSafe key for **Auto** |
 | TypeSafe API key | — | Adds an **Auto** switch to that slider: [Jev](https://docs.typesafe.ai) picks the effort per question. Keys at [console.typesafe.ai](https://console.typesafe.ai/keys) |
 | Let the AI edit the PDF | On | Turn off to stop the assistant changing the PDF |
 | Let the AI search the web | On | Uses Bing (including Bing News), then DuckDuckGo. Add a Tavily key (1,000 free searches a month) for more reliable results |

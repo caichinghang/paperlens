@@ -406,15 +406,18 @@
               </section>
 
               <section class="settings-group">
-                <h3>Reasoning</h3>
+                <h3>Auto reasoning</h3>
                 <div class="settings-card">
                   <label class="settings-row">
                     <span class="settings-label">TypeSafe API key</span>
                     <span class="settings-field">
                       <input id="aiTypesafeKey" type="password" placeholder="ts-…" autocomplete="off" spellcheck="false">
+                      <button id="aiTypesafeKeyToggle" type="button" class="field-button" title="Show key" aria-label="Show key" aria-pressed="false">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                      </button>
                     </span>
                   </label>
-                  <p class="settings-help">Adds an <strong>Auto</strong> switch to the reasoning effort slider: TypeSafe’s Jev model reads each question and picks the effort for it. Only the question is sent, never the document. <a href="https://console.typesafe.ai/keys" target="_blank" rel="noopener noreferrer">Get a key at console.typesafe.ai</a></p>
+                  <p class="settings-help">Turns on <strong>Auto</strong> in the effort slider, where Jev picks the effort for each question. Only the question is sent, never the document.<br><a href="https://console.typesafe.ai/keys" target="_blank" rel="noopener noreferrer">Get a key at console.typesafe.ai</a></p>
                 </div>
               </section>
 
