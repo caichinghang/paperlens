@@ -48,12 +48,11 @@
   /* The palette the skill and scenario glyphs are drawn from: warm, muted, and stepped once
      for each theme. Both sets clear the categorical checks — lightness band, chroma floor,
      colour-blind separation and contrast — so no two of them collapse into one another. */
-  --i-clay: #b8563f;
-  --i-teal: #0a8a72;
-  --i-ochre: #a87d21;
-  --i-plum: #7a5490;
-  --i-olive: #6a8226;
-  --i-denim: #4a6aa8;
+  --i-clay: #b35e3c;
+  --i-ochre: #c59d30;
+  --i-teal: #008c84;
+  --i-plum: #7d3880;
+  --i-denim: #6b8edd;
   --deboss-shade: rgba(15, 15, 15, 0.12);
   --deboss-light: rgba(255, 255, 255, 0.9);
   --field-focus-shadow: rgba(15, 15, 15, 0.1);
@@ -90,12 +89,11 @@
     --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
     --stage: #191919;
     --page: #ffffff;
-    --i-clay: #c2664f;
-    --i-teal: #1f9c86;
-    --i-ochre: #b0832a;
-    --i-plum: #8f61b0;
-    --i-olive: #7f9433;
-    --i-denim: #5e7cc6;
+    --i-clay: #a55230;
+    --i-ochre: #b58e18;
+    --i-teal: #00978e;
+    --i-plum: #914b93;
+    --i-denim: #6d90df;
     --deboss-shade: rgba(0, 0, 0, 0.45);
     --deboss-light: rgba(255, 255, 255, 0.07);
     --field-focus-shadow: rgba(255, 255, 255, 0.1);
@@ -129,12 +127,11 @@
   --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
   --stage: #191919;
   --page: #ffffff;
-  --i-clay: #c2664f;
-  --i-teal: #1f9c86;
-  --i-ochre: #b0832a;
-  --i-plum: #8f61b0;
-  --i-olive: #7f9433;
-  --i-denim: #5e7cc6;
+  --i-clay: #a55230;
+  --i-ochre: #b58e18;
+  --i-teal: #00978e;
+  --i-plum: #914b93;
+  --i-denim: #6d90df;
   --deboss-shade: rgba(0, 0, 0, 0.45);
   --deboss-light: rgba(255, 255, 255, 0.07);
   --field-focus-shadow: rgba(255, 255, 255, 0.1);
