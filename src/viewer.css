@@ -17,11 +17,19 @@
   --primary-text: #ffffff;
   --accent: #2383e2;
   --danger: #d9480f;
+  /* A control sitting proud of the track behind it: the selected segment, a tab, a hovered step.
+     On a light theme a soft drop is enough; on a dark one a drop alone disappears into the
+     background, so the dark values add a faint lit rim to carry the edge instead. */
+  --raised-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+  /* A small page preview, white in both themes, which needs an edge against the panel. */
+  --preview-shadow: 0 0 0 1px rgba(15, 15, 15, 0.08), 0 2px 6px rgba(15, 15, 15, 0.06);
   --page-shadow: 0 0 0 1px rgba(15, 15, 15, 0.04), 0 2px 4px rgba(15, 15, 15, 0.04), 0 12px 32px rgba(15, 15, 15, 0.08);
   --tooltip-bg: color-mix(in srgb, var(--text) 9%, var(--surface-raised));
   --popover-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 4px 10px rgba(15, 15, 15, 0.07), 0 16px 40px rgba(15, 15, 15, 0.12);
-  /* Frosted, slightly see-through surfaces for everything that floats. */
-  --glass-bg: color-mix(in srgb, var(--bg) 88%, transparent);
+  /* Frosted, slightly see-through surfaces for everything that floats. Mixed from --surface-raised
+     rather than --bg: on a dark theme a panel cannot be lifted by darkening what is behind it,
+     because there is almost no room left below the background, so the surface itself goes lighter. */
+  --glass-bg: color-mix(in srgb, var(--surface-raised) 88%, transparent);
   --glass-shadow: 0 0 0 1px rgba(15, 15, 15, 0.07), 0 2px 6px rgba(15, 15, 15, 0.05), 0 12px 32px rgba(15, 15, 15, 0.1);
   /* Every floating surface shares this blur, strong enough that the page behind reads as light and
      shade only — never as text. Both themes use it. */
@@ -37,6 +45,14 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-panel: cubic-bezier(0.32, 0.72, 0, 1);
   --tool-color: #fcc419;
+  /* The palette the skill and scenario glyphs are drawn from: warm, muted, and stepped once
+     for each theme. Both sets clear the categorical checks — lightness band, chroma floor,
+     colour-blind separation and contrast — so no two of them collapse into one another. */
+  --i-clay: #b35e3c;
+  --i-ochre: #c59d30;
+  --i-teal: #008c84;
+  --i-plum: #7d3880;
+  --i-denim: #6b8edd;
   --deboss-shade: rgba(15, 15, 15, 0.12);
   --deboss-light: rgba(255, 255, 255, 0.9);
   --field-focus-shadow: rgba(15, 15, 15, 0.1);
@@ -65,12 +81,19 @@
     --primary-text: #191919;
     --accent: #529cca;
     --danger: #ff8a65;
+    --raised-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --preview-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.45);
     --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 16px 38px rgba(0, 0, 0, 0.4);
-    --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 8px 20px rgba(0, 0, 0, 0.35), 0 20px 48px rgba(0, 0, 0, 0.35);
-    --glass-bg: color-mix(in srgb, var(--bg) 88%, transparent);
-    --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 12px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.35);
+    --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.55), 0 28px 72px rgba(0, 0, 0, 0.65);
+    --glass-bg: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+    --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
     --stage: #191919;
     --page: #ffffff;
+    --i-clay: #a55230;
+    --i-ochre: #b58e18;
+    --i-teal: #00978e;
+    --i-plum: #914b93;
+    --i-denim: #6d90df;
     --deboss-shade: rgba(0, 0, 0, 0.45);
     --deboss-light: rgba(255, 255, 255, 0.07);
     --field-focus-shadow: rgba(255, 255, 255, 0.1);
@@ -96,12 +119,19 @@
   --primary-text: #191919;
   --accent: #529cca;
   --danger: #ff8a65;
+  --raised-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --preview-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.45);
   --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 16px 38px rgba(0, 0, 0, 0.4);
-  --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 8px 20px rgba(0, 0, 0, 0.35), 0 20px 48px rgba(0, 0, 0, 0.35);
-  --glass-bg: color-mix(in srgb, var(--bg) 88%, transparent);
-  --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 12px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.35);
+  --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.55), 0 28px 72px rgba(0, 0, 0, 0.65);
+  --glass-bg: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
   --stage: #191919;
   --page: #ffffff;
+  --i-clay: #a55230;
+  --i-ochre: #b58e18;
+  --i-teal: #00978e;
+  --i-plum: #914b93;
+  --i-denim: #6d90df;
   --deboss-shade: rgba(0, 0, 0, 0.45);
   --deboss-light: rgba(255, 255, 255, 0.07);
   --field-focus-shadow: rgba(255, 255, 255, 0.1);
@@ -543,7 +573,7 @@ svg {
 .segmented button.is-active {
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--raised-shadow);
 }
 
 .sidebar-empty {
@@ -589,7 +619,7 @@ svg {
   overflow: hidden;
   border-radius: 3px;
   background: var(--page);
-  box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.08), 0 2px 6px rgba(15, 15, 15, 0.06);
+  box-shadow: var(--preview-shadow);
   transition: box-shadow 140ms ease;
 }
 
@@ -1512,7 +1542,7 @@ svg {
 .zoom-step:hover {
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+  box-shadow: var(--raised-shadow);
 }
 
 .zoom-step svg {
@@ -2428,15 +2458,87 @@ svg {
 
 .effort-menu {
   width: 224px;
-  gap: 12px;
+  gap: 18px;
   padding: 14px 16px 16px;
+}
+
+/* One line: the effort on the left, and Auto as a pill at the far end of it. */
+.effort-rows {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.effort-name {
+  color: var(--soft);
+  font-size: 12.5px;
+  font-weight: 550;
 }
 
 .effort-title {
   color: var(--text);
   font-size: 13.5px;
   font-weight: 600;
-  text-align: center;
+}
+
+/* Auto is a pill rather than a word on its own, so that it reads as something to press even while
+   it is off. These undo `.menu button`, which is written for full-width rows of menu items; that
+   selector is a class plus an element, so it outranks a bare class and each rule here is scoped to
+   the menu to outrank it back. */
+.effort-menu .effort-auto {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  flex: none;
+  margin-left: auto;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  color: var(--soft);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  transition: color 150ms var(--ease-out), background 150ms var(--ease-out), border-color 150ms var(--ease-out);
+}
+
+.effort-menu .effort-auto:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.effort-menu .effort-auto[aria-checked="true"] {
+  border-color: transparent;
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.effort-menu .effort-auto:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.effort-scale {
+  display: grid;
+  gap: 6px;
+}
+
+/* What the two ends of the slider buy you, rather than numbers nobody can read off a dot. */
+.effort-ends {
+  display: flex;
+  justify-content: space-between;
+  color: var(--soft);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+/* While Auto is driving, the slider reports what it chose instead of taking input. */
+.effort-slider.is-auto {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* The thumb is taller than the track, so at the first step it covers the track's end completely. */
@@ -2807,7 +2909,7 @@ svg {
 .settings-segmented button.is-active {
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+  box-shadow: var(--raised-shadow);
 }
 
 .settings-switch {
@@ -3246,7 +3348,7 @@ svg {
 .annotationLayer .choiceWidgetAnnotation select:focus {
   border-color: var(--accent);
   background-color: #fff;
-  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .annotationLayer .textWidgetAnnotation :is(input, textarea):disabled,
@@ -3875,7 +3977,7 @@ svg {
 .workspace-tabs button.is-active {
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+  box-shadow: var(--raised-shadow);
 }
 
 .workspace-actions {
@@ -5586,26 +5688,30 @@ body.is-block-sorting * {
   border-radius: 9px !important;
 }
 
+/* The glyph stands on its own, with no tile behind it, so it needs the room a tile used to take. */
 .skill-icon {
   display: grid;
   place-items: center;
   width: 24px;
   height: 24px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--bg);
   color: var(--text);
 }
 
+/* A scenario is a mode rather than a one-off action. It shares the skills' drawing style, so the
+   only thing setting it apart is a little more weight on the page. */
+.skill-icon.is-scenario svg {
+  width: 23px;
+  height: 23px;
+}
+
+/* Filled rather than stroked: these are solid duotone glyphs, and the few strokes inside them
+   carry their own stroke attributes. */
 .skill-icon svg,
 .msg-skill svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: none;
 }
 
 .command-item strong {

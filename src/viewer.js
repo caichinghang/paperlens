@@ -88,7 +88,6 @@ const ZOOM_SMOOTHING = 0.22;
 const RENDER_SETTLE_MS = 110;
 const MAX_CANVAS_PIXELS = 16_777_216;
 const THUMBNAIL_WIDTH = 120;
-const AUTO_FIT_MAX_WIDTH = 1080;
 const FIT_WIDTH_BREATHING_ROOM = 0.92;
 const AGENT_GRID = 1000;
 const MARK_ADD_LABELS = { highlight: "Highlight", underline: "Underline", strike: "Strikethrough" };
@@ -109,7 +108,7 @@ const state = {
   loadToken: 0,
   currentPage: 1,
   zoom: 1,
-  zoomMode: "auto",
+  zoomMode: "fit-width",
   aiOutline: null
 };
 
@@ -590,8 +589,10 @@ async function openDocument(bytes, { token, name, key }) {
   elements.pageCount.textContent = t("of {count}", { count: doc.numPages });
   elements.downloadPdf.disabled = false;
 
-  state.zoomMode = "auto";
-  zoomAnimation.target = computeFitZoom("auto");
+  // A freshly opened document fits the width of the panel, so the first thing the reader sees is
+  // the page as wide as it goes rather than a column of it.
+  state.zoomMode = "fit-width";
+  zoomAnimation.target = computeFitZoom("fit-width");
   applyZoom(zoomAnimation.target);
   updateZoomLabel(state.zoom);
   elements.pdfShell.scrollTo(0, 0);
@@ -1465,9 +1466,7 @@ function computeFitZoom(mode) {
   const availableWidth = Math.max(160, elements.pdfShell.clientWidth - paddingX);
   let zoom = availableWidth / (page.width * CSS_UNITS);
 
-  if (mode === "auto") {
-    zoom = Math.min(availableWidth, AUTO_FIT_MAX_WIDTH) / (page.width * CSS_UNITS);
-  } else if (mode === "fit-width") {
+  if (mode === "fit-width") {
     // Leave a little air so the page doesn't touch the edges of the panel.
     zoom *= FIT_WIDTH_BREATHING_ROOM;
   } else if (mode === "fit-page") {
