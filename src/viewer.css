@@ -45,8 +45,8 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-panel: cubic-bezier(0.32, 0.72, 0, 1);
   --tool-color: #fcc419;
-  /* Skill and scenario icon hues. One per family of skill, dark enough to read as a line drawing
-     on a pale wash of itself. The dark theme lifts each one so it stays legible on #191919. */
+  /* The palette the skill and scenario glyphs are drawn from. Each icon picks two or three of
+     these; the dark theme lifts every one so the drawings stay legible on #191919. */
   --i-blue: #2f6fed;
   --i-violet: #7a56e8;
   --i-green: #16915a;
@@ -5699,7 +5699,7 @@ body.is-block-sorting * {
   place-items: center;
   width: 24px;
   height: 24px;
-  color: var(--icon-hue, var(--text));
+  color: var(--text);
 }
 
 /* A scenario is a mode rather than a one-off action. It shares the skills' drawing style, so the
@@ -5732,15 +5732,9 @@ body.is-block-sorting * {
   text-overflow: ellipsis;
 }
 
-/* The chip carries the skill's hue so its icon matches the tile it was picked from; the label
-   stays at text colour, since a coloured word would read as a link. */
 .ai-chip.is-skill {
-  color: var(--icon-hue, var(--text));
-  font-weight: 500;
-}
-
-.ai-chip.is-skill > span {
   color: var(--text);
+  font-weight: 500;
 }
 
 .msg-skill {
