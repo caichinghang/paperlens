@@ -17,6 +17,12 @@
   --primary-text: #ffffff;
   --accent: #2383e2;
   --danger: #d9480f;
+  /* A control sitting proud of the track behind it: the selected segment, a tab, a hovered step.
+     On a light theme a soft drop is enough; on a dark one a drop alone disappears into the
+     background, so the dark values add a faint lit rim to carry the edge instead. */
+  --raised-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+  /* A small page preview, white in both themes, which needs an edge against the panel. */
+  --preview-shadow: 0 0 0 1px rgba(15, 15, 15, 0.08), 0 2px 6px rgba(15, 15, 15, 0.06);
   --page-shadow: 0 0 0 1px rgba(15, 15, 15, 0.04), 0 2px 4px rgba(15, 15, 15, 0.04), 0 12px 32px rgba(15, 15, 15, 0.08);
   --tooltip-bg: color-mix(in srgb, var(--text) 9%, var(--surface-raised));
   --popover-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 4px 10px rgba(15, 15, 15, 0.07), 0 16px 40px rgba(15, 15, 15, 0.12);
@@ -65,6 +71,8 @@
     --primary-text: #191919;
     --accent: #529cca;
     --danger: #ff8a65;
+    --raised-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --preview-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.45);
     --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 16px 38px rgba(0, 0, 0, 0.4);
     --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 8px 20px rgba(0, 0, 0, 0.35), 0 20px 48px rgba(0, 0, 0, 0.35);
     --glass-bg: color-mix(in srgb, var(--bg) 88%, transparent);
@@ -96,6 +104,8 @@
   --primary-text: #191919;
   --accent: #529cca;
   --danger: #ff8a65;
+  --raised-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --preview-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.45);
   --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 16px 38px rgba(0, 0, 0, 0.4);
   --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 8px 20px rgba(0, 0, 0, 0.35), 0 20px 48px rgba(0, 0, 0, 0.35);
   --glass-bg: color-mix(in srgb, var(--bg) 88%, transparent);
@@ -543,7 +553,7 @@ svg {
 .segmented button.is-active {
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--raised-shadow);
 }
 
 .sidebar-empty {
@@ -589,7 +599,7 @@ svg {
   overflow: hidden;
   border-radius: 3px;
   background: var(--page);
-  box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.08), 0 2px 6px rgba(15, 15, 15, 0.06);
+  box-shadow: var(--preview-shadow);
   transition: box-shadow 140ms ease;
 }
 
@@ -1512,7 +1522,7 @@ svg {
 .zoom-step:hover {
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+  box-shadow: var(--raised-shadow);
 }
 
 .zoom-step svg {
@@ -2879,7 +2889,7 @@ svg {
 .settings-segmented button.is-active {
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+  box-shadow: var(--raised-shadow);
 }
 
 .settings-switch {
@@ -3318,7 +3328,7 @@ svg {
 .annotationLayer .choiceWidgetAnnotation select:focus {
   border-color: var(--accent);
   background-color: #fff;
-  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .annotationLayer .textWidgetAnnotation :is(input, textarea):disabled,
@@ -3947,7 +3957,7 @@ svg {
 .workspace-tabs button.is-active {
   background: var(--bg);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+  box-shadow: var(--raised-shadow);
 }
 
 .workspace-actions {
