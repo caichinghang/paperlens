@@ -348,6 +348,8 @@ const ZH = {
   "Faster": "更快",
   "Smarter": "更聪明",
   "Pick the effort for each question": "为每个问题挑选推理强度",
+  "On": "开",
+  "Off": "关",
   "Thinking": "思考",
   "Current page": "当前页",
   "Scenarios and skills": "场景和技能",

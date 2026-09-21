@@ -1530,7 +1530,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     const autoRow = settings.typesafeKey
       ? `<div class="effort-row">
         <span class="effort-name">${escapeHtml(t("Auto"))}</span>
-        <input type="checkbox" class="switch effort-auto" role="switch" aria-label="${escapeHtml(t("Pick the effort for each question"))}"${auto ? " checked" : ""}>
+        <button type="button" class="effort-auto" role="switch" aria-checked="${auto}" aria-label="${escapeHtml(t("Pick the effort for each question"))}">${escapeHtml(auto ? t("On") : t("Off"))}</button>
       </div>`
       : "";
     el.thinkingMenu.innerHTML = `
