@@ -45,15 +45,15 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-panel: cubic-bezier(0.32, 0.72, 0, 1);
   --tool-color: #fcc419;
-  /* The palette the skill and scenario glyphs are drawn from. Each icon picks two or three of
-     these; the dark theme lifts every one so the drawings stay legible on #191919. */
-  --i-blue: #2f6fed;
-  --i-violet: #7a56e8;
-  --i-green: #16915a;
-  --i-amber: #b97710;
-  --i-red: #d14a38;
-  --i-teal: #0e8e9c;
-  --i-pink: #cc3f92;
+  /* The palette the skill and scenario glyphs are drawn from: warm, muted, and stepped once
+     for each theme. Both sets clear the categorical checks — lightness band, chroma floor,
+     colour-blind separation and contrast — so no two of them collapse into one another. */
+  --i-clay: #b8563f;
+  --i-teal: #0a8a72;
+  --i-ochre: #a87d21;
+  --i-plum: #7a5490;
+  --i-olive: #6a8226;
+  --i-denim: #4a6aa8;
   --deboss-shade: rgba(15, 15, 15, 0.12);
   --deboss-light: rgba(255, 255, 255, 0.9);
   --field-focus-shadow: rgba(15, 15, 15, 0.1);
@@ -90,21 +90,13 @@
     --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
     --stage: #191919;
     --page: #ffffff;
-    --i-blue: #7aa7ff;
-    --i-violet: #ad93ff;
-    --i-green: #4ecb92;
-    --i-amber: #e0a955;
-    --i-red: #ff8f7c;
-    --i-teal: #45c3d0;
-    --i-pink: #ff85c6;
-    --i-blue: #7aa7ff;
-  --i-violet: #ad93ff;
-  --i-green: #4ecb92;
-  --i-amber: #e0a955;
-  --i-red: #ff8f7c;
-  --i-teal: #45c3d0;
-  --i-pink: #ff85c6;
-  --deboss-shade: rgba(0, 0, 0, 0.45);
+    --i-clay: #c2664f;
+    --i-teal: #1f9c86;
+    --i-ochre: #b0832a;
+    --i-plum: #8f61b0;
+    --i-olive: #7f9433;
+    --i-denim: #5e7cc6;
+    --deboss-shade: rgba(0, 0, 0, 0.45);
     --deboss-light: rgba(255, 255, 255, 0.07);
     --field-focus-shadow: rgba(255, 255, 255, 0.1);
   }
@@ -137,6 +129,12 @@
   --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
   --stage: #191919;
   --page: #ffffff;
+  --i-clay: #c2664f;
+  --i-teal: #1f9c86;
+  --i-ochre: #b0832a;
+  --i-plum: #8f61b0;
+  --i-olive: #7f9433;
+  --i-denim: #5e7cc6;
   --deboss-shade: rgba(0, 0, 0, 0.45);
   --deboss-light: rgba(255, 255, 255, 0.07);
   --field-focus-shadow: rgba(255, 255, 255, 0.1);
