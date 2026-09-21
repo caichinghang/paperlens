@@ -26,8 +26,10 @@
   --page-shadow: 0 0 0 1px rgba(15, 15, 15, 0.04), 0 2px 4px rgba(15, 15, 15, 0.04), 0 12px 32px rgba(15, 15, 15, 0.08);
   --tooltip-bg: color-mix(in srgb, var(--text) 9%, var(--surface-raised));
   --popover-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 4px 10px rgba(15, 15, 15, 0.07), 0 16px 40px rgba(15, 15, 15, 0.12);
-  /* Frosted, slightly see-through surfaces for everything that floats. */
-  --glass-bg: color-mix(in srgb, var(--bg) 88%, transparent);
+  /* Frosted, slightly see-through surfaces for everything that floats. Mixed from --surface-raised
+     rather than --bg: on a dark theme a panel cannot be lifted by darkening what is behind it,
+     because there is almost no room left below the background, so the surface itself goes lighter. */
+  --glass-bg: color-mix(in srgb, var(--surface-raised) 88%, transparent);
   --glass-shadow: 0 0 0 1px rgba(15, 15, 15, 0.07), 0 2px 6px rgba(15, 15, 15, 0.05), 0 12px 32px rgba(15, 15, 15, 0.1);
   /* Every floating surface shares this blur, strong enough that the page behind reads as light and
      shade only — never as text. Both themes use it. */
@@ -74,9 +76,9 @@
     --raised-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
     --preview-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.45);
     --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 16px 38px rgba(0, 0, 0, 0.4);
-    --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 8px 20px rgba(0, 0, 0, 0.35), 0 20px 48px rgba(0, 0, 0, 0.35);
-    --glass-bg: color-mix(in srgb, var(--bg) 88%, transparent);
-    --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 12px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.35);
+    --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.55), 0 28px 72px rgba(0, 0, 0, 0.65);
+    --glass-bg: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+    --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
     --stage: #191919;
     --page: #ffffff;
     --deboss-shade: rgba(0, 0, 0, 0.45);
@@ -107,9 +109,9 @@
   --raised-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
   --preview-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.45);
   --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 16px 38px rgba(0, 0, 0, 0.4);
-  --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 8px 20px rgba(0, 0, 0, 0.35), 0 20px 48px rgba(0, 0, 0, 0.35);
-  --glass-bg: color-mix(in srgb, var(--bg) 88%, transparent);
-  --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 12px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.35);
+  --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.55), 0 28px 72px rgba(0, 0, 0, 0.65);
+  --glass-bg: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
   --stage: #191919;
   --page: #ffffff;
   --deboss-shade: rgba(0, 0, 0, 0.45);
