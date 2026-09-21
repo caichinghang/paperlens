@@ -182,7 +182,8 @@ Open the assistant and click the gear (**Settings**) in the toolbar at the botto
 | API base URL | `https://api.deepseek.com` | Any OpenAI-compatible endpoint works |
 | Model ID | `deepseek-flash` | Type the model's ID; use one with tool calling for agent features |
 | Send pages as | Automatic | Choose **Text only** for models that can't read images |
-| Reasoning effort | Medium | Low, Medium or High, from the slider beside the send button |
+| Reasoning effort | Medium | Low, Medium or High, from the slider beside the send button. Add a TypeSafe key for **Auto** |
+| TypeSafe API key | — | Adds an **Auto** switch to that slider: [Jev](https://docs.typesafe.ai) picks the effort per question. Keys at [console.typesafe.ai](https://console.typesafe.ai/keys) |
 | Let the AI edit the PDF | On | Turn off to stop the assistant changing the PDF |
 | Let the AI search the web | On | Uses Bing (including Bing News), then DuckDuckGo. Add a Tavily key (1,000 free searches a month) for more reliable results |
 
@@ -195,6 +196,7 @@ To update, pull the latest code and click **Reload** on the PaperLens card in `c
 - **Only what's needed is sent.** Each request sends the messages and the page text or images for that request to the AI provider you set. Option explanations send only the cropped region.
 - **Web search is visible.** Search queries go to Bing, DuckDuckGo or, if you add a key, Tavily, and a result page may be fetched to read it. Every page the assistant read is listed under **Sources** on its reply. You can turn web search off.
 - **Web reading stays on the public web.** The assistant can only open pages from its own search results or links you wrote in the chat. It can never open addresses on your computer or local network, such as `localhost` or your router, even if a PDF or web page tells it to.
+- **Auto reasoning sends one question at a time.** With a TypeSafe key and **Auto** switched on, your question alone goes to TypeSafe so Jev can pick the effort — never the document, the page text or the reply. Private details are masked first, and greetings never leave at all. Without a key there is no switch and nothing is sent.
 - **Chat titles.** When a new chat's first reply finishes, a short title is written by the same AI provider from your first question and the start of the reply, with private details masked.
 - **Private details stay on your machine.** A detail with a closed eye never goes to the AI provider. The assistant fills forms with a placeholder, and anything on its way out (tool results, page images, messages, even a number you paste into the chat) has private values swapped back to their placeholder. Only values saved in your profile are covered: if a PDF already has your ID number printed in it, page images still show it.
 - **Your profile is yours.** The assistant asks before saving personal details, and you can edit or clear them at any time.
@@ -240,6 +242,7 @@ PaperLens is plain HTML, CSS and JavaScript modules. There's no framework, no bu
 | `src/privacy.js` | Placeholders for private profile details, and masking them out of what goes to the AI |
 | `src/web.js` | Web search and readable-page extraction |
 | `src/sse.js` | Robust parsing of streamed assistant responses |
+| `src/typesafe.js` | Asks TypeSafe's Jev model how much reasoning a question deserves |
 | `src/rules.js` | Blank lines on a page, so dates and signatures sit on them |
 | `src/pdf-writer.js`, `src/ics.js` | Image-only PDF for redactions; calendar export |
 | `src/i18n.js` | English and Chinese interface strings |

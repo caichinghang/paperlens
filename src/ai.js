@@ -6,6 +6,7 @@ import { displayMathOpening, mathHtml, protectMath } from "./math.js";
 import { compileSecrets, maskDeep } from "./privacy.js";
 import { readSseJson } from "./sse.js";
 import { getItem, removeItem, setItem } from "./store.js";
+import { AUTO_FALLBACK, chooseThinkingEffort } from "./typesafe.js";
 
 const SETTINGS_KEY = "aiSettings";
 // Before multiple chats, the one conversation was saved here; it is migrated into CHATS_KEY once.
@@ -22,6 +23,10 @@ const DEFAULT_SETTINGS = {
   allowEdits: true,
   webSearch: true,
   tavilyKey: "",
+  // Key for TypeSafe's Jev model. Without one, "Auto" is not offered.
+  typesafeKey: "",
+  // "Auto" hands the choice of effort to Jev, one question at a time.
+  autoThinking: false,
   // "usd" or "cny" for the reply cost; anything else follows the browser language.
   currency: ""
 };
@@ -33,6 +38,9 @@ const MODEL_PRESETS = [
 const RETIRED_DEFAULT_MODELS = new Set(["deepseek-chat", "deepseek-reasoner"]);
 // Three steps on the slider; each shows one word and sends the API value beside it.
 const THINKING_LEVELS = [["low", t("Low")], ["high", t("Medium")], ["max", t("High")]];
+// Auto is not a step on the slider — it is an override that picks one. It can also land on "none"
+// for a greeting, a level the slider no longer offers, so that needs a word of its own.
+const EFFORT_LABELS = { none: t("Instant"), ...Object.fromEntries(THINKING_LEVELS) };
 const MAX_ATTACHED_PAGES = 8;
 const MAX_ATTACHED_REGIONS = 4;
 // Older page images are replaced by a short note so long chats don't resend every image.
@@ -774,6 +782,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     settings: $("#aiSettings"),
     settingsCancel: $("#aiSettingsCancel"),
     tavilyKey: $("#aiTavilyKey"),
+    typesafeKey: $("#aiTypesafeKey"),
     theme: $("#aiTheme"),
     title: $("#aiTitle"),
     titleButton: $("#aiTitleButton"),
@@ -790,6 +799,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   let quote = "";
   let regions = [];
   let controller = null;
+  // The level "Auto" last settled on, shown beside the word Auto.
+  let autoEffort = "";
   let docKey = "";
   let updateFrame = 0;
   let mention = null;
@@ -1108,6 +1119,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       return;
     }
     chatId = chat.id;
+    autoEffort = "";
     history = restoreHistory(chat.messages);
     scenario = findScenario(chat.scenario);
     chatName = chat.title || "";
@@ -1131,6 +1143,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     if (wasCurrent) {
       controller?.abort();
       chatId = newChatId();
+      autoEffort = "";
       history = [];
       scenario = null;
       chatName = "";
@@ -1214,7 +1227,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   function updateMeta() {
     // How hard the model thinks only applies to DeepSeek endpoints.
     el.thinkingButton.parentElement.hidden = !isDeepSeekHost();
-    el.thinkingLabel.textContent = THINKING_LEVELS[thinkingIndex()][1];
+    el.thinkingLabel.textContent = effortLabelText();
     el.title.textContent = truncate(chatName || chatTitle(history), 30);
   }
 
@@ -1278,6 +1291,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       el.allowEdits.checked = settings.allowEdits;
       el.webSearch.checked = settings.webSearch;
       el.tavilyKey.value = settings.tavilyKey;
+      el.typesafeKey.value = settings.typesafeKey;
       setLanguageChoice(getLanguagePreference());
       setCurrencyChoice(settings.currency === "usd" || settings.currency === "cny" ? settings.currency : "auto");
       setThemeChoice(host.getTheme());
@@ -1319,6 +1333,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     controller?.abort();
     flushChats();
     chatId = newChatId();
+    autoEffort = "";
     history = [];
     scenario = null;
     chatName = "";
@@ -1479,8 +1494,25 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       </button>`;
   }
 
+  // Auto needs a key; without one the stored flag is ignored rather than acted on.
+  function autoOn() {
+    return Boolean(settings.autoThinking && settings.typesafeKey);
+  }
+
+  // What the slider points at: the level Auto last picked while it is driving, otherwise the
+  // level the reader set. "none" is not on the slider, so it rests at the lowest step.
   function thinkingIndex() {
-    return Math.max(0, THINKING_LEVELS.findIndex(([value]) => value === settings.thinking));
+    const level = autoOn() && autoEffort ? autoEffort : settings.thinking;
+    return Math.max(0, THINKING_LEVELS.findIndex(([value]) => value === level));
+  }
+
+  // "Medium" on its own, or "Auto · Medium" once Auto has settled on something.
+  function effortLabelText() {
+    if (!autoOn()) {
+      return THINKING_LEVELS[thinkingIndex()][1];
+    }
+    const picked = EFFORT_LABELS[autoEffort];
+    return picked ? `${t("Auto")} · ${picked}` : t("Auto");
   }
 
   // Only how hard the model thinks is a choice here (a slider); the model itself is set in Settings.
@@ -1488,10 +1520,16 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   function buildThinkingMenu() {
     const last = THINKING_LEVELS.length - 1;
     const index = thinkingIndex();
+    const auto = autoOn();
     const dots = THINKING_LEVELS.map((_, step) => `<span class="effort-dot${step <= index ? " is-filled" : ""}" style="--p:${step / last}"></span>`).join("");
+    const title = `<span class="effort-title">${escapeHtml(effortLabelText())}</span>`;
+    // Without a key there is nothing to toggle, so the menu stays exactly as it was.
+    const head = settings.typesafeKey
+      ? `<div class="effort-head">${title}<button type="button" class="effort-auto" role="switch" aria-checked="${auto}">${escapeHtml(t("Auto"))}</button></div>`
+      : title;
     el.thinkingMenu.innerHTML = `
-      <div class="effort-title">${escapeHtml(THINKING_LEVELS[index][1])}</div>
-      <div class="effort-slider" role="slider" tabindex="0" aria-label="${escapeHtml(t("Reasoning effort"))}" aria-valuemin="0" aria-valuemax="${last}" aria-valuenow="${index}" aria-valuetext="${escapeHtml(THINKING_LEVELS[index][1])}" style="--p:${index / last}">
+      ${head}
+      <div class="effort-slider${auto ? " is-auto" : ""}" role="slider" tabindex="${auto ? -1 : 0}" aria-label="${escapeHtml(t("Reasoning effort"))}" aria-disabled="${auto}" aria-valuemin="0" aria-valuemax="${last}" aria-valuenow="${index}" aria-valuetext="${escapeHtml(THINKING_LEVELS[index][1])}" style="--p:${index / last}">
         <span class="effort-track"></span><span class="effort-fill"></span>${dots}<span class="effort-thumb"></span>
       </div>`;
   }
@@ -2673,6 +2711,42 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     return zone ? `${date} (the reader's time zone is ${zone})` : date;
   }
 
+  // Which effort this message gets. Auto asks Jev once per message rather than once per agent
+  // step: the loop in runAgent can turn a dozen times for tool calls, and the question it is
+  // reasoning about never changes between them. Anything unanswerable lands on AUTO_FALLBACK.
+  async function resolveEffort(signal) {
+    if (!autoOn()) {
+      return settings.thinking;
+    }
+
+    const question = history.findLast(message => message.role === "user");
+    const text = String(question?.content || "");
+    // Greetings and "what page am I on" never need reasoning, and are not worth a round trip.
+    if (!needsCurrentPageContent(text)) {
+      autoEffort = "none";
+      updateMeta();
+      return autoEffort;
+    }
+
+    // The question leaves for a second service, so private profile details are masked here too.
+    const secrets = compileSecrets(host.workspace?.privateDetails?.() || []);
+    const answer = await chooseThinkingEffort({
+      key: settings.typesafeKey,
+      question: secrets.length ? maskDeep(text, secrets) : text,
+      context: {
+        documentName: host.getDocumentInfo().name || "",
+        attachedPages: question?.pages?.length || 0,
+        followUp: history.filter(message => message.role === "user").length > 1,
+        allowEdits: settings.allowEdits
+      },
+      signal
+    });
+
+    autoEffort = answer?.effort || AUTO_FALLBACK;
+    updateMeta();
+    return autoEffort;
+  }
+
   async function runAgent(reply) {
     controller = new AbortController();
     const { signal } = controller;
@@ -2687,10 +2761,11 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     }
 
     try {
+      const effort = await resolveEffort(signal);
       for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
         const messages = await buildRequestMessages();
         signal.throwIfAborted();
-        const turn = await requestTurn(messages, reply, signal);
+        const turn = await requestTurn(messages, reply, signal, { thinking: effort });
         addUsage(reply, turn.usage);
 
         // DeepSeek requires reasoning_content to be sent back on later requests that include tools.
@@ -3080,9 +3155,18 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     buildThinkingMenu();
     toggleMenu(el.thinkingMenu);
   });
+  el.thinkingMenu.addEventListener("click", async event => {
+    if (!event.target.closest(".effort-auto")) {
+      return;
+    }
+    // Switching Auto on starts it with nothing picked, so the label can't show a stale level.
+    autoEffort = "";
+    await saveSettings({ autoThinking: !settings.autoThinking });
+    buildThinkingMenu();
+  });
   el.thinkingMenu.addEventListener("pointerdown", event => {
     const slider = event.target.closest(".effort-slider");
-    if (!slider || event.button !== 0) {
+    if (!slider || event.button !== 0 || autoOn()) {
       return;
     }
     event.preventDefault();
@@ -3122,7 +3206,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   el.thinkingMenu.addEventListener("keydown", event => {
     const slider = event.target.closest(".effort-slider");
     const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[event.key];
-    if (!slider || (!step && event.key !== "Home" && event.key !== "End")) {
+    if (!slider || autoOn() || (!step && event.key !== "Home" && event.key !== "End")) {
       return;
     }
     event.preventDefault();
@@ -3249,7 +3333,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       pageFormat: chosenPageFormat(),
       allowEdits: el.allowEdits.checked,
       webSearch: el.webSearch.checked,
-      tavilyKey: el.tavilyKey.value.trim()
+      tavilyKey: el.tavilyKey.value.trim(),
+      typesafeKey: el.typesafeKey.value.trim()
     });
     renderMessages();
   }
