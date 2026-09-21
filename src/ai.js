@@ -1488,7 +1488,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   function buildThinkingMenu() {
     const last = THINKING_LEVELS.length - 1;
     const index = thinkingIndex();
-    const dots = THINKING_LEVELS.map((_, step) => `<span class="effort-dot" style="--p:${step / last}"></span>`).join("");
+    const dots = THINKING_LEVELS.map((_, step) => `<span class="effort-dot${step <= index ? " is-filled" : ""}" style="--p:${step / last}"></span>`).join("");
     el.thinkingMenu.innerHTML = `
       <div class="effort-title">${escapeHtml(THINKING_LEVELS[index][1])}</div>
       <div class="effort-slider" role="slider" tabindex="0" aria-label="${escapeHtml(t("Reasoning effort"))}" aria-valuemin="0" aria-valuemax="${last}" aria-valuenow="${index}" aria-valuetext="${escapeHtml(THINKING_LEVELS[index][1])}" style="--p:${index / last}">
@@ -1501,6 +1501,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     const last = THINKING_LEVELS.length - 1;
     const index = Math.round(p * last);
     slider.style.setProperty("--p", String(p));
+    // Dots the blue has reached turn white so they stay visible on it.
+    slider.querySelectorAll(".effort-dot").forEach((dot, step) => dot.classList.toggle("is-filled", step / last <= p + 1e-6));
     slider.setAttribute("aria-valuenow", String(index));
     slider.setAttribute("aria-valuetext", THINKING_LEVELS[index][1]);
     el.thinkingMenu.querySelector(".effort-title").textContent = THINKING_LEVELS[index][1];

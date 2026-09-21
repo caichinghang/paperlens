@@ -2402,7 +2402,13 @@ svg {
   background: var(--soft);
   opacity: 0.7;
   transform: translate(-50%, -50%);
-  transition: transform 150ms var(--ease-out), opacity 150ms ease;
+  transition: transform 150ms var(--ease-out), opacity 150ms ease, background 150ms ease;
+}
+
+/* On the blue part of the bar the grey would be hard to see, so the dot turns white. */
+.effort-dot.is-filled {
+  background: #ffffff;
+  opacity: 0.85;
 }
 
 /* The dots are tiny, so an invisible ring around each one makes them easy to hover. */
@@ -2413,7 +2419,8 @@ svg {
   border-radius: 50%;
 }
 
-.effort-dot:hover {
+.effort-dot:hover,
+.effort-dot.is-filled:hover {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1.4);
 }
