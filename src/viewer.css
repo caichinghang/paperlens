@@ -2432,24 +2432,15 @@ svg {
   padding: 14px 16px 16px;
 }
 
-.effort-title {
-  color: var(--text);
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-/* Auto on its own row, then the effort the slider is pointing at. */
-.effort-row {
-  display: flex;
+/* Auto and the effort read as one small table: labels in the first column, their values in the
+   second, so On sits directly above the effort rather than out at the far edge. */
+.effort-rows {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 22px;
-}
-
-.effort-reading {
-  justify-content: flex-start;
-  gap: 8px;
+  column-gap: 10px;
+  row-gap: 6px;
 }
 
 .effort-name {
@@ -2458,17 +2449,24 @@ svg {
   font-weight: 550;
 }
 
+.effort-title {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
 /* Auto is switched by its own word: the row reads "Auto  On", and the word is the button. The
-   overrides undo `.menu button`, which is written for full-width rows of menu items. */
+   overrides undo `.menu button`, which is written for full-width rows of menu items, and the
+   negative margin pulls the padding back out so the word starts on the column edge. */
 .effort-auto {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0;
-  min-width: 32px;
-  padding: 3px 8px;
+  margin-inline: -6px;
+  padding: 2px 6px;
   color: var(--soft);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   line-height: 1;
   transition: color 150ms var(--ease-out), background 150ms var(--ease-out);

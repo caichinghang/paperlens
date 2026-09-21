@@ -133,7 +133,9 @@ assert.equal(AUTO_FALLBACK, "high");
   // Auto needs a key: the stored flag alone never turns it on...
   has(/function autoOn\(\) \{\s+return Boolean\(settings\.autoThinking && settings\.typesafeKey\);/, "autoOn requires a key");
   // ...and without a key its row is not rendered at all.
-  has(/settings\.typesafeKey\s*\?\s*`<div class="effort-row">/, "Auto row only rendered with a key");
+  has(/settings\.typesafeKey\s*\?\s*`<span class="effort-name">/, "Auto row only rendered with a key");
+  // Both rows share one grid, so their values line up in a column.
+  has(/<div class="effort-rows">/, "labels and values laid out as one grid");
   // Auto is switched by its own word rather than a sliding control.
   has(/class="effort-auto" role="switch" aria-checked="\$\{auto\}"/, "Auto button reports its state");
   has(/\$\{escapeHtml\(auto \? t\("On"\) : t\("Off"\)\)\}<\/button>/, "Auto button reads On or Off");

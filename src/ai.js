@@ -1526,16 +1526,15 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     const index = thinkingIndex();
     const auto = autoOn();
     const dots = THINKING_LEVELS.map((_, step) => `<span class="effort-dot${step <= index ? " is-filled" : ""}" style="--p:${step / last}"></span>`).join("");
-    // Without a key there is nothing to switch on, so that row is left out entirely.
+    // Without a key there is nothing to switch on, so that row is left out entirely. Both rows are
+    // cells of one grid, so On and the effort below it start at the same edge.
     const autoRow = settings.typesafeKey
-      ? `<div class="effort-row">
-        <span class="effort-name">${escapeHtml(t("Auto"))}</span>
-        <button type="button" class="effort-auto" role="switch" aria-checked="${auto}" aria-label="${escapeHtml(t("Pick the effort for each question"))}">${escapeHtml(auto ? t("On") : t("Off"))}</button>
-      </div>`
+      ? `<span class="effort-name">${escapeHtml(t("Auto"))}</span>
+        <button type="button" class="effort-auto" role="switch" aria-checked="${auto}" aria-label="${escapeHtml(t("Pick the effort for each question"))}">${escapeHtml(auto ? t("On") : t("Off"))}</button>`
       : "";
     el.thinkingMenu.innerHTML = `
-      ${autoRow}
-      <div class="effort-row effort-reading">
+      <div class="effort-rows">
+        ${autoRow}
         <span class="effort-name">${escapeHtml(t("Effort"))}</span>
         <span class="effort-title">${escapeHtml(THINKING_LEVELS[index][1])}</span>
       </div>
