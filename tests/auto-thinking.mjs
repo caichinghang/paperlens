@@ -133,12 +133,11 @@ assert.equal(AUTO_FALLBACK, "high");
   // Auto needs a key: the stored flag alone never turns it on...
   has(/function autoOn\(\) \{\s+return Boolean\(settings\.autoThinking && settings\.typesafeKey\);/, "autoOn requires a key");
   // ...and without a key its row is not rendered at all.
-  has(/settings\.typesafeKey\s*\?\s*`<span class="effort-name">/, "Auto row only rendered with a key");
-  // Both rows share one grid, so their values line up in a column.
-  has(/<div class="effort-rows">/, "labels and values laid out as one grid");
-  // Auto is switched by its own word rather than a sliding control.
-  has(/class="effort-auto" role="switch" aria-checked="\$\{auto\}"/, "Auto button reports its state");
-  has(/\$\{escapeHtml\(auto \? t\("On"\) : t\("Off"\)\)\}<\/button>/, "Auto button reads On or Off");
+  has(/settings\.typesafeKey\s*\?\s*`<button type="button" class="effort-auto"/, "Auto pill only rendered with a key");
+  // Auto is a switch to assistive tech even though it reads as one word.
+  has(/class="effort-auto" role="switch" aria-checked="\$\{auto\}"/, "Auto pill reports its state");
+  // It sits at the end of the effort line rather than on a row of its own.
+  has(/<span class="effort-title">\$\{escapeHtml\(THINKING_LEVELS\[index\]\[1\]\)\}<\/span>\s*\$\{autoButton\}/, "Auto pill follows the effort on one line");
 
   // While Auto drives the slider, the slider does not take input.
   has(/event\.button !== 0 \|\| autoOn\(\)/, "pointer input ignored while Auto is on");
