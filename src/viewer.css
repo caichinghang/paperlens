@@ -5693,38 +5693,30 @@ body.is-block-sorting * {
   border-radius: 9px !important;
 }
 
+/* The glyph stands on its own, with no tile behind it, so it needs the room a tile used to take. */
 .skill-icon {
   display: grid;
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
-  /* Both the wash and the drawing come from the same hue, so one variable colours the whole tile. */
   color: var(--icon-hue, var(--text));
-  background: color-mix(in srgb, currentColor 15%, transparent);
 }
 
-/* A scenario is a mode rather than an action, so its tile is a circle and its wash is stronger.
-   Shape says which kind of thing it is; colour says which one. */
-.skill-icon.is-scenario {
-  border-radius: 50%;
-  background: color-mix(in srgb, currentColor 26%, transparent);
+/* A scenario is a mode rather than a one-off action. It shares the skills' drawing style, so the
+   only thing setting it apart is a little more weight on the page. */
+.skill-icon.is-scenario svg {
+  width: 23px;
+  height: 23px;
 }
 
-/* The closed shape inside an icon carries a second, paler tone of the same hue. */
-.skill-icon svg .ic-fill {
-  fill: color-mix(in srgb, currentColor 30%, transparent);
-}
-
+/* Filled rather than stroked: these are solid duotone glyphs, and the few strokes inside them
+   carry their own stroke attributes. */
 .skill-icon svg,
 .msg-skill svg {
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: none;
 }
 
 .command-item strong {
