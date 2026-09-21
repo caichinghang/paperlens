@@ -45,14 +45,13 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-panel: cubic-bezier(0.32, 0.72, 0, 1);
   --tool-color: #fcc419;
-  /* The palette the skill and scenario glyphs are drawn from: warm, muted, and stepped once
-     for each theme. Both sets clear the categorical checks — lightness band, chroma floor,
-     colour-blind separation and contrast — so no two of them collapse into one another. */
-  --i-clay: #b35e3c;
-  --i-ochre: #c59d30;
-  --i-teal: #008c84;
-  --i-plum: #7d3880;
-  --i-denim: #6b8edd;
+  /* Familiar, bright colors keep the skill and scenario glyphs easy to recognise. */
+  --i-blue: #3b82f6;
+  --i-green: #22c55e;
+  --i-yellow: #eab308;
+  --i-red: #ef4444;
+  --i-purple: #a855f7;
+  --i-orange: #f97316;
   --deboss-shade: rgba(15, 15, 15, 0.12);
   --deboss-light: rgba(255, 255, 255, 0.9);
   --field-focus-shadow: rgba(15, 15, 15, 0.1);
@@ -89,11 +88,12 @@
     --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
     --stage: #191919;
     --page: #ffffff;
-    --i-clay: #a55230;
-    --i-ochre: #b58e18;
-    --i-teal: #00978e;
-    --i-plum: #914b93;
-    --i-denim: #6d90df;
+    --i-blue: #60a5fa;
+    --i-green: #4ade80;
+    --i-yellow: #facc15;
+    --i-red: #f87171;
+    --i-purple: #c084fc;
+    --i-orange: #fb923c;
     --deboss-shade: rgba(0, 0, 0, 0.45);
     --deboss-light: rgba(255, 255, 255, 0.07);
     --field-focus-shadow: rgba(255, 255, 255, 0.1);
@@ -127,11 +127,12 @@
   --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
   --stage: #191919;
   --page: #ffffff;
-  --i-clay: #a55230;
-  --i-ochre: #b58e18;
-  --i-teal: #00978e;
-  --i-plum: #914b93;
-  --i-denim: #6d90df;
+  --i-blue: #60a5fa;
+  --i-green: #4ade80;
+  --i-yellow: #facc15;
+  --i-red: #f87171;
+  --i-purple: #c084fc;
+  --i-orange: #fb923c;
   --deboss-shade: rgba(0, 0, 0, 0.45);
   --deboss-light: rgba(255, 255, 255, 0.07);
   --field-focus-shadow: rgba(255, 255, 255, 0.1);
@@ -5688,7 +5689,7 @@ body.is-block-sorting * {
   border-radius: 9px !important;
 }
 
-/* The glyph stands on its own, with no tile behind it, so it needs the room a tile used to take. */
+/* The glyph stands on its own without a tile or border. */
 .skill-icon {
   display: grid;
   place-items: center;
