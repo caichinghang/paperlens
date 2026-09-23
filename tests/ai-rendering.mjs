@@ -3,11 +3,12 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { inlineToHtml, inlineToPlain, markdownToBlocks, parseCsv, parseFlashcards } from '../src/blocks.js';
 import { displayMathOpening, mathHtml, protectMath } from '../src/math.js';
+import hljs from '../vendor/hljs/highlight.mjs';
 const source = readFileSync(new URL('../src/ai.js', import.meta.url), 'utf8');
 const section = source.slice(source.indexOf('function escapeHtml'), source.indexOf('function newChatId')).replace(/^export /gm, '');
 // The renderer translates card labels; English passthrough is enough for these checks.
 const fill = (text, params = {}) => text.replace(/\{(\w+)\}/g, (match, name) => (name in params ? String(params[name]) : match));
-const context = vm.createContext({ displayMathOpening, mathHtml, protectMath, parseCsv, parseFlashcards, t: fill, tn: (count, one, other, params = {}) => fill(count === 1 ? one : other, { count, ...params }) });
+const context = vm.createContext({ displayMathOpening, mathHtml, protectMath, parseCsv, parseFlashcards, hljs, t: fill, tn: (count, one, other, params = {}) => fill(count === 1 ? one : other, { count, ...params }) });
 vm.runInContext(section, context);
 const render = text => vm.runInContext(`renderMarkdown(${JSON.stringify(text)})`, context);
 assert.deepEqual([...render('[pp. 1, 4-7]').matchAll(/data-page="(\d+)"/g)].map(m => m[1]), ['1', '4']);
@@ -19,6 +20,12 @@ assert.match(render('| Field | Count |\n| --- | ---: |\n| Name | 2 |'), /text-al
 assert.match(render('[Source](https://example.com)'), /rel="noopener noreferrer"/);
 assert.match(render('```flashcards\nQ :: A\n```'), /flashcard-list/);
 assert.match(render('```csv\na,b\n1,2\n```'), /class="ai-card csv"/);
+// Code fences: a language hljs knows gets tokenised and escaped; an unknown tag or none falls
+// back to a plain escaped block, same as before highlighting was added.
+assert.match(render('```python\ndef f(x):\n    return x < 5\n```'), /class="hljs lang-python"[\s\S]*hljs-keyword[\s\S]*&lt;/);
+assert.doesNotMatch(render('```made-up-lang\n<b>x</b>\n```'), /hljs-keyword|class="hljs/);
+assert.match(render('```made-up-lang\n<b>x</b>\n```'), /class="lang-made-up-lang">&lt;b&gt;/);
+assert.match(render('```\nplain\n```'), /<pre><code>plain<\/code><\/pre>/);
 // Math: inline and display TeX render with KaTeX; prices and code spans stay text.
 assert.match(render('Area $\\pi r^2$ here'), /class="math"><span class="katex">/);
 assert.match(render('$$\\Pr[C=c \\mid M=m]=\\sum_{k} \\Pr[K=k]$$'), /math-display[\s\S]*katex-display/);
@@ -31,4 +38,4 @@ const mathAtom = inlineToHtml('Let $x^2$ be');
 assert.match(mathAtom, /class="be-math" contenteditable="false" data-md="\$x\^2\$"/);
 assert.equal(inlineToPlain('**b** $a_1 * b_2$'), 'b $a_1 * b_2$');
 assert.deepEqual(markdownToBlocks('$$\n- a\n$$').map(block => block.type), ['paragraph']);
-console.log('19 rendering regression checks passed');
+console.log('23 rendering regression checks passed');

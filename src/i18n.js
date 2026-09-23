@@ -350,7 +350,7 @@ const ZH = {
   "Pick the effort for each question": "为每个问题挑选推理强度",
   "Thinking": "思考",
   "Current page": "当前页",
-  "Scenarios and skills": "场景和技能",
+  "Plugins and skills": "插件和技能",
   "Quote selected text": "引用选中文字",
   "All pages": "全部页面",
   "Remove {label}": "移除{label}",
@@ -390,7 +390,7 @@ const ZH = {
   "If this model can't read images, choose DeepSeek Flash, or set “Send pages as” to Text in API settings.": "如果该模型无法读取图片，请选择 DeepSeek Flash，或在设置中把“页面发送方式”改为“仅文字”。",
 
   // Scenarios and workspace
-  "Scenarios": "场景",
+  "Plugins": "插件",
   "Study": "学习备考",
   "Research": "论文研究",
   "Contracts": "合同审阅",

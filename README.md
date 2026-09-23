@@ -19,7 +19,7 @@ English · [简体中文](README.zh-CN.md)
   - [1. Hold Option to explain anything](#1-hold-option-to-explain-anything)
   - [2. Figures and references where they're mentioned](#2-figures-and-references-where-theyre-mentioned)
   - [3. An agent that can work on the PDF](#3-an-agent-that-can-work-on-the-pdf)
-  - [4. Scenarios](#4-scenarios)
+  - [4. Plugins](#4-plugins)
   - [5. Translate in place](#5-translate-in-place)
   - [6. A notebook beside every document](#6-a-notebook-beside-every-document)
 - [More features](#more-features)
@@ -33,7 +33,7 @@ English · [简体中文](README.zh-CN.md)
 
 PaperLens opens web and local PDFs in its own viewer: a clean reader with markup, search and live form fields, plus an AI assistant that sits beside the page.
 
-The assistant doesn't just answer questions about the PDF. It can look at pages, search the document and the web, fill in forms, highlight and annotate, translate a page in place, and save notes to a notebook for that document. You pick a **scenario** — study, research, contracts, forms or reports — and it leans on the skills that fit.
+The assistant doesn't just answer questions about the PDF. It can look at pages, search the document and the web, fill in forms, highlight and annotate, translate a page in place, and save notes to a notebook for that document. You pick a **plugin** — study, research, contracts, forms or reports — and it leans on the skills that fit.
 
 There's no PaperLens account and no build step. Load the folder into Chrome and add your own DeepSeek key, or point it at any OpenAI-compatible endpoint. The interface is available in English and Chinese.
 
@@ -86,15 +86,15 @@ Skills are ready-made tasks that put these tools together. Type `/` in the compo
 
 The full list is under [More features](#all-skills).
 
-![Fill form in the Forms scenario: fields filled from the profile, consent ticked, the signature approved and the date added](docs/screenshots/en/forms.png)
+![Fill form in the Forms plugin: fields filled from the profile, consent ticked, the signature approved and the date added](docs/screenshots/en/forms.png)
 
-### 4. Scenarios
+### 4. Plugins
 
-A scenario tells the assistant what kind of work you're doing. Pick one from the top of the `/` menu and it stays with that chat.
+A plugin tells the assistant what kind of work you're doing. Pick one from the top of the `/` menu and it stays with that chat.
 
-Each scenario adds its own guidance to the system prompt and a set of **preferred skills**. The assistant picks among those by itself — you don't have to name them — and they appear as shortcuts above the composer. Every other skill and tool stays available.
+Each plugin adds its own guidance to the system prompt and a set of **preferred skills**. The assistant picks among those by itself — you don't have to name them — and they appear as shortcuts above the composer. Every other skill and tool stays available.
 
-| Scenario | For | Preferred skills | How the assistant behaves |
+| Plugin | For | Preferred skills | How the assistant behaves |
 | --- | --- | --- | --- |
 | **Study** | Textbooks, lecture notes, exercises | Explain, Notes, Flashcards, Quiz, Step by step, Revision plan, Glossary | Explains step by step in plain words, checks understanding with questions, saves study material to the notebook, adds revision tasks |
 | **Research** | Papers and technical reports | Paper card, Critique, Find citation, Brief, Glossary | Separates what the authors claim from what the evidence shows, keeps exact numbers with pages, searches the web for cited work |
@@ -102,7 +102,7 @@ Each scenario adds its own guidance to the system prompt and a set of **preferre
 | **Forms** | Applications and paperwork | Fill form, Review form, Documents needed, Sign, Redact | Reads your profile before asking for personal details, asks before saving anything new, lists documents to prepare |
 | **Reports** | Financial and business reports | Key figures, Check numbers, One-page summary, CSV, Key facts | Quotes figures with unit, period and page, uses the calculator for every sum and percentage, explains charts by trend and outliers |
 
-![The / menu with the five scenarios above the skills](docs/screenshots/en/scenarios.png)
+![The / menu with the five plugins above the skills](docs/screenshots/en/scenarios.png)
 
 ### 5. Translate in place
 
@@ -220,6 +220,7 @@ PaperLens is plain HTML, CSS and JavaScript modules. There's no framework, no bu
 | **Extension** | Chrome Manifest V3. A service worker (`background.js`) and content script send PDF links to `viewer.html` |
 | **PDF engine** | [PDF.js](https://mozilla.github.io/pdf.js/), vendored in `vendor/pdfjs`, for rendering, the text layer, form fields and saving annotations |
 | **Math** | [KaTeX](https://katex.org/), vendored in `vendor/katex`, renders LaTeX in chat replies and notebook notes |
+| **Code highlighting** | [highlight.js](https://highlightjs.org/), vendored in `vendor/hljs`, colours fenced code blocks in chat replies |
 | **AI** | Any OpenAI-compatible Chat Completions API with function calling, streamed; DeepSeek by default |
 | **Agent** | A step loop in `ai.js` over the tools in `agent-tools.js`. Skills and scenarios are prompts layered onto the system prompt |
 | **Storage** | `chrome.storage.local`, falling back to `localStorage` outside the extension |
@@ -259,4 +260,4 @@ The screenshots use the demo papers in `docs/samples/` (English and Chinese), bu
 
 ## License
 
-PaperLens is released under the [MIT License](LICENSE). PDF.js is licensed under Apache 2.0. KaTeX is licensed under MIT.
+PaperLens is released under the [MIT License](LICENSE). PDF.js is licensed under Apache 2.0. KaTeX is licensed under MIT. highlight.js is licensed under BSD-3-Clause.

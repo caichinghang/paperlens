@@ -1432,23 +1432,26 @@ svg {
   white-space: nowrap;
 }
 
-/* The "+" menu: the key for each way of adding context sits in front, like a shortcut. */
+/* The "+" menu: a plain dark icon in front of each row (no boxed keyboard-shortcut glyph), kept
+   compact rather than the roomier reference spacing — a small popover reads better tight. */
 #aiAttachMenu button {
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
-  min-width: 220px;
+  gap: 8px;
+  padding: 6px 8px;
+  min-width: 176px;
+  font-size: 12.5px;
 }
 
 #aiAttachMenu {
   width: max-content;
-  max-width: min(340px, calc(100vw - 24px));
+  max-width: min(260px, calc(100vw - 24px));
 }
 
 /* The quoted snippet takes whatever width is left and trails off inside the menu. */
 #aiAttachMenu button em {
   min-width: 0;
-  max-width: 150px;
+  max-width: 110px;
   margin-left: auto;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1459,18 +1462,14 @@ svg {
   display: grid;
   place-items: center;
   flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: var(--surface-hover);
-  color: var(--muted);
-  font-size: 12.5px;
-  font-weight: 600;
+  width: 15px;
+  height: 15px;
+  color: var(--text);
 }
 
 .attach-key svg {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
 }
 
 .menu button:hover:not(:disabled) {
@@ -2059,6 +2058,66 @@ svg {
   background: none;
 }
 
+/* Syntax highlighting for fenced code blocks (see renderCodeBlock in ai.js), mapped onto the same
+   six-colour icon palette used elsewhere so a code block reads as part of the same visual system
+   in both themes, rather than pulling in a separate highlight.js theme's own fixed colours. */
+.msg .hljs-comment,
+.msg .hljs-quote {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.msg .hljs-keyword,
+.msg .hljs-selector-tag,
+.msg .hljs-doctag,
+.msg .hljs-subst,
+.msg .hljs-formula {
+  color: var(--i-purple);
+}
+
+.msg .hljs-title,
+.msg .hljs-name,
+.msg .hljs-tag,
+.msg .hljs-type,
+.msg .hljs-built_in,
+.msg .hljs-section {
+  color: var(--i-blue);
+}
+
+.msg .hljs-string,
+.msg .hljs-regexp,
+.msg .hljs-addition {
+  color: var(--i-green);
+}
+
+.msg .hljs-number,
+.msg .hljs-literal,
+.msg .hljs-symbol,
+.msg .hljs-bullet {
+  color: var(--i-orange);
+}
+
+.msg .hljs-attr,
+.msg .hljs-deletion {
+  color: var(--i-red);
+}
+
+.msg .hljs-meta,
+.msg .hljs-attribute,
+.msg .hljs-variable,
+.msg .hljs-params,
+.msg .hljs-link {
+  color: var(--soft);
+}
+
+.msg .hljs-strong {
+  font-weight: 600;
+}
+
+.msg .hljs-emphasis {
+  font-style: italic;
+}
+
 .msg a {
   color: var(--accent);
 }
@@ -2516,6 +2575,16 @@ svg {
   color: #ffffff;
 }
 
+/* `.menu button:hover:not(:disabled)` (a class, an element and two pseudo-classes) outranks the
+   plain `:hover` and `[aria-checked="true"]` rules above (each a class, a class and one more
+   selector), so without this the accent background got overridden by the grey menu-hover one
+   while the pill was still on. This repeats both declarations with one more class-level selector
+   to win back. */
+.effort-menu .effort-auto[aria-checked="true"]:hover {
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .effort-menu .effort-auto:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
@@ -2656,6 +2725,9 @@ svg {
   color: var(--soft);
 }
 
+/* Black once there's something to send (or a reply to stop), grey while there isn't — the colour
+   reports whether the button does anything, rather than just whether the pointer is over it. See
+   updateSendReady, called after every input change. */
 .ai-send {
   display: grid;
   place-items: center;
@@ -2664,13 +2736,18 @@ svg {
   height: 32px;
   border: 0;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--text) 72%, var(--bg));
+  background: var(--text);
   color: var(--bg);
   transition: background 140ms ease, transform 140ms ease;
 }
 
-.ai-send:hover {
-  background: var(--text);
+.ai-send:disabled {
+  background: var(--soft);
+  opacity: 1;
+  cursor: default;
+}
+
+.ai-send:not(:disabled):hover {
   transform: scale(1.04);
 }
 
