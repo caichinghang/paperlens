@@ -199,6 +199,7 @@ const assistant = createAssistant({
     }),
     getRevision: () => contentRevision,
     renderPageImage: agentRenderPageImage,
+    getPageThumbnail: pageThumbnailCopy,
     renderRegionImage: agentRenderRegionImage,
     getPageText: async number => (await getPageText(agentPage(number).number)).readable,
     getPageLayout: agentGetPageLayout,
@@ -1229,6 +1230,31 @@ async function renderThumbnail(page, token) {
   if (token === state.loadToken) {
     page.thumbnail.querySelector(".thumbnail-preview").replaceChildren(canvas);
   }
+}
+
+// A copy of a page's sidebar thumbnail for the assistant's page strip, rendered first if the sidebar
+// hasn't reached it yet. A copy, because a canvas can only sit in one place in the page.
+async function pageThumbnailCopy(number) {
+  const page = state.pages[number - 1];
+  if (!page) {
+    return null;
+  }
+  let source = page.thumbnail.querySelector(".thumbnail-preview canvas");
+  if (!source) {
+    thumbnailObserver?.unobserve(page.thumbnail);
+    const token = state.loadToken;
+    thumbnailQueue = thumbnailQueue.then(() => renderThumbnail(page, token)).catch(() => {});
+    await thumbnailQueue;
+    source = page.thumbnail.querySelector(".thumbnail-preview canvas");
+  }
+  if (!source) {
+    return null;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  canvas.getContext("2d").drawImage(source, 0, 0);
+  return canvas;
 }
 
 function outlineButton(title, depth, onClick) {
