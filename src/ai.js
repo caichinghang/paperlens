@@ -61,7 +61,6 @@ const ICONS = {
   stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"></rect></svg>',
   deepseek: '<img class="deepseek-logo" src="icons/deepseek.svg" alt="" aria-hidden="true">',
   page: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg>',
-  plugin: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"></rect><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"></rect><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"></rect><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"></rect></svg>',
   region: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="8" y="8" width="8" height="8" rx="1.5"></rect></svg>',
   quote: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h4v4H6zM14 7h4v4h-4z"></path><path d="M10 11c0 3-1.5 5-4 6M18 11c0 3-1.5 5-4 6"></path></svg>',
   close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg>',
@@ -793,7 +792,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     attachments: $("#aiAttachments"),
     baseUrl: $("#aiBaseUrl"),
     close: $("#aiClose"),
-    commandMenu: $("#aiCommandMenu"),
     conversation: $("#aiConversation"),
     currency: $("#aiCurrency"),
     form: $("#aiForm"),
@@ -801,7 +799,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     key: $("#aiKey"),
     keyToggle: $("#aiKeyToggle"),
     language: $("#aiLanguage"),
-    mentionMenu: $("#aiMentionMenu"),
     messages: $("#aiMessages"),
     model: $("#aiModel"),
     thinkingButton: $("#aiThinking"),
@@ -822,7 +819,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     toggle: $("#aiToggle"),
     webSearch: $("#aiWebSearch")
   };
-  const menus = [el.titleMenu, el.attachMenu, el.thinkingMenu, el.mentionMenu, el.commandMenu];
+  const menus = [el.titleMenu, el.attachMenu, el.thinkingMenu];
   const tools = createAgentTools(host);
   const imageCache = new Map();
 
@@ -835,6 +832,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   let autoEffort = "";
   let docKey = "";
   let updateFrame = 0;
+  // What is being typed after @ ({ from, to, start, end }) or / (the filtered picker), while the
+  // + tray is showing it.
   let mention = null;
   let command = null;
   let skill = null;
@@ -845,6 +844,9 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   // Page thumbnails for the + tray, by page and document revision, and the drag across them.
   const thumbCache = new Map();
   let trayDrag = null;
+  let trayView = "pages";
+  // Whether the tray was opened by typing @ or /, so it closes again when that text goes.
+  let trayByTyping = false;
   let persistTimer = 0;
   // Saved chats, newest first; `history` holds the open one (chatId) while it's being used.
   let chats = [];
@@ -1334,8 +1336,10 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     }
   }
 
+  const normalizeQuote = text => String(text || "").replace(/\s+/g, " ").trim().slice(0, 2000);
+
   function setQuote(text) {
-    quote = String(text || "").replace(/\s+/g, " ").trim().slice(0, 2000);
+    quote = normalizeQuote(text);
     renderAttachments();
   }
 
@@ -1510,6 +1514,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     }
     mention = null;
     command = null;
+    trayByTyping = false;
   }
 
   function toggleMenu(menu) {
@@ -1519,8 +1524,9 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   // ---------- The + tray ----------
-  // Pages are a strip of thumbnails: click one, or drag across several to attach a range. Under it,
-  // two buttons side by side: quote the selection, and open plugins and skills.
+  // Two views behind a switch in the head. Pages: a strip of thumbnails to click, or drag across
+  // several to attach a range, and the selected text as a quote when there is any. Skills: the /
+  // picker's plugins and skills, so choosing one leaves what is typed alone.
 
   function buildAttachMenu() {
     const info = host.getDocumentInfo();
@@ -1534,30 +1540,129 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
           </button>`).join("")}
         </div>`
       : `<div class="tray-empty">${escapeHtml(t("Open a PDF first"))}</div>`;
-    const all = info.pageCount > 1 && info.pageCount <= MAX_ATTACHED_PAGES
-      ? `<button type="button" class="tray-all" data-tray-all>${escapeHtml(t("All pages"))}</button>`
+    const span = traySpan(info);
+    const all = span
+      ? `<button type="button" class="popover-pill" role="switch" aria-checked="false" data-tray-all data-from="${span.from}" data-to="${span.to}"${span.to - span.from + 1 < info.pageCount ? ` title="${escapeHtml(t("Up to {count} pages can be sent at once", { count: MAX_ATTACHED_PAGES }))}"` : ""}>${escapeHtml(span.to - span.from + 1 < info.pageCount ? rangeLabel(span) : t("All pages"))}</button>`
       : "";
+    const quoted = Boolean(selected) && quote === normalizeQuote(selected);
+    const quoteRow = selected
+      ? `<div class="tray-quote">
+          <span class="tray-quote-text">${escapeHtml(truncate(selected.replace(/\s+/g, " ").trim(), 240))}</span>
+          <button type="button" class="popover-pill" role="switch" aria-checked="${quoted}" data-tray-quote>${escapeHtml(quoted ? t("Quoted") : t("Quote"))}</button>
+        </div>`
+      : "";
+    trayView = "pages";
     el.attachMenu.innerHTML = `
-      <div class="tray-head">
-        <span class="tray-title">${escapeHtml(t("Pages"))}</span>
-        <span class="tray-hint"></span>
-        ${all}
+      <div class="popover-head">
+        <div class="popover-tabs" role="tablist" style="--tab:0">
+          <button type="button" role="tab" data-tray-view="pages" aria-selected="true">${escapeHtml(t("Pages"))}</button>
+          <button type="button" role="tab" data-tray-view="skills" aria-selected="false">${escapeHtml(t("Skills"))}</button>
+        </div>
+        <div class="tray-head-pages">
+          <span class="popover-value tray-picked"></span>
+          ${all}
+        </div>
       </div>
-      ${strip}
-      <div class="tray-actions">
-        <button type="button" data-attach="selection" ${selected ? "" : "disabled"} title="${escapeHtml(selected ? truncate(selected, 120) : t("Select text on the page to quote it"))}">
-          <span class="attach-key">${ICONS.quote}</span><span>${escapeHtml(t("Quote selected text"))}</span>
-        </button>
-        <button type="button" data-attach="commands">
-          <span class="attach-key">${ICONS.plugin}</span><span>${escapeHtml(t("Plugins and skills"))}</span>
-        </button>
+      <div class="tray-views" data-view="pages">
+        <div class="tray-view is-pages" role="tabpanel">
+          <div class="tray-scale">
+            ${info.pageCount ? `<div class="popover-caption">${escapeHtml(t("Click a page, or drag across several"))}</div>` : ""}
+            ${strip}
+          </div>
+          ${quoteRow}
+        </div>
+        <div class="tray-view is-skills" role="tabpanel" inert>
+          <div class="tray-skills"></div>
+        </div>
       </div>`;
+    renderTraySkills();
     markTray();
+  }
+
+  // The pill at the end of the tray's head: every page when they all fit in one message, and
+  // otherwise as many as fit around the page being read: three before it and four after, shifted
+  // along at either end of the document so the span stays full.
+  function traySpan(info) {
+    if (info.pageCount < 2) {
+      return null;
+    }
+    const before = Math.floor((MAX_ATTACHED_PAGES - 1) / 2);
+    const from = Math.max(1, Math.min(info.currentPage - before, info.pageCount - MAX_ATTACHED_PAGES + 1));
+    return { from, to: Math.min(info.pageCount, from + MAX_ATTACHED_PAGES - 1) };
+  }
+
+  // The views' box takes the height of the one showing, gliding there from where it was.
+  function fitTrayViews(animate) {
+    const box = el.attachMenu.querySelector(".tray-views");
+    if (!box) {
+      return;
+    }
+    // Layout sizes, not getBoundingClientRect: the menu's pop-in scale would shrink those.
+    const from = box.offsetHeight;
+    // Measured at the box's natural height: a fixed one squeezes the grid row the views sit in.
+    box.style.height = "auto";
+    const to = box.querySelector(trayView === "pages" ? ".is-pages" : ".is-skills").offsetHeight;
+    box.style.height = `${animate ? from : to}px`;
+    if (animate) {
+      box.getBoundingClientRect();
+      box.style.height = `${to}px`;
+    }
+  }
+
+  // The switch's knob slides over, the pages' half of the head fades, and the views slide sideways.
+  function showTrayView(view, { instant = false } = {}) {
+    if (view === trayView) {
+      return;
+    }
+    trayView = view;
+    const skills = view === "skills";
+    el.attachMenu.querySelector(".popover-tabs").style.setProperty("--tab", skills ? "1" : "0");
+    el.attachMenu.querySelectorAll("[data-tray-view]").forEach(tab => tab.setAttribute("aria-selected", String(tab.dataset.trayView === view)));
+    el.attachMenu.querySelector(".tray-head-pages").classList.toggle("is-away", skills);
+    el.attachMenu.querySelector(".tray-views").dataset.view = view;
+    el.attachMenu.querySelector(".is-pages").inert = skills;
+    el.attachMenu.querySelector(".is-skills").inert = !skills;
+    // Opening straight onto the skills (typing /) shows them at once rather than sliding over.
+    el.attachMenu.classList.toggle("is-instant", instant);
+    fitTrayViews(!instant);
+    if (instant) {
+      requestAnimationFrame(() => el.attachMenu.classList.remove("is-instant"));
+    }
+  }
+
+  // Choosing in the tray keeps what is typed, unless it was the "/query" that opened it.
+  function pickFromTray(key) {
+    const [kind, id] = key.split(":");
+    const typed = Boolean(command);
+    closeMenus();
+    if (typed) {
+      el.input.value = "";
+      autosize();
+    }
+    if (kind === "scenario") {
+      setScenario(scenario?.id === id ? null : findScenario(id));
+    } else if (findCommand(id)) {
+      setSkill(findCommand(id));
+    }
+    el.input.focus();
+  }
+
+  // The tray's scrolling parts have no scrollbar; an end fades out while there is more past it.
+  function markScrollEnds(box) {
+    const across = box.classList.contains("tray-strip");
+    const at = across ? box.scrollLeft : box.scrollTop;
+    const max = across ? box.scrollWidth - box.clientWidth : box.scrollHeight - box.clientHeight;
+    box.classList.toggle("has-before", at > 1);
+    box.classList.toggle("has-after", at < max - 1);
   }
 
   // Called once the tray is showing: centres the strip on the page being read and starts loading
   // the thumbnails that scroll into view.
   function showTray() {
+    fitTrayViews(false);
+    const list = el.attachMenu.querySelector(".tray-skills");
+    markScrollEnds(list);
+    list.addEventListener("scroll", () => markScrollEnds(list), { passive: true });
     const strip = el.attachMenu.querySelector(".tray-strip");
     if (!strip) {
       return;
@@ -1566,6 +1671,15 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     if (focus) {
       strip.scrollLeft = focus.offsetLeft - (strip.clientWidth - focus.offsetWidth) / 2;
     }
+    markScrollEnds(strip);
+    strip.addEventListener("scroll", () => markScrollEnds(strip), { passive: true });
+    // Without a scrollbar a mouse wheel is the way along, so an up-and-down wheel scrolls sideways.
+    strip.addEventListener("wheel", event => {
+      if (Math.abs(event.deltaY) > Math.abs(event.deltaX) && strip.scrollWidth > strip.clientWidth) {
+        event.preventDefault();
+        strip.scrollLeft += event.deltaY;
+      }
+    }, { passive: false });
     const observer = new IntersectionObserver(entries => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
@@ -1606,13 +1720,21 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       tile.classList.toggle("is-dragging", inDrag);
       tile.classList.toggle("is-drag-start", Boolean(range && page === range.from));
       tile.classList.toggle("is-drag-end", Boolean(range && page === range.to));
+      tile.classList.toggle("is-target", Boolean(!range && mention && page >= mention.from && page <= mention.to));
       tile.setAttribute("aria-selected", String(attached.has(page)));
     }
-    const hint = el.attachMenu.querySelector(".tray-hint");
-    if (hint) {
-      hint.textContent = range
-        ? rangeLabel(range)
-        : attached.size ? pageRanges.map(rangeLabel).join(", ") : t("Click a page, or drag across several");
+    // The head reads like the effort menu's: "Pages" and then which ones, or nothing yet. While a
+    // page is being typed after @, it names that page instead.
+    const picked = el.attachMenu.querySelector(".tray-picked");
+    if (picked) {
+      picked.textContent = range ? rangeLabel(range) : mention ? rangeLabel(mention) : pageRanges.map(rangeLabel).join(", ");
+    }
+    const all = el.attachMenu.querySelector("[data-tray-all]");
+    if (all) {
+      const from = Number(all.dataset.from);
+      const to = Number(all.dataset.to);
+      const on = Array.from({ length: to - from + 1 }, (_, index) => from + index).every(page => attached.has(page));
+      all.setAttribute("aria-checked", String(on));
     }
   }
 
@@ -1759,9 +1881,43 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     slider.querySelectorAll(".effort-dot").forEach((dot, step) => dot.classList.toggle("is-filled", step / last <= p + 1e-6));
     slider.setAttribute("aria-valuenow", String(index));
     slider.setAttribute("aria-valuetext", THINKING_LEVELS[index][1]);
-    el.thinkingMenu.querySelector(".effort-title").textContent = THINKING_LEVELS[index][1];
+    rollEffortWord(el.thinkingMenu.querySelector(".effort-title"), index);
     el.thinkingLabel.textContent = THINKING_LEVELS[index][1];
     return index;
+  }
+
+  // The word in the head rolls to the new step like a counter: a harder step comes up from below
+  // and pushes the old one out of the top, an easier one drops in from above. A step taken while
+  // the last is still rolling cuts it short rather than queueing behind it.
+  function rollEffortWord(title, index) {
+    const word = THINKING_LEVELS[index][1];
+    const shown = title.lastElementChild || title;
+    if (shown.textContent === word) {
+      return;
+    }
+    const levels = THINKING_LEVELS.map(level => level[1]);
+    const up = index > levels.indexOf(shown.textContent);
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      title.textContent = word;
+      return;
+    }
+    title.classList.add("effort-roll");
+    if (!title.children.length) {
+      title.innerHTML = `<span>${escapeHtml(shown.textContent)}</span>`;
+    }
+    [...title.children].slice(0, -1).forEach(span => span.remove());
+    const old = title.lastElementChild;
+    const next = document.createElement("span");
+    next.textContent = word;
+    title.append(next);
+    old.animate(
+      [{ transform: "translateY(0)", opacity: 1 }, { transform: `translateY(${up ? -100 : 100}%)`, opacity: 0 }],
+      { duration: 180, easing: "cubic-bezier(0.4, 0, 1, 1)", fill: "forwards" }
+    ).onfinish = () => old.remove();
+    next.animate(
+      [{ transform: `translateY(${up ? 100 : -100}%)`, opacity: 0 }, { transform: "translateY(0)", opacity: 1 }],
+      { duration: 280, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)" }
+    );
   }
 
   async function commitEffort(slider, index) {
@@ -1782,99 +1938,94 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     renderAttachments();
   }
 
-  function handleAttach(kind) {
-    if (kind === "pages") {
-      insertAtCaret("@");
-      updateMention();
-    } else if (kind === "commands") {
-      el.input.value = "/";
-      el.input.focus();
-      autosize();
-      updateCommand();
+  // ---------- @ mentions ----------
+
+  // ---------- Typing @ and / ----------
+  // Both open the + tray and leave the caret in the box: @ on its pages, with the page or range
+  // being typed ringed in the strip, and / on its skills, filtered by what follows it.
+
+  function openTray(view) {
+    if (el.attachMenu.hidden) {
+      for (const menu of menus) {
+        menu.hidden = true;
+      }
+      buildAttachMenu();
+      el.attachMenu.hidden = false;
+      trayByTyping = true;
+      showTray();
+      showTrayView(view, { instant: true });
     } else {
-      setQuote(getSelectedText?.() || "");
-      el.input.focus();
+      showTrayView(view);
     }
   }
 
-  // ---------- @ mentions ----------
+  function updateTyping() {
+    updateMention();
+    updateCommand();
+    if (!mention && !command && trayByTyping) {
+      closeMenus();
+    }
+  }
 
+  // "@" alone points at the page being read; "@12" at page 12, and "@3-5" at pages 3 to 5.
   function updateMention() {
     const info = host.getDocumentInfo();
     const caret = el.input.selectionStart;
-    const match = el.input.value.slice(0, caret).match(/(?:^|\s)@(\d*)$/);
-    if (!match || !info.pageCount || el.input.selectionEnd !== caret) {
-      closeMention();
+    const match = el.input.value.slice(0, caret).match(/(?:^|\s)@(\d*)(?:\s*[-–]\s*(\d*))?$/);
+    const first = match?.[1] ? Number(match[1]) : info.currentPage;
+    if (!match || !info.pageCount || el.input.selectionEnd !== caret || first < 1 || first > info.pageCount) {
+      if (mention) {
+        mention = null;
+        markTray();
+      }
       return;
     }
-
-    // Every page, the one being read first; the list scrolls for long documents.
-    const query = match[1];
-    const items = [];
-    const pageItem = page => ({ token: `@${page}`, label: t("Page {page}", { page }), hint: page === info.currentPage ? t("Current page") : "" });
-    if (!query) {
-      items.push(pageItem(info.currentPage));
-      for (let page = 1; page <= info.pageCount; page += 1) {
-        if (page !== info.currentPage) {
-          items.push(pageItem(page));
-        }
-      }
-      if (info.pageCount > 1 && info.pageCount <= MAX_ATTACHED_PAGES) {
-        items.push({ token: `@1-${info.pageCount}`, label: t("All pages"), hint: `1–${info.pageCount}` });
-      }
-    } else {
-      for (let page = 1; page <= info.pageCount; page += 1) {
-        if (String(page).startsWith(query)) {
-          items.push(pageItem(page));
-        }
-      }
-    }
-
-    if (!items.length) {
-      closeMention();
-      return;
-    }
-
-    const active = mention && mention.query === query ? Math.min(mention.active, items.length - 1) : 0;
-    mention = { items, active, query, start: caret - query.length - 1, end: caret };
-    renderMentionMenu();
+    const last = match[2] ? Math.min(info.pageCount, Number(match[2])) : first;
+    const start = caret - match[0].length + (/^\s/.test(match[0]) ? 1 : 0);
+    mention = { from: Math.min(first, last || first), to: Math.max(first, last || first), start, end: caret };
+    openTray("pages");
+    markTray();
+    revealTarget();
   }
 
-  function renderMentionMenu() {
-    for (const menu of menus) {
-      if (menu !== el.mentionMenu) {
-        menu.hidden = true;
-      }
-    }
-    el.mentionMenu.innerHTML = `<div class="menu-label">${t("Attach page")}</div>` + mention.items.map((item, index) => `
-      <button type="button" role="option" data-mention-index="${index}" class="${index === mention.active ? "is-active" : ""}" aria-selected="${index === mention.active}">
-        <span>${escapeHtml(item.label)}</span><em>${escapeHtml(item.hint)}</em>
-      </button>`).join("");
-    el.mentionMenu.hidden = false;
-    el.mentionMenu.querySelector(".is-active")?.scrollIntoView({ block: "nearest" });
+  // Left and right move the ring to the page before or after it.
+  function moveTarget(step) {
+    const { pageCount } = host.getDocumentInfo();
+    const page = Math.min(pageCount, Math.max(1, (step > 0 ? mention.to : mention.from) + step));
+    mention.from = page;
+    mention.to = page;
+    markTray();
+    revealTarget();
   }
 
-  function closeMention() {
-    mention = null;
-    el.mentionMenu.hidden = true;
+  function revealTarget() {
+    const tile = el.attachMenu.querySelector(`.tray-page[data-tray-page="${mention.from}"]`);
+    if (tile) {
+      revealTile(tile, { center: true });
+    }
   }
 
-  function chooseMention(index) {
-    const item = mention?.items[index];
-    if (!item) {
-      return;
-    }
+  // Scrolls the strip itself: scrollIntoView would also shift the clipped box the views slide in.
+  function revealTile(tile, { center = false } = {}) {
+    const strip = tile.closest(".tray-strip");
+    const box = strip.getBoundingClientRect();
+    const rect = tile.getBoundingClientRect();
+    const by = center
+      ? rect.left + rect.width / 2 - (box.left + box.width / 2)
+      : rect.left < box.left + 16 ? rect.left - box.left - 16 : rect.right > box.right - 16 ? rect.right - box.right + 16 : 0;
+    strip.scrollBy({ left: by, behavior: "smooth" });
+  }
+
+  // Enter takes the ringed pages and drops the typed "@12" from the box.
+  function chooseMention() {
+    const { from, to, start, end } = mention;
     const { value } = el.input;
-    const [token] = parseMentions(item.token, host.getDocumentInfo().pageCount).tokens;
-    el.input.value = value.slice(0, mention.start) + value.slice(mention.end).replace(/^ /, "");
-    const caret = mention.start;
-    closeMention();
+    el.input.value = value.slice(0, start) + value.slice(end).replace(/^ /, "");
+    closeMenus();
     el.input.focus();
-    el.input.setSelectionRange(caret, caret);
+    el.input.setSelectionRange(start, start);
     autosize();
-    if (token?.valid) {
-      addPageRange(token);
-    }
+    addPageRange({ from, to });
     renderAttachments();
   }
 
@@ -1894,99 +2045,105 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   function updateCommand() {
     const match = el.input.value.match(/^\/([^\s/]*)$/);
     if (!match) {
-      closeCommand();
+      if (command) {
+        command = null;
+        renderTraySkills();
+      }
       return;
     }
     const query = match[1].toLowerCase();
     const view = pickerView(query);
-    if (!view.nav.length) {
-      closeCommand();
-      return;
-    }
     // The active item survives a re-render; otherwise the first skill is, so Enter runs a skill.
     const kept = command?.activeKey ? view.nav.findIndex(item => navKey(item) === command.activeKey) : -1;
     const active = kept >= 0 ? kept : view.skills.length ? view.plugins.length : 0;
-    command = { ...view, query, active, activeKey: navKey(view.nav[active]) };
-    renderCommandMenu();
+    command = { ...view, query, active, activeKey: view.nav.length ? navKey(view.nav[active]) : "" };
+    if (el.attachMenu.hidden) {
+      openTray("skills");
+    } else {
+      showTrayView("skills");
+      renderTraySkills();
+      fitTrayViews(true);
+    }
   }
 
   // The picker draws its glyphs as outlines in the text colour, like the + and effort menus.
   const lineGlyph = id => `<span class="line-icon">${LINE_ICONS[id] || ""}</span>`;
 
-  // Every row is the same: a glyph, a name, and on the right either a description (a skill) or the
-  // glyphs of the skills a plugin hands to the assistant.
-  function renderCommandMenu() {
-    for (const menu of menus) {
-      if (menu !== el.commandMenu) {
-        menu.hidden = true;
-      }
+  // The tray's skills: everything, or what matches the "/query" being typed, with the row Enter
+  // would pick tinted.
+  function renderTraySkills() {
+    const list = el.attachMenu.querySelector(".tray-skills");
+    if (!list) {
+      return;
     }
-    const plugins = command.plugins.map((item, index) => {
+    const view = command || pickerView("");
+    list.innerHTML = view.nav.length
+      ? pickerList(view, (item, index) => `data-nav="${index}" data-tray-pick="${item.kind}:${escapeHtml(item.id)}" aria-selected="false"`)
+      : `<div class="tray-empty">${escapeHtml(t("No matching skills"))}</div>`;
+    list.scrollTop = 0;
+    markScrollEnds(list);
+    markActive({ scroll: true });
+  }
+
+  // The picker's rows: plugins, then skills. `attrs` adds what the tray needs to act on each row.
+  function pickerList(view, attrs) {
+    const plugins = view.plugins.map((item, index) => {
       const on = scenario?.id === item.id;
       const glyphs = item.skills.slice(0, 4).map(id => `<span class="plugin-skill">${LINE_ICONS[id] || ""}</span>`).join("");
       const more = item.skills.length > 4 ? `<em>+${item.skills.length - 4}</em>` : "";
       return `
-        <button type="button" role="option" class="command-item plugin-row${on ? " is-on" : ""}" data-nav="${index}" aria-selected="false" aria-pressed="${on}" title="${escapeHtml(item.description)}">
+        <button type="button" role="option" class="command-item plugin-row${on ? " is-on" : ""}" ${attrs(item, index)} aria-pressed="${on}" title="${escapeHtml(item.description)}">
           <span class="line-icon">${pluginGlyph(item.id)}</span><strong>${escapeHtml(item.label)}</strong><span class="plugin-skills">${glyphs}${more}</span>
         </button>`;
     }).join("");
-    const skills = command.skills.map((item, index) => `
-      <button type="button" role="option" class="command-item" data-nav="${command.plugins.length + index}" aria-selected="false" title="${escapeHtml(item.description)}">
+    const skills = view.skills.map((item, index) => `
+      <button type="button" role="option" class="command-item" ${attrs(item, view.plugins.length + index)} title="${escapeHtml(item.description)}">
         ${lineGlyph(item.id)}<strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.description)}</small>
       </button>`).join("");
-    el.commandMenu.innerHTML = `
-      ${plugins ? `<div class="menu-label">${t("Plugins · the assistant picks the skills")}</div>${plugins}` : ""}
-      ${skills ? `<div class="menu-label">${t("Skills · pick one yourself")}</div>${skills}` : ""}`;
-    el.commandMenu.hidden = false;
-    markActive({ scroll: true });
+    const head = (name, caption) => `<div class="popover-head"><span class="popover-name">${escapeHtml(name)}</span><span class="popover-caption">${escapeHtml(caption)}</span></div>`;
+    return `
+      ${plugins ? `${head(t("Plugins"), t("The assistant picks the skills"))}${plugins}` : ""}
+      ${skills ? `${head(t("Skills"), t("Pick one yourself"))}${skills}` : ""}`;
   }
 
-  // Moves the highlight without rebuilding the menu.
+  // Moves the highlight without rebuilding the list.
   function markActive({ scroll = false } = {}) {
+    if (!command?.nav.length) {
+      return;
+    }
     command.activeKey = navKey(command.nav[command.active]);
-    for (const button of el.commandMenu.querySelectorAll("[data-nav]")) {
+    for (const button of el.attachMenu.querySelectorAll(".tray-skills [data-nav]")) {
       const active = Number(button.dataset.nav) === command.active;
       button.classList.toggle("is-active", active);
       button.setAttribute("aria-selected", String(active));
       if (active && scroll) {
-        button.scrollIntoView({ block: "nearest" });
+        revealRow(button);
       }
     }
   }
 
-  // Up and down run through the plugins and then the skills, wrapping at either end; left and right
-  // are left to the caret.
-  function moveActive(key) {
-    if (key === "ArrowLeft" || key === "ArrowRight") {
-      return false;
+  function revealRow(row) {
+    const list = row.closest(".tray-skills");
+    const box = list.getBoundingClientRect();
+    const rect = row.getBoundingClientRect();
+    if (rect.top < box.top + 8) {
+      list.scrollTop -= box.top + 8 - rect.top;
+    } else if (rect.bottom > box.bottom - 8) {
+      list.scrollTop += rect.bottom - box.bottom + 8;
     }
+  }
+
+  // Up and down run through the plugins and then the skills, wrapping at either end.
+  function moveActive(key) {
     const count = command.nav.length;
     command.active = (command.active + (key === "ArrowDown" ? 1 : -1) + count) % count;
     markActive({ scroll: true });
-    return true;
-  }
-
-  function closeCommand() {
-    command = null;
-    el.commandMenu.hidden = true;
-  }
-
-  // Picking the plugin that is already on turns it off.
-  function togglePlugin(id) {
-    closeCommand();
-    el.input.value = "";
-    autosize();
-    setScenario(scenario?.id === id ? null : findScenario(id));
-    el.input.focus();
   }
 
   function chooseCommand(index) {
     const item = command?.nav[index];
-    if (item?.kind === "scenario") {
-      togglePlugin(item.id);
-    } else if (item) {
-      closeCommand();
-      useCommand(item.id);
+    if (item) {
+      pickFromTray(navKey(item));
     }
   }
 
@@ -3453,6 +3610,11 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   });
   // Press on a page and drag to take a range; a plain click takes or drops one page.
   el.attachMenu.addEventListener("pointerdown", event => {
+    // The tray's buttons don't take focus, so the caret stays where @ or / is being typed.
+    if (event.target.closest("button:not(.tray-page)")) {
+      event.preventDefault();
+      return;
+    }
     const tile = event.target.closest(".tray-page");
     if (!tile || event.button !== 0) {
       return;
@@ -3480,8 +3642,17 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       const page = Number(tile.dataset.trayPage);
       toggleRange({ from: page, to: page });
     } else if (event.target.closest("[data-tray-all]")) {
-      const { pageCount } = host.getDocumentInfo();
-      toggleRange({ from: 1, to: pageCount });
+      const all = event.target.closest("[data-tray-all]");
+      toggleRange({ from: Number(all.dataset.from), to: Number(all.dataset.to) });
+    } else if (event.target.closest("[data-tray-view]")) {
+      showTrayView(event.target.closest("[data-tray-view]").dataset.trayView);
+    } else if (event.target.closest("[data-tray-quote]")) {
+      const pill = event.target.closest("[data-tray-quote]");
+      setQuote(getSelectedText?.() || "");
+      pill.setAttribute("aria-checked", "true");
+      pill.textContent = t("Quoted");
+    } else if (event.target.closest("[data-tray-pick]")) {
+      pickFromTray(event.target.closest("[data-tray-pick]").dataset.trayPick);
     }
   });
   el.attachMenu.addEventListener("keydown", event => {
@@ -3489,8 +3660,10 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     if (tile && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
       event.preventDefault();
       const next = event.key === "ArrowRight" ? tile.nextElementSibling : tile.previousElementSibling;
-      next?.focus();
-      next?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      if (next) {
+        next.focus({ preventScroll: true });
+        revealTile(next);
+      }
     }
   });
   el.thinkingButton.addEventListener("click", () => {
@@ -3608,10 +3781,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       host.setTheme(button.dataset.appearance);
     }
   });
-  el.mentionMenu.addEventListener("pointerdown", event => event.preventDefault());
-  el.commandMenu.addEventListener("pointerdown", event => event.preventDefault());
-  el.commandMenu.addEventListener("pointerover", event => {
-    const button = event.target.closest("[data-nav]");
+  el.attachMenu.addEventListener("pointerover", event => {
+    const button = event.target.closest(".tray-skills [data-nav]");
     if (command && button && Number(button.dataset.nav) !== command.active) {
       command.active = Number(button.dataset.nav);
       markActive();
@@ -3645,13 +3816,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       deleteChat(dataset.chatDelete);
     } else if (dataset.command) {
       useCommand(dataset.command);
-    } else if (dataset.attach) {
-      closeMenus();
-      handleAttach(dataset.attach);
-    } else if (dataset.mentionIndex !== undefined) {
-      chooseMention(Number(dataset.mentionIndex));
-    } else if (dataset.nav !== undefined && command) {
-      chooseCommand(Number(dataset.nav));
     } else if (dataset.chipRemove) {
       removeChip(dataset.chipRemove);
     } else if (dataset.prompt) {
@@ -3714,49 +3878,47 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   el.input.addEventListener("input", () => {
     autosize();
     absorbMentions();
-    updateMention();
-    updateCommand();
+    updateTyping();
     renderAttachments();
   });
-  el.input.addEventListener("click", updateMention);
+  el.input.addEventListener("click", updateTyping);
   el.input.addEventListener("keyup", event => {
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "Home" || event.key === "End") {
-      updateMention();
+    if (event.key === "Home" || event.key === "End") {
+      updateTyping();
     }
   });
   el.input.addEventListener("keydown", event => {
-    const activeMenu = mention && !el.mentionMenu.hidden ? "mention" : command && !el.commandMenu.hidden ? "command" : null;
-    if (activeMenu) {
-      const state = activeMenu === "mention" ? mention : command;
-      if (activeMenu === "command" && ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(event.key)) {
-        if (moveActive(event.key)) {
-          event.preventDefault();
-        }
+    const trayUp = !el.attachMenu.hidden;
+    const choosing = (event.key === "Enter" || event.key === "Tab") && !event.isComposing;
+    if (trayUp && mention && trayView === "pages") {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        moveTarget(event.key === "ArrowRight" ? 1 : -1);
         return;
       }
+      if (choosing) {
+        event.preventDefault();
+        chooseMention();
+        return;
+      }
+    }
+    if (trayUp && command?.nav.length && trayView === "skills") {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
-        const count = state.items.length;
-        state.active = (state.active + (event.key === "ArrowDown" ? 1 : -1) + count) % count;
-        renderMentionMenu();
+        moveActive(event.key);
         return;
       }
-      if ((event.key === "Enter" || event.key === "Tab") && !event.isComposing) {
+      if (choosing) {
         event.preventDefault();
-        if (activeMenu === "mention") {
-          chooseMention(state.active);
-        } else {
-          chooseCommand(state.active);
-        }
+        chooseCommand(command.active);
         return;
       }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        closeMention();
-        closeCommand();
-        return;
-      }
+    }
+    if (trayUp && event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenus();
+      return;
     }
 
     // Backspace at the start of the text removes the last chip: pages first, then the skill.
