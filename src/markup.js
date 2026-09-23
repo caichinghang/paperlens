@@ -774,7 +774,7 @@ export function createMarkup({ pdfPages, bar, list, signatureDialog, getPages, g
 
   function renderList() {
     if (!annotations.length) {
-      list.innerHTML = `<div class="sidebar-empty">${t("No markup yet. Select some text, or open the markup toolbar to draw.")}</div>`;
+      list.innerHTML = `<div class="sidebar-empty has-mark"><div class="line-art sidebar-empty-mark" aria-hidden="true"></div><span>${t("Untouched, like fresh snow. Select some text, or open the markup toolbar, to leave the first mark.")}</span></div>`;
       return;
     }
 

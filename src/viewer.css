@@ -28,7 +28,10 @@
   --popover-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 4px 10px rgba(15, 15, 15, 0.07), 0 16px 40px rgba(15, 15, 15, 0.12);
   /* Frosted, slightly see-through surfaces for everything that floats. Mixed from --surface-raised
      rather than --bg: on a dark theme a panel cannot be lifted by darkening what is behind it,
-     because there is almost no room left below the background, so the surface itself goes lighter. */
+     because there is almost no room left below the background, so the surface itself goes lighter.
+     For the same reason the dark theme's shadows are short and faint: between its background and
+     black there are only a dozen or so greys, and a long, deep shadow spreads them into bands wide
+     enough to see as lines. Short ones pack each grey into a few pixels. They stay black. */
   --glass-bg: color-mix(in srgb, var(--surface-raised) 88%, transparent);
   --glass-shadow: 0 0 0 1px rgba(15, 15, 15, 0.07), 0 2px 6px rgba(15, 15, 15, 0.05), 0 12px 32px rgba(15, 15, 15, 0.1);
   /* Every floating surface shares this blur, strong enough that the page behind reads as light and
@@ -62,8 +65,6 @@
   --control-radius: 8px;
   --control-track-radius: 10px;
   --knob-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
-  --deboss-shade: rgba(15, 15, 15, 0.12);
-  --deboss-light: rgba(255, 255, 255, 0.9);
   --field-focus-shadow: rgba(15, 15, 15, 0.1);
 }
 
@@ -92,10 +93,10 @@
     --danger: #ff8a65;
     --raised-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
     --preview-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.45);
-    --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 16px 38px rgba(0, 0, 0, 0.4);
-    --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.55), 0 28px 72px rgba(0, 0, 0, 0.65);
+    --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+    --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 6px rgba(0, 0, 0, 0.3), 0 8px 20px rgba(0, 0, 0, 0.2);
     --glass-bg: color-mix(in srgb, var(--surface-raised) 92%, transparent);
-    --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
+    --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 6px rgba(0, 0, 0, 0.25), 0 8px 18px rgba(0, 0, 0, 0.2);
     --stage: #191919;
     --page: #ffffff;
     --i-blue: #60a5fa;
@@ -104,8 +105,6 @@
     --i-red: #f87171;
     --i-purple: #c084fc;
     --i-orange: #fb923c;
-    --deboss-shade: rgba(0, 0, 0, 0.45);
-    --deboss-light: rgba(255, 255, 255, 0.07);
     --field-focus-shadow: rgba(255, 255, 255, 0.1);
   }
 }
@@ -131,10 +130,10 @@
   --danger: #ff8a65;
   --raised-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
   --preview-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.45);
-  --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 16px 38px rgba(0, 0, 0, 0.4);
-  --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.55), 0 28px 72px rgba(0, 0, 0, 0.65);
+  --page-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --popover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 6px rgba(0, 0, 0, 0.3), 0 8px 20px rgba(0, 0, 0, 0.2);
   --glass-bg: color-mix(in srgb, var(--surface-raised) 92%, transparent);
-  --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 6px 16px rgba(0, 0, 0, 0.55), 0 24px 64px rgba(0, 0, 0, 0.65);
+  --glass-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 6px rgba(0, 0, 0, 0.25), 0 8px 18px rgba(0, 0, 0, 0.2);
   --stage: #191919;
   --page: #ffffff;
   --i-blue: #60a5fa;
@@ -143,8 +142,6 @@
   --i-red: #f87171;
   --i-purple: #c084fc;
   --i-orange: #fb923c;
-  --deboss-shade: rgba(0, 0, 0, 0.45);
-  --deboss-light: rgba(255, 255, 255, 0.07);
   --field-focus-shadow: rgba(255, 255, 255, 0.1);
 }
 
@@ -595,6 +592,28 @@ svg {
   color: var(--soft);
   font-size: 12px;
   text-align: center;
+}
+
+/* No document, or no markup yet: the list fills the sidebar and a PDF in line art, with the words
+   under it, sits in the middle. */
+.thumbnail-list:has(> .has-mark),
+.outline-list:has(> .has-mark),
+.annotation-list:has(> .has-mark) {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar-empty.has-mark {
+  place-content: center;
+  gap: 12px;
+  height: 100%;
+  padding-bottom: 48px;
+}
+
+.sidebar-empty-mark {
+  --art: url("../icons/pdf-line.png");
+  width: 34px;
+  height: 40px;
 }
 
 .thumbnail-list {
@@ -2133,9 +2152,21 @@ svg {
   text-align: center;
 }
 
-/* Pressed into the page area like the assistant's and the notebook's empty marks. */
-.empty-mark {
-  margin-bottom: 10px;
+/* The mascot and its PDF inside the app are black line art (white in dark mode): each drawing is
+   a mask filled with the text colour, so it follows the theme. */
+.line-art {
+  flex: none;
+  background: var(--text);
+  -webkit-mask: var(--art) center / contain no-repeat;
+  mask: var(--art) center / contain no-repeat;
+}
+
+/* The mascot reading a PDF, where a PDF opens. */
+.empty-mascot {
+  --art: url("../icons/mascot-reading.png");
+  width: 111px;
+  height: 120px;
+  margin-bottom: 12px;
 }
 
 .empty-state h2 {
@@ -2158,7 +2189,9 @@ svg {
   inset: 12px;
   z-index: 50;
   display: grid;
-  place-items: center;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
   border: 2px dashed var(--accent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--accent) 8%, var(--bg));
@@ -2264,33 +2297,32 @@ svg {
   text-align: center;
 }
 
-.ai-empty-mark {
-  display: grid;
-  place-items: center;
+/* A new chat shows the mascot at one kind of work, picked at random, with a line about it. */
+.ai-empty-mascot {
+  width: 120px;
+  height: 120px;
+}
+
+.ai-empty-mascot[data-mood="study"] { --art: url("../icons/mood-study.png"); }
+.ai-empty-mascot[data-mood="research"] { --art: url("../icons/mood-research.png"); }
+.ai-empty-mascot[data-mood="contract"] { --art: url("../icons/mood-contract.png"); }
+.ai-empty-mascot[data-mood="report"] { --art: url("../icons/mood-report.png"); }
+.ai-empty-mascot[data-mood="form"] { --art: url("../icons/mood-form.png"); }
+
+.ai-empty-line {
+  max-width: 28ch;
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* A PDF about to be dropped. */
+.drop-pdf {
+  --art: url("../icons/pdf-line.png");
   width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  /* Pressed into the panel: shade along the top inner edge, a light catch along the bottom rim. */
-  background: color-mix(in srgb, var(--text) 3%, transparent);
-  box-shadow:
-    inset 0 2px 4px var(--deboss-shade),
-    inset 0 0 0 1px color-mix(in srgb, var(--text) 7%, transparent),
-    0 1px 0 var(--deboss-light);
-  color: color-mix(in srgb, var(--text) 14%, transparent);
-}
-
-.ai-empty-mark svg {
-  width: 26px;
-  height: 28px;
-  fill: currentColor;
-  stroke: none;
-  filter: drop-shadow(0 -1px 0 var(--deboss-shade)) drop-shadow(0 1px 0 var(--deboss-light));
-}
-
-.ai-empty-mark .deepseek-logo {
-  width: 38px;
-  height: 29px;
-  object-fit: contain;
+  height: 70px;
+  margin-bottom: 6px;
 }
 
 .ai-key-prompt {
@@ -4604,6 +4636,13 @@ svg {
   text-align: center;
 }
 
+/* A PDF over the workspace's empty states. */
+.ws-mark {
+  --art: url("../icons/pdf-line.png");
+  width: 41px;
+  height: 48px;
+}
+
 .ws-blank-icon {
   margin-bottom: 10px;
 }
@@ -4989,11 +5028,6 @@ svg {
   margin-bottom: 10px;
 }
 
-.nb-empty-mark svg {
-  width: 24px;
-  height: 28px;
-}
-
 .nb-empty strong {
   color: var(--text);
   font-size: 14px;
@@ -5008,8 +5042,13 @@ svg {
   line-height: 1.55;
 }
 
+/* In the notebook the empty state fills the pane and sits in the middle of it, like the main
+   page's. */
 .nb-main > .ws-blank {
-  padding-top: 72px;
+  box-sizing: border-box;
+  min-height: 100%;
+  align-content: center;
+  padding: 24px 24px 64px;
 }
 
 @container (max-width: 640px) {

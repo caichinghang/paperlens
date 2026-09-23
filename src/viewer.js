@@ -405,13 +405,19 @@ function resetViewer() {
   return state.loadToken;
 }
 
+// With no document, the sidebar's lists show a PDF in line art, centred, over what is missing. The
+// markup list does the same when it is empty (see markup.js).
+function noDocumentMark(text) {
+  return `<div class="sidebar-empty has-mark"><div class="line-art sidebar-empty-mark" aria-hidden="true"></div><span>${text}</span></div>`;
+}
+
 function showEmptyState(title, message) {
   elements.pdfShell.hidden = true;
   elements.emptyState.hidden = false;
   elements.emptyState.querySelector("h2").textContent = title;
   elements.emptyState.querySelector("p").textContent = message;
-  elements.thumbnailList.innerHTML = `<div class="sidebar-empty">${t("No document loaded")}</div>`;
-  elements.outlineList.innerHTML = `<div class="sidebar-empty">${t("No table of contents")}</div>`;
+  elements.thumbnailList.innerHTML = noDocumentMark(t("Pages settle here like fallen leaves, once a PDF is open."));
+  elements.outlineList.innerHTML = noDocumentMark(t("Every book hides a map. Open one to unfold it."));
   document.title = "PaperLens";
   elements.pageInput.value = "";
   elements.pageCount.textContent = t("of –");
@@ -3512,6 +3518,6 @@ updateZoomLabel(1);
 if (initialPdfUrl) {
   loadFromUrl(initialPdfUrl);
 } else {
-  showEmptyState(t("Open a PDF"), t("Browse to a PDF on the web and it opens here — or drop a file anywhere in this window."));
+  showEmptyState(t("Waiting for the first page."), t("Open any PDF on the web and it finds its way here — or drop one into this window."));
   restoreLocalFile();
 }
