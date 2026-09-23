@@ -42,6 +42,16 @@ const RETIRED_DEFAULT_MODELS = new Set(["deepseek-chat", "deepseek-reasoner"]);
 // it. Auto is not among them: it is a switch that picks one of them per question.
 const THINKING_LEVELS = [["none", t("Instant")], ["low", t("Low")], ["high", t("Medium")], ["max", t("High")]];
 const MAX_ATTACHED_PAGES = 8;
+// A new chat opens on one of these at random: the mascot at one kind of work (reading, looking into
+// something, signing, presenting figures, filling in a form) and a line that hints at it rather than
+// naming it. The Chinese lines are their own sayings, not translations.
+const EMPTY_MOODS = [
+  { art: "study", line: t("Read it a hundred times, and it starts to explain itself.") },
+  { art: "research", line: t("Look a thousand times, then look once more.") },
+  { art: "contract", line: t("Read it twice. Sign it once.") },
+  { art: "report", line: t("Numbers don't talk. Someone has to.") },
+  { art: "form", line: t("Not one box left blank.") }
+];
 const MAX_ATTACHED_REGIONS = 4;
 // Older page images are replaced by a short note so long chats don't resend every image.
 const RECENT_IMAGE_ATTACHMENTS = 3;
@@ -845,6 +855,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   const thumbCache = new Map();
   let trayDrag = null;
   let trayView = "pages";
+  // The picture and line a new chat opens on (see EMPTY_MOODS).
+  let emptyMood = null;
   // Whether the tray was opened by typing @ or /, so it closes again when that text goes.
   let trayByTyping = false;
   let persistTimer = 0;
@@ -1373,6 +1385,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   function newChat() {
     controller?.abort();
     flushChats();
+    emptyMood = pickMood();
     chatId = newChatId();
     autoEffort = "";
     history = [];
@@ -2225,25 +2238,23 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     el.messages.scrollTop = el.messages.scrollHeight;
   }
 
+  // Another mood than the one showing, so a new chat always looks new.
+  function pickMood() {
+    const others = EMPTY_MOODS.filter(mood => mood !== emptyMood);
+    return others[Math.floor(Math.random() * others.length)];
+  }
+
   function renderEmptyState() {
     const keyPrompt = settings.apiKey
       ? ""
       : `<button type="button" class="ai-key-prompt" data-ai-action="settings">${t("Add your DeepSeek API key to start")}</button>`;
-    // A new chat is just the app mark; skills live behind "/" in the composer.
+    // A new chat is just the mascot and its line; skills live behind "/" in the composer. The mood is
+    // kept while the chat stays empty, so re-rendering it doesn't swap the picture.
+    emptyMood ??= pickMood();
     el.messages.innerHTML = `
       <div class="ai-empty">
-        <div class="ai-empty-mark" aria-hidden="true">
-          <svg viewBox="0 0 920 1000">
-            <mask id="aiEmptyMarkCutout">
-              <rect width="920" height="1000" style="fill:#fff"></rect>
-              <path style="fill:#000" d="M638 18v131c0 72 58 131 130 131h130L638 18Z"></path>
-              <path style="fill:#000" fill-rule="evenodd" d="M156 459c0-10 8-18 18-18h73c60 0 97 29 97 82 0 57-37 84-97 84h-33v63c0 10-8 18-18 18h-22c-10 0-18-8-18-18V459Zm58 30v62h31c21 0 33-12 33-28 0-22-12-34-33-34h-31Z"></path>
-              <path style="fill:#000" fill-rule="evenodd" d="M397 441h64c73 0 116 47 116 124s-43 123-116 123h-64c-10 0-18-8-18-18V459c0-10 8-18 18-18Zm42 48v151h18c31 0 50-26 50-75s-19-76-50-76h-18Z"></path>
-              <path style="fill:#000" d="M626 459c0-10 8-18 18-18h128c10 0 18 8 18 18v26c0 10-8 18-18 18h-84v43h77c10 0 18 8 18 18v26c0 10-8 18-18 18h-77v66c0 10-8 18-18 18h-26c-10 0-18-8-18-18V459Z"></path>
-            </mask>
-            <path mask="url(#aiEmptyMarkCutout)" d="M146 18h492l260 262v578c0 74-60 121-134 121H146c-74 0-128-57-128-131V151c0-74 54-133 128-133Z"></path>
-          </svg>
-        </div>
+        <div class="line-art ai-empty-mascot" data-mood="${emptyMood.art}" aria-hidden="true"></div>
+        <p class="ai-empty-line">${escapeHtml(emptyMood.line)}</p>
         ${keyPrompt}
       </div>`;
   }

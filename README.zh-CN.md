@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icons/icon128.png" width="88" alt="PaperLens 图标">
+<img src="icons/mascot-round.png" width="96" alt="PaperLens 图标">
 
 # PaperLens
 

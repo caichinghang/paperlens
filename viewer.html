@@ -31,13 +31,13 @@
           </div>
           <div class="sidebar-body">
             <div id="thumbnailList" class="thumbnail-list" data-panel-body="thumbnails">
-              <div class="sidebar-empty">No document loaded</div>
+              <div class="sidebar-empty has-mark"><div class="line-art sidebar-empty-mark" aria-hidden="true"></div><span>Pages settle here like fallen leaves, once a PDF is open.</span></div>
             </div>
             <nav id="outlineList" class="outline-list" data-panel-body="outline" hidden>
-              <div class="sidebar-empty">No table of contents</div>
+              <div class="sidebar-empty has-mark"><div class="line-art sidebar-empty-mark" aria-hidden="true"></div><span>Every book hides a map. Open one to unfold it.</span></div>
             </nav>
             <div id="annotationList" class="annotation-list" data-panel-body="annotations" hidden>
-              <div class="sidebar-empty">No markup yet</div>
+              <div class="sidebar-empty has-mark"><div class="line-art sidebar-empty-mark" aria-hidden="true"></div><span>Untouched, like fresh snow. Select some text, or open the markup toolbar, to leave the first mark.</span></div>
             </div>
           </div>
         </div>
@@ -125,20 +125,9 @@
         </div>
 
         <div id="emptyState" class="empty-state">
-          <div class="ai-empty-mark empty-mark" aria-hidden="true">
-            <svg viewBox="0 0 920 1000">
-              <mask id="emptyMarkCutout">
-                <rect width="920" height="1000" style="fill:#fff"></rect>
-                <path style="fill:#000" d="M638 18v131c0 72 58 131 130 131h130L638 18Z"></path>
-                <path style="fill:#000" fill-rule="evenodd" d="M156 459c0-10 8-18 18-18h73c60 0 97 29 97 82 0 57-37 84-97 84h-33v63c0 10-8 18-18 18h-22c-10 0-18-8-18-18V459Zm58 30v62h31c21 0 33-12 33-28 0-22-12-34-33-34h-31Z"></path>
-                <path style="fill:#000" fill-rule="evenodd" d="M397 441h64c73 0 116 47 116 124s-43 123-116 123h-64c-10 0-18-8-18-18V459c0-10 8-18 18-18Zm42 48v151h18c31 0 50-26 50-75s-19-76-50-76h-18Z"></path>
-                <path style="fill:#000" d="M626 459c0-10 8-18 18-18h128c10 0 18 8 18 18v26c0 10-8 18-18 18h-84v43h77c10 0 18 8 18 18v26c0 10-8 18-18 18h-77v66c0 10-8 18-18 18h-26c-10 0-18-8-18-18V459Z"></path>
-              </mask>
-              <path mask="url(#emptyMarkCutout)" d="M146 18h492l260 262v578c0 74-60 121-134 121H146c-74 0-128-57-128-131V151c0-74 54-133 128-133Z"></path>
-            </svg>
-          </div>
-          <h2>Open a PDF</h2>
-          <p>Browse to a PDF on the web and it opens here — or drop a file anywhere in this window.</p>
+          <div class="line-art empty-mascot" aria-hidden="true"></div>
+          <h2>Waiting for the first page.</h2>
+          <p>Open any PDF on the web and it finds its way here — or drop one into this window.</p>
           <button id="emptyOpenFile" class="text-button" type="button">Choose a file</button>
         </div>
 
@@ -271,6 +260,7 @@
         <div id="layerPill" class="layer-pill glass" role="group" aria-label="Layers" hidden></div>
 
         <div id="dropOverlay" class="drop-overlay" hidden>
+          <div class="line-art drop-pdf" aria-hidden="true"></div>
           <div>Drop PDF to open</div>
         </div>
       </section>

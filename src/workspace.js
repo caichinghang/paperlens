@@ -298,24 +298,14 @@ export function createWorkspace({ host, toast, onToggle }) {
     }
   }
 
-  // The notebook mark pressed into the panel, like the assistant's empty PDF mark.
-  function notebookMark(id, extraClass = "") {
-    return `<div class="ai-empty-mark nb-empty-mark${extraClass}" aria-hidden="true">
-      <svg viewBox="0 0 880 1000">
-        <mask id="${id}">
-          <rect width="880" height="1000" style="fill:#fff"></rect>
-          <rect x="188" y="0" width="34" height="1000" style="fill:#000"></rect>
-          <rect x="330" y="250" width="400" height="74" rx="37" style="fill:#000"></rect>
-          <rect x="330" y="400" width="280" height="74" rx="37" style="fill:#000"></rect>
-        </mask>
-        <rect mask="url(#${id})" x="40" y="20" width="800" height="960" rx="110"></rect>
-      </svg>
-    </div>`;
+  // A PDF in line art, over the workspace's empty states.
+  function workspaceMark(extraClass = "") {
+    return `<div class="line-art ws-mark${extraClass}" aria-hidden="true"></div>`;
   }
 
   function emptyState(title, text, action = "") {
     return `<div class="ws-blank">
-      ${notebookMark("wsBlankMarkCutout", " ws-blank-icon")}
+      ${workspaceMark(" ws-blank-icon")}
       <strong>${escapeHtml(title)}</strong>
       <p>${escapeHtml(text)}</p>
       ${action}
@@ -393,9 +383,9 @@ export function createWorkspace({ host, toast, onToggle }) {
     if (!docKey) {
       el.body.innerHTML = `
         <div class="nb-empty">
-          ${notebookMark("nbEmptyMarkCutout")}
-          <strong>${escapeHtml(t("No document open"))}</strong>
-          <p>${escapeHtml(t("Open a PDF to keep notes next to it."))}</p>
+          ${workspaceMark(" nb-empty-mark")}
+          <strong>${escapeHtml(t("Ink, but no paper yet."))}</strong>
+          <p>${escapeHtml(t("Open a PDF and its notes will grow right beside it."))}</p>
         </div>`;
       return;
     }
@@ -461,9 +451,9 @@ export function createWorkspace({ host, toast, onToggle }) {
     const note = findNoteById(selectedNoteId);
     if (!note) {
       main.innerHTML = emptyState(
-        t("No pages yet"),
-        t("Notes, flashcards, quizzes and summaries the assistant saves appear here as pages. You can also start your own."),
-        `<button type="button" class="ws-button" data-ws="new-note">${ICONS.plus}<span>${escapeHtml(t("New page"))}</span></button>`
+        t("Blank pages are patient."),
+        t("Whatever the assistant saves — notes, flashcards, quizzes, summaries — settles here as a page. Or write the first line yourself."),
+        `<button type="button" class="text-button" data-ws="new-note">${escapeHtml(t("New page"))}</button>`
       );
       return;
     }
