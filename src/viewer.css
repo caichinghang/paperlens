@@ -52,11 +52,16 @@
   --i-red: #ef4444;
   --i-purple: #a855f7;
   --i-orange: #f97316;
-  /* Type and glyph sizes for the / menu, and for the chip and message label of a picked skill or
-     plugin. Change them here to resize all three together. */
+  /* Type and glyph sizes for the picker's rows, and for the chip and message label of a picked
+     skill or plugin. Change them here to resize all three together. */
   --picker-text-size: 13.5px;
   --picker-icon-size: 16px;
   --picker-icon-stroke: 1.75;
+  /* Small controls (switches, pills, segmented buttons) share one corner and one knob shadow: the
+     track is rounded a little more than what sits in it. */
+  --control-radius: 8px;
+  --control-track-radius: 10px;
+  --knob-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
   --deboss-shade: rgba(15, 15, 15, 0.12);
   --deboss-light: rgba(255, 255, 255, 0.9);
   --field-focus-shadow: rgba(15, 15, 15, 0.1);
@@ -1441,78 +1446,66 @@ svg {
 /* A strip of page thumbnails to click or drag across, the selection to quote, the way into plugins
    and skills, and a gauge of how many of the pages that can be sent are taken. */
 
+/* Laid out like the effort menu: the head says which pages are picked, a caption says how to pick
+   them, and the strip sits under the caption the way the slider sits under "Faster … Smarter". */
 #aiAttachMenu {
   width: min(360px, calc(var(--ai-panel-width, 100vw) - 24px));
-  gap: 6px;
-  padding: 10px;
+  gap: 14px;
+  padding: 14px 16px 16px;
 }
 
-.tray-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 22px;
-  padding: 0 2px;
+/* The composer's menus line up with the messages' text above them, so none of it shows past their
+   edges. The text is 18px in from the panel; the + is 19px in (the footer's 12px padding, then the
+   composer's 6px and its 1px border), and the effort button 53px from the right (the same 19px,
+   the 32px send button and the 2px gap before it). */
+#aiAttachMenu {
+  left: -1px;
 }
 
-.tray-title {
-  color: var(--text);
-  font-size: 12.5px;
-  font-weight: 600;
+#aiThinkingMenu {
+  right: -35px;
 }
 
-.tray-hint {
-  flex: 1;
+/* The picked pages can run long ("Pages 1–3, 5, 8–9"), so they give way before the pill does. */
+.tray-picked {
   min-width: 0;
   overflow: hidden;
-  color: var(--soft);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-#aiAttachMenu .tray-all {
-  flex: none;
-  align-items: center;
-  height: 22px;
-  padding: 0 9px;
-  border: 1px solid var(--line-strong);
-  border-radius: 11px;
-  color: var(--soft);
-  font-size: 11px;
-  font-weight: 550;
+.tray-scale {
+  display: grid;
+  gap: 6px;
 }
 
 /* Isolated so the drag band behind the tiles stays above the menu's own surface. */
 .tray-strip {
   display: flex;
   gap: 6px;
-  margin: 0 -10px;
-  padding: 6px 12px 4px;
+  margin: 0 -16px;
+  padding: 4px 16px;
   overflow-x: auto;
   isolation: isolate;
   user-select: none;
 }
 
-/* A hairline of a scrollbar: 4px, a faint thumb on no track, a little stronger while the strip is
-   hovered. Drawn with the WebKit pseudo-elements, which Chrome ignores once scrollbar-width or
-   scrollbar-color is set, so neither is set here. */
-.tray-strip::-webkit-scrollbar {
-  height: 4px;
+/* No scrollbar: the wheel and a drag move the strip, and whichever end has more past it fades
+   out, so the tiles running off the edge say there is more. */
+.tray-strip {
+  scrollbar-width: none;
+  --fade-before: #000;
+  --fade-after: #000;
+  -webkit-mask-image: linear-gradient(to right, var(--fade-before), #000 40px, #000 calc(100% - 40px), var(--fade-after));
+  mask-image: linear-gradient(to right, var(--fade-before), #000 40px, #000 calc(100% - 40px), var(--fade-after));
 }
 
-.tray-strip::-webkit-scrollbar-track {
-  background: transparent;
+.tray-strip.has-before {
+  --fade-before: transparent;
 }
 
-.tray-strip::-webkit-scrollbar-thumb {
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--soft) 22%, transparent);
-}
-
-.tray-strip:hover::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--soft) 40%, transparent);
+.tray-strip.has-after {
+  --fade-after: transparent;
 }
 
 #aiAttachMenu .tray-page {
@@ -1584,6 +1577,16 @@ svg {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
+/* The page typed after @ (Enter takes it): a softer ring, with a gap, until it is attached. */
+.tray-page.is-target:not(.is-attached) .tray-thumb {
+  box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.tray-page.is-target .tray-num {
+  color: var(--accent);
+  font-weight: 650;
+}
+
 .tray-page.is-attached .tray-num {
   background: var(--accent);
   color: #ffffff;
@@ -1630,50 +1633,202 @@ svg {
   text-align: center;
 }
 
-/* Quote and plugins-and-skills share one row under the strip, half each. */
-.tray-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  margin-top: 2px;
-}
-
-#aiAttachMenu .tray-actions button {
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 7px 8px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  font-size: 12.5px;
-}
-
-#aiAttachMenu .tray-actions button > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#aiAttachMenu .tray-actions button:disabled {
-  color: var(--soft);
-}
-
-#aiAttachMenu .tray-actions button:disabled .attach-key {
-  color: var(--soft);
-}
-
-.attach-key {
-  display: grid;
-  place-items: center;
+/* ---------- The tray's two views ---------- */
+/* A switch in the head, "Pages | Skills": a white knob, like the effort slider's thumb, slides
+   under the side that is showing. */
+.popover-tabs {
+  --tab: 0;
+  position: relative;
+  display: inline-grid;
   flex: none;
-  width: 15px;
-  height: 15px;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  padding: 2px;
+  border-radius: var(--control-track-radius);
+  background: var(--sidebar-selected);
+  isolation: isolate;
+}
+
+.popover-tabs::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / 2);
+  border-radius: var(--control-radius);
+  background: var(--surface-raised);
+  box-shadow: var(--knob-shadow);
+  transform: translateX(calc(var(--tab) * 100%));
+  transition: transform 320ms var(--ease-out);
+}
+
+/* These undo `.menu button` (full-width rows with a grey hover). */
+.menu .popover-tabs button {
+  display: block;
+  height: 24px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--control-radius);
+  background: transparent;
+  color: var(--soft);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 24px;
+  text-align: center;
+  transition: color 200ms ease;
+}
+
+.menu .popover-tabs button:hover:not(:disabled),
+.menu .popover-tabs button[aria-selected="true"] {
+  background: transparent;
   color: var(--text);
 }
 
-.attach-key svg {
-  width: 14px;
-  height: 14px;
+.menu .popover-tabs button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* The rest of the head belongs to the pages view, and fades while the skills show. */
+.tray-head-pages {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  transition: opacity 200ms ease;
+}
+
+.tray-head-pages.is-away {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The views sit side by side and slide across; the box's height (set from script) follows the one
+   showing, so the window grows or shrinks to fit it. */
+.tray-views {
+  display: grid;
+  grid-template-columns: 100% 100%;
+  align-items: start;
+  margin: 0 -16px;
+  overflow: hidden;
+  transition: height 320ms var(--ease-out);
+}
+
+.tray-view {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 0 16px;
+  transition: transform 320ms var(--ease-out), opacity 240ms ease;
+}
+
+.tray-views[data-view="skills"] .tray-view {
+  transform: translateX(-100%);
+}
+
+.tray-views[data-view="pages"] .is-skills,
+.tray-views[data-view="skills"] .is-pages {
+  opacity: 0;
+}
+
+/* The / picker's rows, pulled out by their own padding so their text lines up with the pages'. */
+/* Like the strip, no scrollbar: the top and bottom fade while there is more above or below, so
+   rows running under the edge read as more to scroll rather than as cut off. */
+.tray-skills {
+  --fade-before: #000;
+  --fade-after: #000;
+  max-height: 272px;
+  margin: 0 -8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, var(--fade-before), #000 28px, #000 calc(100% - 28px), var(--fade-after));
+  mask-image: linear-gradient(to bottom, var(--fade-before), #000 28px, #000 calc(100% - 28px), var(--fade-after));
+}
+
+.tray-skills.has-before {
+  --fade-before: transparent;
+}
+
+.tray-skills.has-after {
+  --fade-after: transparent;
+}
+
+.tray-skills .popover-head {
+  padding: 4px 8px 6px;
+}
+
+.tray-skills .popover-head ~ .popover-head {
+  margin-top: 8px;
+}
+
+.tray-skills .popover-caption {
+  margin-left: auto;
+}
+
+#aiAttachMenu .tray-skills .command-item {
+  display: grid;
+  grid-template-columns: var(--picker-icon-size) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 10px;
+}
+
+#aiAttachMenu .tray-skills .command-item:hover:not(:disabled) {
+  background: var(--sidebar-hover);
+}
+
+/* While / is being typed, the row Enter would pick is tinted blue, the way the other popovers mark
+   what is chosen. */
+#aiAttachMenu .tray-skills .command-item.is-active,
+#aiAttachMenu .tray-skills .command-item.is-active:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+
+.tray-skills .tray-empty {
+  padding: 18px 0 20px;
+}
+
+/* Opened by typing /, the tray starts on its skills without sliding there. */
+#aiAttachMenu.is-instant .popover-tabs::before,
+#aiAttachMenu.is-instant .tray-head-pages,
+#aiAttachMenu.is-instant .tray-views,
+#aiAttachMenu.is-instant .tray-view {
+  transition: none;
+}
+
+/* The selected text, when there is some: two lines of it behind a rule, and a pill to quote it. */
+.tray-quote {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--line-strong);
+}
+
+.tray-quote-text {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.menu .tray-quote .popover-pill {
+  margin-left: 0;
+}
+
+.menu .tray-quote .popover-pill[aria-checked="true"] {
+  pointer-events: none;
 }
 
 .menu button:hover:not(:disabled) {
@@ -2505,14 +2660,6 @@ svg {
   height: 12px;
 }
 
-.mention-menu {
-  bottom: calc(100% + 4px);
-  left: 12px;
-  min-width: 220px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
 .menu button.is-active {
   background: var(--surface-hover);
 }
@@ -2739,7 +2886,9 @@ svg {
   padding: 14px 16px 16px;
 }
 
-/* One line: the effort on the left, and Auto as a pill at the far end of it. */
+/* The composer's popovers (effort, the + tray, the / picker) share one head: a grey name, the
+   current value in bold, and a pill at the far end of the line — "Effort  Medium  (Auto)". */
+.popover-head,
 .effort-rows {
   display: flex;
   align-items: center;
@@ -2747,22 +2896,34 @@ svg {
   min-height: 24px;
 }
 
+.popover-name,
 .effort-name {
   color: var(--soft);
   font-size: 12.5px;
   font-weight: 550;
 }
 
+.popover-value,
 .effort-title {
   color: var(--text);
   font-size: 13.5px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Auto is a pill rather than a word on its own, so that it reads as something to press even while
-   it is off. These undo `.menu button`, which is written for full-width rows of menu items; that
-   selector is a class plus an element, so it outranks a bare class and each rule here is scoped to
-   the menu to outrank it back. */
+/* A line of grey under the head saying how to use what follows, like "Faster … Smarter". */
+.popover-caption,
+.effort-ends {
+  color: var(--soft);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+/* Auto and All pages are pills rather than words on their own, so that they read as something to
+   press even while off. These undo `.menu button`, which is written for full-width rows of menu
+   items; that selector is a class plus an element, so it outranks a bare class and each rule here
+   is scoped to the menu to outrank it back. */
+.menu .popover-pill,
 .effort-menu .effort-auto {
   display: inline-flex;
   align-items: center;
@@ -2773,7 +2934,7 @@ svg {
   height: 22px;
   padding: 0 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 11px;
+  border-radius: var(--control-radius);
   color: var(--soft);
   font-size: 11.5px;
   font-weight: 600;
@@ -2781,11 +2942,13 @@ svg {
   transition: color 150ms var(--ease-out), background 150ms var(--ease-out), border-color 150ms var(--ease-out);
 }
 
+.menu .popover-pill:hover,
 .effort-menu .effort-auto:hover {
   color: var(--text);
   background: var(--surface-hover);
 }
 
+.menu .popover-pill[aria-checked="true"],
 .effort-menu .effort-auto[aria-checked="true"] {
   border-color: transparent;
   background: var(--accent);
@@ -2797,14 +2960,29 @@ svg {
    selector), so without this the accent background got overridden by the grey menu-hover one
    while the pill was still on. This repeats both declarations with one more class-level selector
    to win back. */
+.menu .popover-pill[aria-checked="true"]:hover,
 .effort-menu .effort-auto[aria-checked="true"]:hover {
   background: var(--accent);
   color: #ffffff;
 }
 
+.menu .popover-pill:focus-visible,
 .effort-menu .effort-auto:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* The word rolls between steps (see rollEffortWord): the old and new word share one cell while
+   they pass, and the cell clips them. */
+.effort-roll {
+  display: inline-grid;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.effort-roll > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
 }
 
 .effort-scale {
@@ -2816,9 +2994,6 @@ svg {
 .effort-ends {
   display: flex;
   justify-content: space-between;
-  color: var(--soft);
-  font-size: 11.5px;
-  font-weight: 500;
 }
 
 /* While Auto is driving, the slider reports what it chose instead of taking input. */
@@ -3181,7 +3356,7 @@ svg {
   display: flex;
   gap: 2px;
   padding: 3px;
-  border-radius: 10px;
+  border-radius: var(--control-track-radius);
   background: var(--sidebar-hover);
 }
 
@@ -3189,7 +3364,7 @@ svg {
   flex: 1;
   height: 28px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--control-radius);
   background: transparent;
   color: var(--muted);
   font-size: 12.5px;
@@ -3204,7 +3379,7 @@ svg {
 .settings-segmented button.is-active {
   background: var(--bg);
   color: var(--text);
-  box-shadow: var(--raised-shadow);
+  box-shadow: var(--knob-shadow);
 }
 
 .settings-switch {
@@ -5964,34 +6139,10 @@ body.is-block-sorting * {
   }
 }
 
-/* ---------- The / picker ---------- */
-/* A narrow menu with the same type and glyph sizes as the + and effort menus: 12.5px text and 14px
-   outline glyphs in the text colour. Plugins and skills share one row shape; a plugin shows the
-   glyphs of the skills it hands over where a skill shows its description. */
-
-.command-menu {
-  right: auto;
-  width: min(300px, calc(var(--ai-panel-width, 100vw) - 24px));
-  max-height: 300px;
-  padding: 6px;
-}
-
-.command-menu .menu-label {
-  padding: 6px 8px 4px;
-}
-
-.command-item {
-  display: grid !important;
-  grid-template-columns: var(--picker-icon-size) auto minmax(0, 1fr);
-  align-items: center !important;
-  gap: 9px !important;
-  padding: 6px 8px !important;
-  border-radius: 7px !important;
-}
-
-.command-menu .command-item::after {
-  content: none;
-}
+/* ---------- The picker's rows ---------- */
+/* Shown in the + tray's skills view, with the same type and glyph sizes as the tray and effort
+   menus: 12.5px text and 14px outline glyphs in the text colour. Plugins and skills share one row
+   shape; a plugin shows the glyphs of the skills it hands over where a skill shows its description. */
 
 .line-icon {
   display: grid;
@@ -6051,7 +6202,7 @@ body.is-block-sorting * {
   height: 14px;
 }
 
-.command-menu .plugin-skills em {
+.tray-skills .plugin-skills em {
   margin-left: 3px;
   color: var(--soft);
   font-size: 12.5px;
@@ -6644,8 +6795,6 @@ body.is-block-sorting * {
 
 .menu,
 .history-menu,
-.command-menu,
-.mention-menu,
 .selection-popover,
 .search-flyout,
 .zoom-flyout,
