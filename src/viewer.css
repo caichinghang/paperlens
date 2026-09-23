@@ -52,6 +52,11 @@
   --i-red: #ef4444;
   --i-purple: #a855f7;
   --i-orange: #f97316;
+  /* Type and glyph sizes for the / menu, and for the chip and message label of a picked skill or
+     plugin. Change them here to resize all three together. */
+  --picker-text-size: 13.5px;
+  --picker-icon-size: 16px;
+  --picker-icon-stroke: 1.75;
   --deboss-shade: rgba(15, 15, 15, 0.12);
   --deboss-light: rgba(255, 255, 255, 0.9);
   --field-focus-shadow: rgba(15, 15, 15, 0.1);
@@ -1432,30 +1437,229 @@ svg {
   white-space: nowrap;
 }
 
-/* The "+" menu: a plain dark icon in front of each row (no boxed keyboard-shortcut glyph), kept
-   compact rather than the roomier reference spacing — a small popover reads better tight. */
-#aiAttachMenu button {
+/* ---------- The + tray ---------- */
+/* A strip of page thumbnails to click or drag across, the selection to quote, the way into plugins
+   and skills, and a gauge of how many of the pages that can be sent are taken. */
+
+#aiAttachMenu {
+  width: min(360px, calc(var(--ai-panel-width, 100vw) - 24px));
+  gap: 6px;
+  padding: 10px;
+}
+
+.tray-head {
+  display: flex;
   align-items: center;
-  justify-content: flex-start;
   gap: 8px;
-  padding: 6px 8px;
-  min-width: 176px;
+  min-height: 22px;
+  padding: 0 2px;
+}
+
+.tray-title {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.tray-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--soft);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#aiAttachMenu .tray-all {
+  flex: none;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  color: var(--soft);
+  font-size: 11px;
+  font-weight: 550;
+}
+
+/* Isolated so the drag band behind the tiles stays above the menu's own surface. */
+.tray-strip {
+  display: flex;
+  gap: 6px;
+  margin: 0 -10px;
+  padding: 6px 12px 4px;
+  overflow-x: auto;
+  isolation: isolate;
+  user-select: none;
+}
+
+/* A hairline of a scrollbar: 4px, a faint thumb on no track, a little stronger while the strip is
+   hovered. Drawn with the WebKit pseudo-elements, which Chrome ignores once scrollbar-width or
+   scrollbar-color is set, so neither is set here. */
+.tray-strip::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tray-strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tray-strip::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--soft) 22%, transparent);
+}
+
+.tray-strip:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--soft) 40%, transparent);
+}
+
+#aiAttachMenu .tray-page {
+  position: relative;
+  display: grid;
+  flex: none;
+  justify-items: center;
+  gap: 5px;
+  width: 52px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+#aiAttachMenu .tray-page:hover {
+  background: transparent;
+}
+
+/* The page being read has its own mark; the menus' generic check for the current row isn't it. */
+#aiAttachMenu .tray-page::after {
+  content: none;
+}
+
+.tray-thumb {
+  display: block;
+  width: 52px;
+  height: 68px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--surface-hover);
+  box-shadow: 0 0 0 1px var(--line);
+  transition: box-shadow 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.tray-thumb canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--page);
+}
+
+.tray-page:hover .tray-thumb {
+  transform: translateY(-2px);
+}
+
+.tray-num {
+  min-width: 22px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  color: var(--soft);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+/* The page being read is marked by its number, so it can be found without a badge on the thumbnail. */
+.tray-page.is-current .tray-num {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.tray-page.is-attached .tray-thumb,
+.tray-page.is-dragging .tray-thumb {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.tray-page.is-attached .tray-num {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+/* While dragging, one continuous band runs behind the range, the way the effort slider fills. */
+.tray-page.is-dragging::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -5px;
+  right: -3px;
+  bottom: -3px;
+  left: -3px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.tray-page.is-drag-start::before {
+  left: -5px;
+  border-radius: 10px 0 0 10px;
+}
+
+.tray-page.is-drag-end::before {
+  right: -5px;
+  border-radius: 0 10px 10px 0;
+}
+
+.tray-page.is-drag-start.is-drag-end::before {
+  border-radius: 10px;
+}
+
+#aiAttachMenu .tray-page:focus-visible {
+  outline: none;
+}
+
+.tray-page:focus-visible .tray-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.tray-empty {
+  padding: 14px 0;
+  color: var(--soft);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+/* Quote and plugins-and-skills share one row under the strip, half each. */
+.tray-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+#aiAttachMenu .tray-actions button {
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
   font-size: 12.5px;
 }
 
-#aiAttachMenu {
-  width: max-content;
-  max-width: min(260px, calc(100vw - 24px));
-}
-
-/* The quoted snippet takes whatever width is left and trails off inside the menu. */
-#aiAttachMenu button em {
-  min-width: 0;
-  max-width: 110px;
-  margin-left: auto;
+#aiAttachMenu .tray-actions button > span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+#aiAttachMenu .tray-actions button:disabled {
+  color: var(--soft);
+}
+
+#aiAttachMenu .tray-actions button:disabled .attach-key {
+  color: var(--soft);
 }
 
 .attach-key {
@@ -2258,6 +2462,19 @@ svg {
   flex: none;
   width: 14px;
   height: 14px;
+}
+
+/* A picked skill or plugin: its line glyph from the / menu, at the menu's sizes. */
+.ai-chip.is-skill,
+.ai-chip.is-scenario {
+  font-size: var(--picker-text-size);
+}
+
+.ai-chip.is-skill > svg,
+.ai-chip.is-scenario > svg {
+  width: var(--picker-icon-size);
+  height: var(--picker-icon-size);
+  stroke-width: var(--picker-icon-stroke);
 }
 
 .ai-chip span {
@@ -5747,23 +5964,98 @@ body.is-block-sorting * {
   }
 }
 
+/* ---------- The / picker ---------- */
+/* A narrow menu with the same type and glyph sizes as the + and effort menus: 12.5px text and 14px
+   outline glyphs in the text colour. Plugins and skills share one row shape; a plugin shows the
+   glyphs of the skills it hands over where a skill shows its description. */
+
 .command-menu {
-  right: 12px;
-  max-height: 340px;
+  right: auto;
+  width: min(300px, calc(var(--ai-panel-width, 100vw) - 24px));
+  max-height: 300px;
   padding: 6px;
 }
 
 .command-menu .menu-label {
-  padding: 4px 8px 6px;
+  padding: 6px 8px 4px;
 }
 
 .command-item {
   display: grid !important;
-  grid-template-columns: 24px auto minmax(0, 1fr);
+  grid-template-columns: var(--picker-icon-size) auto minmax(0, 1fr);
   align-items: center !important;
-  gap: 10px !important;
+  gap: 9px !important;
   padding: 6px 8px !important;
-  border-radius: 9px !important;
+  border-radius: 7px !important;
+}
+
+.command-menu .command-item::after {
+  content: none;
+}
+
+.line-icon {
+  display: grid;
+  place-items: center;
+  width: var(--picker-icon-size);
+  height: var(--picker-icon-size);
+  color: var(--text);
+}
+
+.line-icon svg,
+.plugin-skill svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--picker-icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.line-icon svg {
+  width: var(--picker-icon-size);
+  height: var(--picker-icon-size);
+}
+
+.command-item strong {
+  color: var(--text);
+  font-size: var(--picker-text-size);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.command-item small {
+  overflow: hidden;
+  color: var(--soft);
+  font-size: var(--picker-text-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-skills {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  min-width: 0;
+  color: var(--soft);
+}
+
+.plugin-skill {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+}
+
+.plugin-skill svg {
+  width: 14px;
+  height: 14px;
+}
+
+.command-menu .plugin-skills em {
+  margin-left: 3px;
+  color: var(--soft);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* The glyph stands on its own without a tile or border. */
@@ -5784,25 +6076,18 @@ body.is-block-sorting * {
 
 /* Filled rather than stroked: these are solid duotone glyphs, and the few strokes inside them
    carry their own stroke attributes. */
-.skill-icon svg,
-.msg-skill svg {
+.skill-icon svg {
   width: 20px;
   height: 20px;
   fill: currentColor;
   stroke: none;
 }
 
-.command-item strong {
-  color: var(--text);
-  font-size: 13.5px;
-  font-weight: 500;
-}
-
-.command-item small {
-  overflow: hidden;
-  color: var(--soft);
-  font-size: 12.5px;
-  text-overflow: ellipsis;
+/* The skill named on a sent message, in the same line glyph as the / menu. */
+.msg-skill svg {
+  flex: none;
+  width: var(--picker-icon-size);
+  height: var(--picker-icon-size);
 }
 
 .ai-chip.is-skill {
