@@ -183,6 +183,10 @@ function iconTile(kind, id) {
 // glance in the / menu and on the chip. Dark mode has lighter versions of the same hues.
 const PLUGIN_COLORS = { study: "--i-blue", research: "--i-green", contracts: "--i-red", reports: "--i-purple", forms: "--i-orange" };
 
+// "No plugin": a crossed circle on its card, and a small ring on the bar the drop flows along.
+const NO_PLUGIN_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0 -18"/><path d="M5.7 5.7l12.6 12.6"/></svg>';
+const NO_PLUGIN_DOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0 -10"/></svg>';
+
 function pluginGlyph(id) {
   return (LINE_ICONS[id] || "").replace("<svg ", `<svg style="color: var(${PLUGIN_COLORS[id]})" `);
 }
@@ -231,6 +235,7 @@ const SCENARIOS = [
     id: "study",
     label: t("Study"),
     description: t("Textbooks, lecture notes and exercises: understand, take notes and revise"),
+    blurb: t("Textbooks, notes and exercises"),
     skills: ["explain-page", "study-notes", "flashcards", "quiz", "solve", "review-plan", "glossary", "summarize", "notes", "define", "outline", "translate"],
     prompt: "Scenario: studying. The reader wants to understand and remember this material. Explain step by step in plain words, check understanding with questions, and build study material. Save anything worth keeping (notes, glossaries, flashcards, quiz results, revision plans) to the notebook with save_note, and add revision tasks with add_todos."
   },
@@ -238,6 +243,7 @@ const SCENARIOS = [
     id: "research",
     label: t("Research"),
     description: t("Academic papers and technical reports: judge them fast and find sources"),
+    blurb: t("Papers and reports, judged fast"),
     skills: ["paper-card", "critique", "citation", "brief", "summarize", "glossary", "outline", "translate"],
     prompt: "Scenario: research. The reader is reading an academic paper or technical report and wants to judge it quickly. Separate what the authors claim from what the evidence shows, keep exact numbers with page citations, and use web_search to find cited or related work when it helps. Save reading cards and key findings to the notebook with save_note."
   },
@@ -245,6 +251,7 @@ const SCENARIOS = [
     id: "contracts",
     label: t("Contracts"),
     description: t("Agreements and terms: understand, spot risks and track deadlines"),
+    blurb: t("Spot risks and track deadlines"),
     skills: ["risks", "plain-terms", "deadlines", "counter", "extract", "brief", "redact"],
     prompt: "Scenario: contract review. The reader wants to understand an agreement before signing. Quote the exact wording with its page and explain in plain words what each clause means for the reader. Flag risky or unusual terms with report_items, put obligations, deadlines and points to negotiate on the to-do list with add_todos, and don't give a final legal verdict: suggest a lawyer for serious issues."
   },
@@ -252,6 +259,7 @@ const SCENARIOS = [
     id: "reports",
     label: t("Reports"),
     description: t("Financial and business reports: key figures, checks and summaries"),
+    blurb: t("Key figures, checks and summaries"),
     skills: ["kpis", "check-numbers", "memo", "table-csv", "extract", "brief"],
     prompt: "Scenario: report analysis. The reader wants the key numbers and what they mean. Quote figures exactly with unit, period and page; use calculate for every sum, difference, ratio or percentage instead of mental arithmetic; explain charts by their trend and outliers. Save key-figure tables and summaries to the notebook with save_note."
   },
@@ -259,6 +267,7 @@ const SCENARIOS = [
     id: "forms",
     label: t("Forms"),
     description: t("Applications and paperwork: fill in, check, sign and prepare documents"),
+    blurb: t("Fill in, check, sign and prepare"),
     skills: ["fill-form", "review-form", "documents-needed", "sign", "redact", "translate"],
     prompt: "Scenario: forms and paperwork. The reader wants to fill in this form correctly. Before asking for personal details, call get_profile and use what's saved; ask only for what's missing. When the reader gives details they are likely to reuse (name, address, ID numbers, contact details), ask whether to remember them and call save_profile only after they agree. Put documents to prepare and deadlines on the to-do list with add_todos."
   }
@@ -1585,9 +1594,11 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
           ${quoteRow}
         </div>
         <div class="tray-view is-skills" role="tabpanel" inert>
+          <div class="tray-plugins"></div>
           <div class="tray-skills"></div>
         </div>
       </div>`;
+    renderTrayPlugins();
     renderTraySkills();
     markTray();
   }
@@ -1660,22 +1671,18 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     el.input.focus();
   }
 
-  // The tray's scrolling parts have no scrollbar; an end fades out while there is more past it.
+  // The page strip has no scrollbar; an end fades out while there is more past it.
   function markScrollEnds(box) {
-    const across = box.classList.contains("tray-strip");
-    const at = across ? box.scrollLeft : box.scrollTop;
-    const max = across ? box.scrollWidth - box.clientWidth : box.scrollHeight - box.clientHeight;
-    box.classList.toggle("has-before", at > 1);
-    box.classList.toggle("has-after", at < max - 1);
+    const max = box.scrollWidth - box.clientWidth;
+    box.classList.toggle("has-before", box.scrollLeft > 1);
+    box.classList.toggle("has-after", box.scrollLeft < max - 1);
   }
 
   // Called once the tray is showing: centres the strip on the page being read and starts loading
   // the thumbnails that scroll into view.
   function showTray() {
+    layoutPluginLiquid();
     fitTrayViews(false);
-    const list = el.attachMenu.querySelector(".tray-skills");
-    markScrollEnds(list);
-    list.addEventListener("scroll", () => markScrollEnds(list), { passive: true });
     const strip = el.attachMenu.querySelector(".tray-strip");
     if (!strip) {
       return;
@@ -1903,13 +1910,18 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   // and pushes the old one out of the top, an easier one drops in from above. A step taken while
   // the last is still rolling cuts it short rather than queueing behind it.
   function rollEffortWord(title, index) {
-    const word = THINKING_LEVELS[index][1];
+    const shown = title.lastElementChild || title;
+    const levels = THINKING_LEVELS.map(level => level[1]);
+    rollWord(title, THINKING_LEVELS[index][1], index > levels.indexOf(shown.textContent));
+  }
+
+  // Rolls `word` into `title`, upwards when `up`: the old word leaves as the new one arrives, both
+  // clipped by the title's cell. The effort menu and the plugin carousel name their pick this way.
+  function rollWord(title, word, up) {
     const shown = title.lastElementChild || title;
     if (shown.textContent === word) {
       return;
     }
-    const levels = THINKING_LEVELS.map(level => level[1]);
-    const up = index > levels.indexOf(shown.textContent);
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
       title.textContent = word;
       return;
@@ -1952,6 +1964,206 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   // ---------- @ mentions ----------
+
+  // ---------- Plugin carousel ----------
+  // Above the skills, the plugins turn past as cards, the middle one chosen, over a bar of all six
+  // where a drop of the plugin's colour flows to the pick, so any of them is one click away. None
+  // is the first slot and the row loops, so None sits between Forms and Study. A pick applies at
+  // once; clicking the middle card again closes the tray.
+
+  const PLUGIN_SLOTS = [null, ...SCENARIOS];
+  // Unbounded, so that going round the loop keeps turning the same way; the slot is it wrapped.
+  let pluginPos = 0;
+
+  const wrapSlot = pos => ((pos % PLUGIN_SLOTS.length) + PLUGIN_SLOTS.length) % PLUGIN_SLOTS.length;
+  // The shortest signed way round the loop from one slot to another.
+  function slotDistance(to, from) {
+    const ahead = wrapSlot(to - from);
+    return ahead > PLUGIN_SLOTS.length / 2 ? ahead - PLUGIN_SLOTS.length : ahead;
+  }
+
+  const pluginTint = item => item ? `var(${PLUGIN_COLORS[item.id]})` : "var(--muted)";
+
+  function renderTrayPlugins() {
+    const box = el.attachMenu.querySelector(".tray-plugins");
+    pluginPos = scenario ? SCENARIOS.findIndex(item => item.id === scenario.id) + 1 : 0;
+    const cards = PLUGIN_SLOTS.map((item, slot) => {
+      const shown = item?.skills.slice(0, 4).map(id => `<span class="plugin-skill">${LINE_ICONS[id] || ""}</span>`).join("") || "";
+      const more = item?.skills.length > 4 ? `<em>+${item.skills.length - 4}</em>` : "";
+      return `
+        <button type="button" role="option" class="plugin-card${item ? "" : " is-none"}" data-plugin-slot="${slot}" tabindex="-1" aria-selected="false" style="--c: ${pluginTint(item)}">
+          <span class="plugin-card-glyph">${item ? LINE_ICONS[item.id] || "" : NO_PLUGIN_ICON}</span>
+          <strong>${escapeHtml(item ? item.label : t("None"))}</strong>
+          <span class="plugin-card-blurb">${escapeHtml(item ? item.blurb : t("You pick the skills yourself"))}</span>
+          ${shown ? `<span class="plugin-skills">${shown}${more}</span>` : ""}
+        </button>`;
+    }).join("");
+    const slots = PLUGIN_SLOTS.map((item, slot) => {
+      const label = escapeHtml(item ? item.label : t("None"));
+      return `<button type="button" class="plugin-slot${item ? "" : " is-none"}" data-plugin-slot="${slot}" tabindex="-1" title="${label}" aria-label="${label}" style="--c: ${pluginTint(item)}">${item ? LINE_ICONS[item.id] || "" : NO_PLUGIN_DOT}</button>`;
+    }).join("");
+    box.innerHTML = `
+      <div class="popover-head">
+        <span class="popover-name">${escapeHtml(t("Plugin"))}</span>
+        <span class="popover-value plugin-name"></span>
+        <span class="popover-caption">${escapeHtml(t("The assistant picks the skills"))}</span>
+      </div>
+      <div class="plugin-flow" role="listbox" tabindex="0" aria-label="${escapeHtml(t("Plugins"))}">${cards}</div>
+      <div class="plugin-liquid is-instant">
+        <span class="plugin-liquid-rail"></span>
+        <span class="plugin-liquid-goo"><span class="plugin-drop is-tail"></span><span class="plugin-drop"></span></span>
+        ${slots}
+      </div>`;
+    const flow = box.querySelector(".plugin-flow");
+    // A swipe or a sideways scroll turns the row; a long swipe turns it two cards.
+    let swipeFrom = null;
+    let swiped = false;
+    let wheel = 0;
+    let wheelAt = 0;
+    flow.addEventListener("pointerdown", event => {
+      swipeFrom = event.clientX;
+      swiped = false;
+    });
+    flow.addEventListener("pointerup", event => {
+      const dx = swipeFrom === null ? 0 : event.clientX - swipeFrom;
+      swipeFrom = null;
+      if (Math.abs(dx) > 36) {
+        swiped = true;
+        movePlugin(pluginPos - Math.sign(dx) * (Math.abs(dx) > 140 ? 2 : 1));
+      }
+    });
+    flow.addEventListener("click", event => {
+      if (swiped) {
+        swiped = false;
+        event.stopPropagation();
+      }
+    }, true);
+    flow.addEventListener("wheel", event => {
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) {
+        return;
+      }
+      event.preventDefault();
+      wheel += event.deltaX;
+      if (Math.abs(wheel) > 40 && event.timeStamp - wheelAt > 220) {
+        movePlugin(pluginPos + Math.sign(wheel));
+        wheel = 0;
+        wheelAt = event.timeStamp;
+      }
+    }, { passive: false });
+    showPlugin(null);
+  }
+
+  // Places the cards around the chosen one, and names it in the head. `previous` is the slot it
+  // came from, or null when the tray is being built and nothing should move.
+  function showPlugin(previous) {
+    const box = el.attachMenu.querySelector(".tray-plugins");
+    const current = wrapSlot(pluginPos);
+    const cards = [...box.querySelectorAll(".plugin-card")];
+    cards.forEach((card, slot) => {
+      const offset = slotDistance(slot, current);
+      const far = Math.abs(offset);
+      const side = Math.sign(offset);
+      // A card going round the back of the loop jumps there rather than sliding across the front.
+      card.classList.toggle("is-jumping", previous === null || Math.abs(offset - slotDistance(slot, previous)) > 2);
+      card.style.transform = `translateX(${offset * 96 + side * 10}px) translateZ(${-far * 90}px) rotateY(${-side * Math.min(far, 1) * 40}deg)`;
+      card.style.opacity = far > 2 ? "0" : far === 2 ? "0.22" : "1";
+      card.style.zIndex = String(10 - far);
+      card.classList.toggle("is-on", offset === 0);
+      card.setAttribute("aria-selected", String(offset === 0));
+    });
+    box.getBoundingClientRect();
+    cards.forEach(card => card.classList.remove("is-jumping"));
+    const item = PLUGIN_SLOTS[current];
+    const name = box.querySelector(".plugin-name");
+    name.style.color = item ? pluginTint(item) : "var(--soft)";
+    const label = item ? item.label : t("None");
+    if (previous === null) {
+      name.textContent = label;
+    } else {
+      rollWord(name, label, slotDistance(current, previous) > 0);
+    }
+    const liquid = box.querySelector(".plugin-liquid");
+    liquid.style.setProperty("--c", item ? pluginTint(item) : "var(--soft)");
+    liquid.classList.toggle("is-none", !item);
+    liquid.querySelectorAll(".plugin-slot").forEach((button, slot) => button.classList.toggle("is-on", slot === current));
+    layoutPluginLiquid();
+    if (previous !== null && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const rest = item ? 1 : 0.4;
+      liquid.querySelector(".plugin-drop:not(.is-tail)").animate(
+        [{ transform: `scale(${rest})` }, { transform: `scale(${rest * 1.2}, ${rest * 0.84})`, offset: 0.35 }, { transform: `scale(${rest})` }],
+        { duration: 460, easing: "ease-out" }
+      );
+    }
+  }
+
+  // The bar's slots are spread across its width, which is only known once the tray is showing.
+  function layoutPluginLiquid() {
+    const liquid = el.attachMenu.querySelector(".plugin-liquid");
+    if (!liquid?.clientWidth) {
+      return;
+    }
+    const x = slot => 20 + slot * (liquid.clientWidth - 40) / (PLUGIN_SLOTS.length - 1);
+    liquid.querySelectorAll(".plugin-slot").forEach((button, slot) => {
+      button.style.left = `${x(slot)}px`;
+    });
+    liquid.querySelectorAll(".plugin-drop").forEach(drop => {
+      drop.style.left = `${x(wrapSlot(pluginPos))}px`;
+    });
+    if (liquid.classList.contains("is-instant")) {
+      requestAnimationFrame(() => requestAnimationFrame(() => liquid.classList.remove("is-instant")));
+    }
+  }
+
+  function movePlugin(next) {
+    if (next === pluginPos) {
+      return;
+    }
+    const previous = wrapSlot(pluginPos);
+    pluginPos = next;
+    showPlugin(previous);
+    setScenario(PLUGIN_SLOTS[wrapSlot(next)]);
+  }
+
+  function pickPlugin(slot) {
+    movePlugin(pluginPos + slotDistance(slot, wrapSlot(pluginPos)));
+  }
+
+  // Clicking the chosen card again is "done": like picking a row, it closes the tray, and clears
+  // the / that opened it.
+  function confirmPlugin() {
+    const typed = Boolean(command);
+    closeMenus();
+    if (typed) {
+      el.input.value = "";
+      autosize();
+    }
+    el.input.focus();
+  }
+
+  // With the row focused: ← → turn it, 0–5 jump to a slot, a letter to the next plugin starting
+  // with it, and Enter or Space closes the tray on the chosen one.
+  function pluginKey(event) {
+    const letter = event.key.length === 1 ? event.key.toLowerCase() : "";
+    if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+      movePlugin(pluginPos + (event.key === "ArrowRight" ? 1 : -1));
+    } else if (/^\d$/.test(letter) && Number(letter) < PLUGIN_SLOTS.length) {
+      pickPlugin(Number(letter));
+    } else if (event.key === "Enter" || event.key === " ") {
+      confirmPlugin();
+    } else if (/^\p{L}$/u.test(letter)) {
+      const hits = PLUGIN_SLOTS.map((item, slot) => slot).filter(slot => {
+        const item = PLUGIN_SLOTS[slot];
+        return (item ? [item.id, item.label] : ["none", t("None")]).some(name => name.toLowerCase().startsWith(letter));
+      });
+      if (!hits.length) {
+        return;
+      }
+      pickPlugin(hits[(hits.indexOf(wrapSlot(pluginPos)) + 1) % hits.length]);
+    } else {
+      return;
+    }
+    event.preventDefault();
+  }
 
   // ---------- Typing @ and / ----------
   // Both open the + tray and leave the caret in the box: @ on its pages, with the page or range
@@ -2048,7 +2260,9 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
 
   function pickerView(query) {
     const matches = item => !query || `${item.id} ${item.label} ${item.description}`.toLowerCase().includes(query);
-    const plugins = SCENARIOS.filter(matches).map(item => ({ ...item, kind: "scenario" }));
+    // With nothing typed after the / the plugins are the carousel above the list; while filtering
+    // they are rows in it, so Enter can pick one.
+    const plugins = query ? SCENARIOS.filter(matches).map(item => ({ ...item, kind: "scenario" })) : [];
     const skills = SKILLS.filter(matches).map(item => ({ ...item, kind: "skill" }));
     return { plugins, skills, nav: [...plugins, ...skills] };
   }
@@ -2090,11 +2304,15 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       return;
     }
     const view = command || pickerView("");
+    const plugins = el.attachMenu.querySelector(".tray-plugins");
+    if (plugins.hidden !== Boolean(view.query)) {
+      plugins.hidden = Boolean(view.query);
+      layoutPluginLiquid();
+    }
     list.innerHTML = view.nav.length
       ? pickerList(view, (item, index) => `data-nav="${index}" data-tray-pick="${item.kind}:${escapeHtml(item.id)}" aria-selected="false"`)
       : `<div class="tray-empty">${escapeHtml(t("No matching skills"))}</div>`;
     list.scrollTop = 0;
-    markScrollEnds(list);
     markActive({ scroll: true });
   }
 
@@ -3662,11 +3880,23 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       setQuote(getSelectedText?.() || "");
       pill.setAttribute("aria-checked", "true");
       pill.textContent = t("Quoted");
+    } else if (event.target.closest("[data-plugin-slot]")) {
+      const target = event.target.closest("[data-plugin-slot]");
+      const slot = Number(target.dataset.pluginSlot);
+      if (target.classList.contains("plugin-card") && slot === wrapSlot(pluginPos)) {
+        confirmPlugin();
+      } else {
+        pickPlugin(slot);
+      }
     } else if (event.target.closest("[data-tray-pick]")) {
       pickFromTray(event.target.closest("[data-tray-pick]").dataset.trayPick);
     }
   });
   el.attachMenu.addEventListener("keydown", event => {
+    if (event.target.closest(".plugin-flow")) {
+      pluginKey(event);
+      return;
+    }
     const tile = event.target.closest(".tray-page");
     if (tile && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
       event.preventDefault();

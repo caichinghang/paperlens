@@ -1467,10 +1467,12 @@ svg {
 
 /* Laid out like the effort menu: the head says which pages are picked, a caption says how to pick
    them, and the strip sits under the caption the way the slider sits under "Faster … Smarter". */
+/* No bottom padding on the tray itself: each view brings its own, so the skills list can scroll
+   right to the tray's edge instead of stopping above a blank strip. */
 #aiAttachMenu {
   width: min(360px, calc(var(--ai-panel-width, 100vw) - 24px));
   gap: 14px;
-  padding: 14px 16px 16px;
+  padding: 14px 16px 0;
 }
 
 /* The composer's menus line up with the messages' text above them, so none of it shows past their
@@ -1733,6 +1735,8 @@ svg {
   align-items: start;
   margin: 0 -16px;
   overflow: hidden;
+  /* It reaches the tray's bottom edge, so it follows the tray's rounded corners there. */
+  border-radius: 0 0 12px 12px;
   transition: height 320ms var(--ease-out);
 }
 
@@ -1749,31 +1753,23 @@ svg {
   transform: translateX(-100%);
 }
 
+.tray-view.is-pages {
+  padding-bottom: 16px;
+}
+
 .tray-views[data-view="pages"] .is-skills,
 .tray-views[data-view="skills"] .is-pages {
   opacity: 0;
 }
 
-/* The / picker's rows, pulled out by their own padding so their text lines up with the pages'. */
-/* Like the strip, no scrollbar: the top and bottom fade while there is more above or below, so
-   rows running under the edge read as more to scroll rather than as cut off. */
+/* The / picker's rows, pulled out by their own padding so their text lines up with the pages'.
+   A plain scrolling list with crisp edges, as the / menu was before it joined the tray. */
 .tray-skills {
-  --fade-before: #000;
-  --fade-after: #000;
   max-height: 272px;
   margin: 0 -8px;
+  padding-bottom: 8px;
   overflow-y: auto;
   scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(to bottom, var(--fade-before), #000 28px, #000 calc(100% - 28px), var(--fade-after));
-  mask-image: linear-gradient(to bottom, var(--fade-before), #000 28px, #000 calc(100% - 28px), var(--fade-after));
-}
-
-.tray-skills.has-before {
-  --fade-before: transparent;
-}
-
-.tray-skills.has-after {
-  --fade-after: transparent;
 }
 
 .tray-skills .popover-head {
@@ -1811,6 +1807,281 @@ svg {
 
 .tray-skills .tray-empty {
   padding: 18px 0 20px;
+}
+
+/* ---------- The plugin carousel ---------- */
+/* Above the skills: the plugins as cards turning in 3D, the middle one chosen, and under them a bar
+   of all six where a drop of the plugin's colour flows to the pick. Black and white like the rest
+   of the tray; only the glyphs, the chosen name and the drop carry the plugins' colours. */
+
+.tray-plugins {
+  display: grid;
+  gap: 10px;
+}
+
+.tray-plugins[hidden] {
+  display: none;
+}
+
+.tray-plugins .popover-caption {
+  margin-left: auto;
+}
+
+/* Under the carousel there is less room, so the skills list scrolls sooner. */
+.tray-plugins:not([hidden]) + .tray-skills {
+  max-height: 200px;
+}
+
+.plugin-name {
+  display: inline-grid;
+  overflow: hidden;
+  vertical-align: bottom;
+  transition: color 250ms ease;
+}
+
+.plugin-name > span {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+/* The row bleeds to the tray's edges and fades out there, so the cards beside the chosen one slip
+   away rather than being cut off. */
+.plugin-flow {
+  position: relative;
+  height: 150px;
+  margin: 0 -16px;
+  overflow: hidden;
+  perspective: 900px;
+  outline: none;
+  touch-action: pan-y;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+}
+
+.plugin-flow:focus-visible .plugin-card.is-on {
+  box-shadow: 0 0 0 1px var(--line-strong), 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* `.menu button` is written for rows (space-between, a 16px gap); the card and the slots undo it,
+   or their content sits off-centre. */
+#aiAttachMenu .plugin-card {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  display: grid;
+  justify-content: center;
+  justify-items: center;
+  align-content: center;
+  gap: 5px;
+  width: 136px;
+  height: 138px;
+  margin-left: -68px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: var(--surface-raised);
+  box-shadow: 0 0 0 1px var(--line);
+  text-align: center;
+  white-space: normal;
+  transition: transform 560ms var(--ease-out), opacity 420ms var(--ease-out), box-shadow 300ms ease;
+}
+
+#aiAttachMenu .plugin-card:hover:not(:disabled) {
+  background: var(--surface-raised);
+}
+
+#aiAttachMenu .plugin-card.is-jumping {
+  transition: none;
+}
+
+#aiAttachMenu .plugin-card.is-on {
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+#aiAttachMenu .plugin-card.is-none:not(.is-on) {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.plugin-card-glyph {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  color: var(--c);
+  transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 300ms ease, filter 300ms ease;
+}
+
+.plugin-card-glyph svg,
+.plugin-slot svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--picker-icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.plugin-card-glyph svg {
+  width: 28px;
+  height: 28px;
+}
+
+.plugin-card:not(.is-on) .plugin-card-glyph {
+  opacity: 0.5;
+  filter: saturate(0.45);
+}
+
+.plugin-card.is-on .plugin-card-glyph {
+  transform: translateY(-1px) scale(1.06);
+}
+
+.plugin-card strong {
+  color: var(--muted);
+  font-size: var(--picker-text-size);
+  font-weight: 600;
+  transition: color 300ms ease;
+}
+
+.plugin-card.is-on strong {
+  color: var(--c);
+}
+
+/* The chosen card also says what the plugin is for and shows its first skills. */
+.plugin-card-blurb,
+.plugin-card .plugin-skills {
+  max-height: 0;
+  opacity: 0;
+  transition: opacity 250ms ease, max-height 300ms var(--ease-out);
+}
+
+.plugin-card-blurb {
+  color: var(--soft);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.plugin-card .plugin-skills {
+  justify-content: center;
+}
+
+.plugin-card .plugin-skill svg {
+  width: 13px;
+  height: 13px;
+}
+
+.plugin-card .plugin-skills em {
+  margin-left: 3px;
+  color: var(--soft);
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.plugin-card.is-on .plugin-card-blurb {
+  max-height: 30px;
+  opacity: 1;
+  transition-delay: 120ms;
+}
+
+.plugin-card.is-on .plugin-skills {
+  max-height: 16px;
+  opacity: 1;
+  transition-delay: 140ms;
+}
+
+/* The bar: a grey track, a drop of the plugin's colour that runs to the pick with a slower tail
+   behind it, and the six glyphs on top. The goo filter (in viewer.html) melts the drop and its tail
+   into one body while they are close. None shrinks the drop to a grey bead. */
+.plugin-liquid {
+  position: relative;
+  height: 40px;
+}
+
+.plugin-liquid-rail {
+  position: absolute;
+  inset: 2px 0;
+  border-radius: 18px;
+  background: var(--sidebar-selected);
+}
+
+.plugin-liquid-goo {
+  position: absolute;
+  inset: -6px 0;
+  filter: url(#plugin-goo);
+}
+
+.plugin-drop {
+  position: absolute;
+  top: 8px;
+  width: 36px;
+  height: 36px;
+  margin-left: -18px;
+  border-radius: 50%;
+  background: var(--c);
+  transition: left 440ms cubic-bezier(0.34, 1.56, 0.64, 1), background 350ms ease, transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.plugin-drop.is-tail {
+  top: 13px;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  transition: left 780ms var(--ease-out), background 350ms ease, transform 500ms var(--ease-out);
+}
+
+.plugin-liquid.is-none .plugin-drop {
+  transform: scale(0.4);
+}
+
+.plugin-liquid.is-none .plugin-drop.is-tail {
+  transform: scale(0.3);
+}
+
+.plugin-liquid.is-instant .plugin-drop {
+  transition: none;
+}
+
+#aiAttachMenu .plugin-slot {
+  position: absolute;
+  top: 2px;
+  display: grid;
+  place-items: center;
+  justify-content: center;
+  align-content: center;
+  gap: 0;
+  width: 36px;
+  height: 36px;
+  margin-left: -18px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--c);
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#aiAttachMenu .plugin-slot:hover:not(:disabled) {
+  background: transparent;
+}
+
+.plugin-slot svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.5;
+  filter: saturate(0.4);
+  transition: opacity 200ms ease, filter 200ms ease;
+}
+
+.plugin-slot:hover svg,
+.plugin-slot.is-on svg {
+  opacity: 1;
+  filter: none;
+}
+
+#aiAttachMenu .plugin-slot.is-on {
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+#aiAttachMenu .plugin-slot.is-none.is-on {
+  color: transparent;
 }
 
 /* Opened by typing /, the tray starts on its skills without sliding there. */
