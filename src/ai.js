@@ -42,6 +42,9 @@ const RETIRED_DEFAULT_MODELS = new Set(["deepseek-chat", "deepseek-reasoner"]);
 // it. Auto is not among them: it is a switch that picks one of them per question.
 const THINKING_LEVELS = [["none", t("Instant")], ["low", t("Low")], ["high", t("Medium")], ["max", t("High")]];
 const MAX_ATTACHED_PAGES = 8;
+// The + tray's views, in the order of its switch.
+const TRAY_VIEWS = ["pages", "plugins", "skills"];
+const TRAY_VIEW_LABELS = { pages: "Pages", plugins: "Plugins", skills: "Skills" };
 // A new chat opens on one of these at random: the mascot at one kind of work (reading, looking into
 // something, signing, presenting figures, filling in a form) and a line that hints at it rather than
 // naming it. The Chinese lines are their own sayings, not translations.
@@ -183,9 +186,9 @@ function iconTile(kind, id) {
 // glance in the / menu and on the chip. Dark mode has lighter versions of the same hues.
 const PLUGIN_COLORS = { study: "--i-blue", research: "--i-green", contracts: "--i-red", reports: "--i-purple", forms: "--i-orange" };
 
-// "No plugin": a crossed circle on its card, and a small ring on the bar the drop flows along.
-const NO_PLUGIN_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0 -18"/><path d="M5.7 5.7l12.6 12.6"/></svg>';
+// "No plugin": a crossed circle on its card, and a small ring on the bar under the cards.
 const NO_PLUGIN_DOT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0 -10"/></svg>';
+const NO_PLUGIN_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0 -18"/><path d="M5.7 5.7l12.6 12.6"/></svg>';
 
 function pluginGlyph(id) {
   return (LINE_ICONS[id] || "").replace("<svg ", `<svg style="color: var(${PLUGIN_COLORS[id]})" `);
@@ -271,6 +274,16 @@ const SCENARIOS = [
     skills: ["fill-form", "review-form", "documents-needed", "sign", "redact", "translate"],
     prompt: "Scenario: forms and paperwork. The reader wants to fill in this form correctly. Before asking for personal details, call get_profile and use what's saved; ask only for what's missing. When the reader gives details they are likely to reuse (name, address, ID numbers, contact details), ask whether to remember them and call save_profile only after they agree. Put documents to prepare and deadlines on the to-do list with add_todos."
   }
+];
+
+// The skills view lists every skill once, in these groups by what it is for (see pickerView).
+const SKILL_GROUPS = [
+  { label: t("Understand"), skills: ["brief", "explain-page", "summarize", "translate", "define", "outline", "memo"] },
+  { label: t("Study"), skills: ["study-notes", "notes", "flashcards", "quiz", "glossary", "solve", "review-plan"] },
+  { label: t("Research"), skills: ["paper-card", "critique", "citation"] },
+  { label: t("Contracts"), skills: ["risks", "plain-terms", "counter", "deadlines"] },
+  { label: t("Figures & tables"), skills: ["kpis", "check-numbers", "extract", "table-csv"] },
+  { label: t("Forms"), skills: ["fill-form", "review-form", "documents-needed", "sign", "redact"] }
 ];
 
 // The workspace sits beside the chat in every scenario.
@@ -737,6 +750,11 @@ function rangeLabel({ from, to }) {
   return from === to ? t("Page {page}", { page: from }) : t("Pages {from}–{to}", { from, to });
 }
 
+// The bare numbers ("5", "18–19"), for the tray's row, which already says "Pages".
+function rangeNumbers({ from, to }) {
+  return from === to ? String(from) : `${from}–${to}`;
+}
+
 function rangeMention({ from, to }) {
   return from === to ? `@${from}` : `@${from}-${to}`;
 }
@@ -801,7 +819,7 @@ export function runBlockAction(button, { baseName = "document", toast }) {
   }
 }
 
-export function createAssistant({ host, getSelectedText, toast, onClose }) {
+export function createAssistant({ host, toast, onClose }) {
   const $ = selector => document.querySelector(selector);
   const el = {
     allowEdits: $("#aiAllowEdits"),
@@ -1546,55 +1564,42 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   }
 
   // ---------- The + tray ----------
-  // Two views behind a switch in the head. Pages: a strip of thumbnails to click, or drag across
-  // several to attach a range, and the selected text as a quote when there is any. Skills: the /
-  // picker's plugins and skills, so choosing one leaves what is typed alone.
+  // Three views behind a switch in the head, all one height. Pages: a strip of thumbnails to click,
+  // or drag across several to attach a range.
+  // Plugins: the carousel (see Plugin carousel). Skills: the / picker's skills in groups, so choosing
+  // one leaves what is typed alone.
 
   function buildAttachMenu() {
     const info = host.getDocumentInfo();
-    const selected = getSelectedText?.() || "";
     const pages = Array.from({ length: info.pageCount }, (_, index) => index + 1);
     const strip = info.pageCount
       ? `<div class="tray-strip" role="listbox" aria-multiselectable="true" aria-label="${escapeHtml(t("Pages"))}">
           ${pages.map(page => `
           <button type="button" role="option" class="tray-page${page === info.currentPage ? " is-current" : ""}" data-tray-page="${page}" aria-label="${escapeHtml(t("Page {page}", { page }))}">
-            <span class="tray-thumb"></span><span class="tray-num">${page}</span>
+            <span class="tray-thumb" style="aspect-ratio: ${info.pageSizes[page - 1].join(" / ")}"></span><span class="tray-num">${page}</span>
           </button>`).join("")}
         </div>`
       : `<div class="tray-empty">${escapeHtml(t("Open a PDF first"))}</div>`;
-    const span = traySpan(info);
-    const all = span
-      ? `<button type="button" class="popover-pill" role="switch" aria-checked="false" data-tray-all data-from="${span.from}" data-to="${span.to}"${span.to - span.from + 1 < info.pageCount ? ` title="${escapeHtml(t("Up to {count} pages can be sent at once", { count: MAX_ATTACHED_PAGES }))}"` : ""}>${escapeHtml(span.to - span.from + 1 < info.pageCount ? rangeLabel(span) : t("All pages"))}</button>`
-      : "";
-    const quoted = Boolean(selected) && quote === normalizeQuote(selected);
-    const quoteRow = selected
-      ? `<div class="tray-quote">
-          <span class="tray-quote-text">${escapeHtml(truncate(selected.replace(/\s+/g, " ").trim(), 240))}</span>
-          <button type="button" class="popover-pill" role="switch" aria-checked="${quoted}" data-tray-quote>${escapeHtml(quoted ? t("Quoted") : t("Quote"))}</button>
-        </div>`
-      : "";
     trayView = "pages";
     el.attachMenu.innerHTML = `
       <div class="popover-head">
         <div class="popover-tabs" role="tablist" style="--tab:0">
-          <button type="button" role="tab" data-tray-view="pages" aria-selected="true">${escapeHtml(t("Pages"))}</button>
-          <button type="button" role="tab" data-tray-view="skills" aria-selected="false">${escapeHtml(t("Skills"))}</button>
-        </div>
-        <div class="tray-head-pages">
-          <span class="popover-value tray-picked"></span>
-          ${all}
+          ${TRAY_VIEWS.map((view, index) => `<button type="button" role="tab" data-tray-view="${view}" aria-selected="${index === 0}">${escapeHtml(t(TRAY_VIEW_LABELS[view]))}</button>`).join("")}
         </div>
       </div>
-      <div class="tray-views" data-view="pages">
+      <div class="tray-views" style="--view:0">
         <div class="tray-view is-pages" role="tabpanel">
-          <div class="tray-scale">
-            ${info.pageCount ? `<div class="popover-caption">${escapeHtml(t("Click a page, or drag across several"))}</div>` : ""}
-            ${strip}
+          <div class="popover-head">
+            <span class="popover-name">${escapeHtml(t("Pages"))}</span>
+            <span class="popover-value tray-picked"></span>
+            ${info.pageCount ? `<span class="popover-caption">${escapeHtml(t("Click a page, or drag across several"))}</span>` : ""}
           </div>
-          ${quoteRow}
+          ${strip}
         </div>
-        <div class="tray-view is-skills" role="tabpanel" inert>
+        <div class="tray-view is-plugins is-away" role="tabpanel" inert>
           <div class="tray-plugins"></div>
+        </div>
+        <div class="tray-view is-skills is-away" role="tabpanel" inert>
           <div class="tray-skills"></div>
         </div>
       </div>`;
@@ -1603,52 +1608,34 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     markTray();
   }
 
-  // The pill at the end of the tray's head: every page when they all fit in one message, and
-  // otherwise as many as fit around the page being read: three before it and four after, shifted
-  // along at either end of the document so the span stays full.
-  function traySpan(info) {
-    if (info.pageCount < 2) {
-      return null;
-    }
-    const before = Math.floor((MAX_ATTACHED_PAGES - 1) / 2);
-    const from = Math.max(1, Math.min(info.currentPage - before, info.pageCount - MAX_ATTACHED_PAGES + 1));
-    return { from, to: Math.min(info.pageCount, from + MAX_ATTACHED_PAGES - 1) };
-  }
-
-  // The views' box takes the height of the one showing, gliding there from where it was.
-  function fitTrayViews(animate) {
+  // Every view is as tall as the plugins view, whose carousel has a fixed size, so the tray keeps
+  // one size whichever view is showing: the pages' thumbnails grow to fill it and the skills scroll
+  // inside it. Layout sizes, not getBoundingClientRect: the menu's pop-in scale would shrink those.
+  function fitTrayViews() {
     const box = el.attachMenu.querySelector(".tray-views");
-    if (!box) {
-      return;
-    }
-    // Layout sizes, not getBoundingClientRect: the menu's pop-in scale would shrink those.
-    const from = box.offsetHeight;
-    // Measured at the box's natural height: a fixed one squeezes the grid row the views sit in.
-    box.style.height = "auto";
-    const to = box.querySelector(trayView === "pages" ? ".is-pages" : ".is-skills").offsetHeight;
-    box.style.height = `${animate ? from : to}px`;
-    if (animate) {
-      box.getBoundingClientRect();
-      box.style.height = `${to}px`;
+    const height = box?.querySelector(".is-plugins").offsetHeight;
+    if (height) {
+      box.style.setProperty("--tray-h", `${height}px`);
     }
   }
 
-  // The switch's knob slides over, the pages' half of the head fades, and the views slide sideways.
+  // The switch's knob slides over and the views slide sideways.
   function showTrayView(view, { instant = false } = {}) {
     if (view === trayView) {
       return;
     }
     trayView = view;
-    const skills = view === "skills";
-    el.attachMenu.querySelector(".popover-tabs").style.setProperty("--tab", skills ? "1" : "0");
+    const index = TRAY_VIEWS.indexOf(view);
+    el.attachMenu.querySelector(".popover-tabs").style.setProperty("--tab", String(index));
     el.attachMenu.querySelectorAll("[data-tray-view]").forEach(tab => tab.setAttribute("aria-selected", String(tab.dataset.trayView === view)));
-    el.attachMenu.querySelector(".tray-head-pages").classList.toggle("is-away", skills);
-    el.attachMenu.querySelector(".tray-views").dataset.view = view;
-    el.attachMenu.querySelector(".is-pages").inert = skills;
-    el.attachMenu.querySelector(".is-skills").inert = !skills;
+    el.attachMenu.querySelector(".tray-views").style.setProperty("--view", String(index));
+    TRAY_VIEWS.forEach(name => {
+      const panel = el.attachMenu.querySelector(`.is-${name}`);
+      panel.inert = name !== view;
+      panel.classList.toggle("is-away", name !== view);
+    });
     // Opening straight onto the skills (typing /) shows them at once rather than sliding over.
     el.attachMenu.classList.toggle("is-instant", instant);
-    fitTrayViews(!instant);
     if (instant) {
       requestAnimationFrame(() => el.attachMenu.classList.remove("is-instant"));
     }
@@ -1681,8 +1668,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   // Called once the tray is showing: centres the strip on the page being read and starts loading
   // the thumbnails that scroll into view.
   function showTray() {
-    layoutPluginLiquid();
-    fitTrayViews(false);
+    layoutPluginBar();
+    fitTrayViews();
     const strip = el.attachMenu.querySelector(".tray-strip");
     if (!strip) {
       return;
@@ -1744,25 +1731,27 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       tile.setAttribute("aria-selected", String(attached.has(page)));
     }
     // The head reads like the effort menu's: "Pages" and then which ones, or nothing yet. While a
-    // page is being typed after @, it names that page instead.
+    // press or drag is under way it already shows what letting go will leave attached, so the
+    // numbers don't flick to the pressed page first; while a page is typed after @, it names that.
     const picked = el.attachMenu.querySelector(".tray-picked");
     if (picked) {
-      picked.textContent = range ? rangeLabel(range) : mention ? rangeLabel(mention) : pageRanges.map(rangeLabel).join(", ");
-    }
-    const all = el.attachMenu.querySelector("[data-tray-all]");
-    if (all) {
-      const from = Number(all.dataset.from);
-      const to = Number(all.dataset.to);
-      const on = Array.from({ length: to - from + 1 }, (_, index) => from + index).every(page => attached.has(page));
-      all.setAttribute("aria-checked", String(on));
+      const shown = range ? toRanges(toggledPages(range)) : mention ? [mention] : pageRanges;
+      const label = shown.map(rangeNumbers).join(", ");
+      picked.textContent = label || t("None");
+      picked.classList.toggle("is-empty", !label);
     }
   }
 
   // Ranges are kept sorted and merged, so taking one page out of the middle of 3–7 leaves 3–4 and 6–7.
   function setAttachedPages(pages) {
-    const sorted = [...pages].sort((a, b) => a - b);
+    pageRanges = toRanges(pages);
+    renderAttachments();
+    markTray();
+  }
+
+  function toRanges(pages) {
     const ranges = [];
-    for (const page of sorted) {
+    for (const page of [...pages].sort((a, b) => a - b)) {
       const last = ranges.at(-1);
       if (last && page === last.to + 1) {
         last.to = page;
@@ -1770,13 +1759,15 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
         ranges.push({ from: page, to: page });
       }
     }
-    pageRanges = ranges;
-    renderAttachments();
-    markTray();
+    return ranges;
   }
 
   // A range already attached in full is taken off again; otherwise it is added.
-  function toggleRange({ from, to }) {
+  function toggleRange(range) {
+    setAttachedPages(toggledPages(range));
+  }
+
+  function toggledPages({ from, to }) {
     const pages = attachedPages();
     const span = Array.from({ length: to - from + 1 }, (_, index) => from + index);
     if (span.every(page => pages.has(page))) {
@@ -1784,7 +1775,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     } else {
       span.forEach(page => pages.add(page));
     }
-    setAttachedPages(pages);
+    return pages;
   }
 
   function trayTileAt(x, y) {
@@ -1910,18 +1901,13 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   // and pushes the old one out of the top, an easier one drops in from above. A step taken while
   // the last is still rolling cuts it short rather than queueing behind it.
   function rollEffortWord(title, index) {
-    const shown = title.lastElementChild || title;
-    const levels = THINKING_LEVELS.map(level => level[1]);
-    rollWord(title, THINKING_LEVELS[index][1], index > levels.indexOf(shown.textContent));
-  }
-
-  // Rolls `word` into `title`, upwards when `up`: the old word leaves as the new one arrives, both
-  // clipped by the title's cell. The effort menu and the plugin carousel name their pick this way.
-  function rollWord(title, word, up) {
+    const word = THINKING_LEVELS[index][1];
     const shown = title.lastElementChild || title;
     if (shown.textContent === word) {
       return;
     }
+    const levels = THINKING_LEVELS.map(level => level[1]);
+    const up = index > levels.indexOf(shown.textContent);
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
       title.textContent = word;
       return;
@@ -1966,10 +1952,10 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
   // ---------- @ mentions ----------
 
   // ---------- Plugin carousel ----------
-  // Above the skills, the plugins turn past as cards, the middle one chosen, over a bar of all six
-  // where a drop of the plugin's colour flows to the pick, so any of them is one click away. None
-  // is the first slot and the row loops, so None sits between Forms and Study. A pick applies at
-  // once; clicking the middle card again closes the tray.
+  // In the tray's plugins view, the plugins turn past as cards, the middle one chosen, over a bar of
+  // all six with a knob in the plugin's colour on the pick, so any of them is one click away.
+  // None is the first slot and the row loops, so None sits between Forms and Study. A pick applies
+  // at once; clicking the middle card again closes the tray.
 
   const PLUGIN_SLOTS = [null, ...SCENARIOS];
   // Unbounded, so that going round the loop keeps turning the same way; the slot is it wrapped.
@@ -2000,7 +1986,7 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     }).join("");
     const slots = PLUGIN_SLOTS.map((item, slot) => {
       const label = escapeHtml(item ? item.label : t("None"));
-      return `<button type="button" class="plugin-slot${item ? "" : " is-none"}" data-plugin-slot="${slot}" tabindex="-1" title="${label}" aria-label="${label}" style="--c: ${pluginTint(item)}">${item ? LINE_ICONS[item.id] || "" : NO_PLUGIN_DOT}</button>`;
+      return `<span class="plugin-slot${item ? "" : " is-none"}" title="${label}" style="--c: ${pluginTint(item)}">${item ? LINE_ICONS[item.id] || "" : NO_PLUGIN_DOT}</span>`;
     }).join("");
     box.innerHTML = `
       <div class="popover-head">
@@ -2009,9 +1995,9 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
         <span class="popover-caption">${escapeHtml(t("The assistant picks the skills"))}</span>
       </div>
       <div class="plugin-flow" role="listbox" tabindex="0" aria-label="${escapeHtml(t("Plugins"))}">${cards}</div>
-      <div class="plugin-liquid is-instant">
-        <span class="plugin-liquid-rail"></span>
-        <span class="plugin-liquid-goo"><span class="plugin-drop is-tail"></span><span class="plugin-drop"></span></span>
+      <div class="plugin-bar is-instant" aria-hidden="true">
+        <span class="plugin-bar-track"></span>
+        <span class="plugin-knob"></span>
         ${slots}
       </div>`;
     const flow = box.querySelector(".plugin-flow");
@@ -2050,6 +2036,32 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
         wheelAt = event.timeStamp;
       }
     }, { passive: false });
+    // Only the glyphs on the bar answer the pointer: pressing one picks it, and sliding along while
+    // held picks each glyph the pointer reaches. The gaps between them do nothing, so the knob only
+    // ever rests on a plugin; it glides there as the effort slider's thumb does.
+    const bar = box.querySelector(".plugin-bar");
+    bar.addEventListener("pointerdown", event => {
+      if (event.button !== 0 || slotUnder(bar, event.clientX) === null) {
+        return;
+      }
+      event.preventDefault();
+      bar.setPointerCapture(event.pointerId);
+      const follow = move => {
+        const slot = slotUnder(bar, move.clientX);
+        if (slot !== null) {
+          movePlugin(pluginPos + slot - wrapSlot(pluginPos));
+        }
+      };
+      const release = () => {
+        bar.removeEventListener("pointermove", follow);
+        bar.removeEventListener("pointerup", release);
+        bar.removeEventListener("pointercancel", release);
+      };
+      follow(event);
+      bar.addEventListener("pointermove", follow);
+      bar.addEventListener("pointerup", release);
+      bar.addEventListener("pointercancel", release);
+    });
     showPlugin(null);
   }
 
@@ -2076,41 +2088,43 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     const item = PLUGIN_SLOTS[current];
     const name = box.querySelector(".plugin-name");
     name.style.color = item ? pluginTint(item) : "var(--soft)";
-    const label = item ? item.label : t("None");
-    if (previous === null) {
-      name.textContent = label;
-    } else {
-      rollWord(name, label, slotDistance(current, previous) > 0);
-    }
-    const liquid = box.querySelector(".plugin-liquid");
-    liquid.style.setProperty("--c", item ? pluginTint(item) : "var(--soft)");
-    liquid.classList.toggle("is-none", !item);
-    liquid.querySelectorAll(".plugin-slot").forEach((button, slot) => button.classList.toggle("is-on", slot === current));
-    layoutPluginLiquid();
-    if (previous !== null && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const rest = item ? 1 : 0.4;
-      liquid.querySelector(".plugin-drop:not(.is-tail)").animate(
-        [{ transform: `scale(${rest})` }, { transform: `scale(${rest * 1.2}, ${rest * 0.84})`, offset: 0.35 }, { transform: `scale(${rest})` }],
-        { duration: 460, easing: "ease-out" }
-      );
-    }
+    name.textContent = item ? item.label : t("None");
+    const bar = box.querySelector(".plugin-bar");
+    bar.style.setProperty("--c", item ? pluginTint(item) : "var(--soft)");
+    bar.classList.toggle("is-none", !item);
+    bar.querySelectorAll(".plugin-slot").forEach((glyph, slot) => glyph.classList.toggle("is-on", slot === current));
+    layoutPluginBar();
   }
 
-  // The bar's slots are spread across its width, which is only known once the tray is showing.
-  function layoutPluginLiquid() {
-    const liquid = el.attachMenu.querySelector(".plugin-liquid");
-    if (!liquid?.clientWidth) {
+  // Where the bar's first glyph sits and how far apart the glyphs are, from its width.
+  function pluginBarGeometry(bar) {
+    const from = 20;
+    return { from, step: (bar.clientWidth - from * 2) / (PLUGIN_SLOTS.length - 1) };
+  }
+
+  // The plugin whose glyph (a circle the knob's size) is under `x`, or null between glyphs.
+  function slotUnder(bar, x) {
+    const { from, step } = pluginBarGeometry(bar);
+    const offset = x - bar.getBoundingClientRect().left - from;
+    const slot = Math.round(offset / step);
+    const knob = bar.querySelector(".plugin-knob").offsetWidth;
+    return slot >= 0 && slot < PLUGIN_SLOTS.length && Math.abs(offset - slot * step) <= knob / 2 ? slot : null;
+  }
+
+  // The glyphs are spread across the bar's width, which is only known once the tray is showing, and
+  // the knob glides to the chosen one.
+  function layoutPluginBar() {
+    const bar = el.attachMenu.querySelector(".plugin-bar");
+    if (!bar?.clientWidth) {
       return;
     }
-    const x = slot => 20 + slot * (liquid.clientWidth - 40) / (PLUGIN_SLOTS.length - 1);
-    liquid.querySelectorAll(".plugin-slot").forEach((button, slot) => {
-      button.style.left = `${x(slot)}px`;
+    const { from, step } = pluginBarGeometry(bar);
+    bar.querySelectorAll(".plugin-slot").forEach((glyph, slot) => {
+      glyph.style.left = `${from + step * slot}px`;
     });
-    liquid.querySelectorAll(".plugin-drop").forEach(drop => {
-      drop.style.left = `${x(wrapSlot(pluginPos))}px`;
-    });
-    if (liquid.classList.contains("is-instant")) {
-      requestAnimationFrame(() => requestAnimationFrame(() => liquid.classList.remove("is-instant")));
+    bar.querySelector(".plugin-knob").style.left = `${from + step * wrapSlot(pluginPos)}px`;
+    if (bar.classList.contains("is-instant")) {
+      requestAnimationFrame(() => requestAnimationFrame(() => bar.classList.remove("is-instant")));
     }
   }
 
@@ -2122,6 +2136,14 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     pluginPos = next;
     showPlugin(previous);
     setScenario(PLUGIN_SLOTS[wrapSlot(next)]);
+    // The skills view leads with the plugin's own skills, so it is regrouped (unless a search is typed).
+    if (!command?.query) {
+      if (command) {
+        const view = pickerView("");
+        command = { ...command, ...view, active: 0, activeKey: view.nav.length ? navKey(view.nav[0]) : "" };
+      }
+      renderTraySkills();
+    }
   }
 
   function pickPlugin(slot) {
@@ -2260,11 +2282,22 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
 
   function pickerView(query) {
     const matches = item => !query || `${item.id} ${item.label} ${item.description}`.toLowerCase().includes(query);
-    // With nothing typed after the / the plugins are the carousel above the list; while filtering
-    // they are rows in it, so Enter can pick one.
+    // With nothing typed after the / the plugins are left to their own view; while filtering they
+    // lead the list, so Enter can pick one.
     const plugins = query ? SCENARIOS.filter(matches).map(item => ({ ...item, kind: "scenario" })) : [];
-    const skills = SKILLS.filter(matches).map(item => ({ ...item, kind: "skill" }));
-    return { plugins, skills, nav: [...plugins, ...skills] };
+    if (query) {
+      const skills = SKILLS.filter(matches).map(item => ({ ...item, kind: "skill" }));
+      return { plugins, skills, groups: null, nav: [...plugins, ...skills] };
+    }
+    // Nothing typed: every skill, in its group. The plugin that is on puts its own skills first, in a
+    // group of their own, and the other groups keep the rest.
+    const lead = scenario ? [{ label: t("In {plugin}", { plugin: scenario.label }), skills: scenario.skills }] : [];
+    const taken = new Set(lead.flatMap(group => group.skills));
+    const groups = [...lead, ...SKILL_GROUPS.map(group => ({ ...group, skills: group.skills.filter(id => !taken.has(id)) }))]
+      .map(group => ({ label: group.label, skills: group.skills.map(findCommand).filter(Boolean).map(item => ({ ...item, kind: "skill" })) }))
+      .filter(group => group.skills.length);
+    const skills = groups.flatMap(group => group.skills);
+    return { plugins, skills, groups, nav: skills };
   }
 
   const navKey = item => `${item.kind}:${item.id}`;
@@ -2289,7 +2322,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     } else {
       showTrayView("skills");
       renderTraySkills();
-      fitTrayViews(true);
     }
   }
 
@@ -2304,11 +2336,6 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
       return;
     }
     const view = command || pickerView("");
-    const plugins = el.attachMenu.querySelector(".tray-plugins");
-    if (plugins.hidden !== Boolean(view.query)) {
-      plugins.hidden = Boolean(view.query);
-      layoutPluginLiquid();
-    }
     list.innerHTML = view.nav.length
       ? pickerList(view, (item, index) => `data-nav="${index}" data-tray-pick="${item.kind}:${escapeHtml(item.id)}" aria-selected="false"`)
       : `<div class="tray-empty">${escapeHtml(t("No matching skills"))}</div>`;
@@ -2327,14 +2354,22 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
           <span class="line-icon">${pluginGlyph(item.id)}</span><strong>${escapeHtml(item.label)}</strong><span class="plugin-skills">${glyphs}${more}</span>
         </button>`;
     }).join("");
-    const skills = view.skills.map((item, index) => `
+    const row = (item, index) => `
       <button type="button" role="option" class="command-item" ${attrs(item, view.plugins.length + index)} title="${escapeHtml(item.description)}">
         ${lineGlyph(item.id)}<strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.description)}</small>
-      </button>`).join("");
-    const head = (name, caption) => `<div class="popover-head"><span class="popover-name">${escapeHtml(name)}</span><span class="popover-caption">${escapeHtml(caption)}</span></div>`;
+      </button>`;
+    const head = (name, caption = "") => `<div class="popover-head"><span class="popover-name">${escapeHtml(name)}</span>${caption ? `<span class="popover-caption">${escapeHtml(caption)}</span>` : ""}</div>`;
+    // Grouped, a heading names each group; the first also says how the list works.
+    let skills = "";
+    if (view.groups) {
+      let index = 0;
+      skills = view.groups.map((group, number) => head(group.label, number ? "" : t("Pick one yourself")) + group.skills.map(item => row(item, index++)).join("")).join("");
+    } else if (view.skills.length) {
+      skills = head(t("Skills"), t("Pick one yourself")) + view.skills.map(row).join("");
+    }
     return `
       ${plugins ? `${head(t("Plugins"), t("The assistant picks the skills"))}${plugins}` : ""}
-      ${skills ? `${head(t("Skills"), t("Pick one yourself"))}${skills}` : ""}`;
+      ${skills}`;
   }
 
   // Moves the highlight without rebuilding the list.
@@ -3870,16 +3905,8 @@ export function createAssistant({ host, getSelectedText, toast, onClose }) {
     if (tile && event.detail === 0) {
       const page = Number(tile.dataset.trayPage);
       toggleRange({ from: page, to: page });
-    } else if (event.target.closest("[data-tray-all]")) {
-      const all = event.target.closest("[data-tray-all]");
-      toggleRange({ from: Number(all.dataset.from), to: Number(all.dataset.to) });
     } else if (event.target.closest("[data-tray-view]")) {
       showTrayView(event.target.closest("[data-tray-view]").dataset.trayView);
-    } else if (event.target.closest("[data-tray-quote]")) {
-      const pill = event.target.closest("[data-tray-quote]");
-      setQuote(getSelectedText?.() || "");
-      pill.setAttribute("aria-checked", "true");
-      pill.textContent = t("Quoted");
     } else if (event.target.closest("[data-plugin-slot]")) {
       const target = event.target.closest("[data-plugin-slot]");
       const slot = Number(target.dataset.pluginSlot);
