@@ -1462,15 +1462,17 @@ svg {
 }
 
 /* ---------- The + tray ---------- */
-/* A strip of page thumbnails to click or drag across, the selection to quote, the way into plugins
-   and skills, and a gauge of how many of the pages that can be sent are taken. */
+/* Three views of one size: a strip of page thumbnails to click or drag across, the plugins, and
+   the skills. */
 
 /* Laid out like the effort menu: the head says which pages are picked, a caption says how to pick
    them, and the strip sits under the caption the way the slider sits under "Faster … Smarter". */
+/* No bottom padding on the tray itself: each view brings its own, so the skills list can scroll
+   right to the tray's edge instead of stopping above a blank strip. */
 #aiAttachMenu {
   width: min(360px, calc(var(--ai-panel-width, 100vw) - 24px));
   gap: 14px;
-  padding: 14px 16px 16px;
+  padding: 14px 16px 0;
 }
 
 /* The composer's menus line up with the messages' text above them, so none of it shows past their
@@ -1491,11 +1493,6 @@ svg {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.tray-scale {
-  display: grid;
-  gap: 6px;
 }
 
 /* Isolated so the drag band behind the tiles stays above the menu's own surface. */
@@ -1527,13 +1524,18 @@ svg {
   --fade-after: transparent;
 }
 
+/* The pages view shares the plugins view's height, so the thumbnails are drawn tall enough to use
+   it. Each is as wide as its page's shape makes it (the page's aspect ratio is set on the tile). */
+#aiAttachMenu {
+  --thumb-h: 160px;
+}
+
 #aiAttachMenu .tray-page {
   position: relative;
   display: grid;
   flex: none;
   justify-items: center;
   gap: 5px;
-  width: 52px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1551,8 +1553,7 @@ svg {
 
 .tray-thumb {
   display: block;
-  width: 52px;
-  height: 68px;
+  height: var(--thumb-h);
   overflow: hidden;
   border-radius: 6px;
   background: var(--surface-hover);
@@ -1652,9 +1653,9 @@ svg {
   text-align: center;
 }
 
-/* ---------- The tray's two views ---------- */
-/* A switch in the head, "Pages | Skills": a white knob, like the effort slider's thumb, slides
-   under the side that is showing. */
+/* ---------- The tray's three views ---------- */
+/* A switch in the head, "Pages | Plugins | Skills": a white knob, like the effort slider's thumb,
+   slides under the one that is showing. */
 .popover-tabs {
   --tab: 0;
   position: relative;
@@ -1675,7 +1676,7 @@ svg {
   top: 2px;
   bottom: 2px;
   left: 2px;
-  width: calc((100% - 4px) / 2);
+  width: calc((100% - 4px) / 3);
   border-radius: var(--control-radius);
   background: var(--surface-raised);
   box-shadow: var(--knob-shadow);
@@ -1710,74 +1711,77 @@ svg {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
-/* The rest of the head belongs to the pages view, and fades while the skills show. */
-.tray-head-pages {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  transition: opacity 200ms ease;
-}
-
-.tray-head-pages.is-away {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* The views sit side by side and slide across; the box's height (set from script) follows the one
-   showing, so the window grows or shrinks to fit it. */
+/* The views sit side by side and slide across. All three are as tall as the plugins view
+   (--tray-h, measured from script), so the window keeps one size whichever is showing. */
 .tray-views {
+  --view: 0;
   display: grid;
-  grid-template-columns: 100% 100%;
+  grid-template-columns: 100% 100% 100%;
   align-items: start;
+  height: var(--tray-h, auto);
   margin: 0 -16px;
   overflow: hidden;
-  transition: height 320ms var(--ease-out);
+  /* It reaches the tray's bottom edge, so it follows the tray's rounded corners there. */
+  border-radius: 0 0 12px 12px;
 }
 
+/* One column that never grows past the view, so a long line in it (the picked pages) is cut
+   short with an ellipsis rather than widening the view and pushing the hint off the edge. */
 .tray-view {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 14px;
   min-width: 0;
   padding: 0 16px;
+  transform: translateX(calc(var(--view) * -100%));
   transition: transform 320ms var(--ease-out), opacity 240ms ease;
 }
 
-.tray-views[data-view="skills"] .tray-view {
-  transform: translateX(-100%);
-}
-
-.tray-views[data-view="pages"] .is-skills,
-.tray-views[data-view="skills"] .is-pages {
+.tray-view.is-away {
   opacity: 0;
 }
 
-/* The / picker's rows, pulled out by their own padding so their text lines up with the pages'. */
-/* Like the strip, no scrollbar: the top and bottom fade while there is more above or below, so
-   rows running under the edge read as more to scroll rather than as cut off. */
+.tray-view.is-pages,
+.tray-view.is-plugins {
+  padding-bottom: 16px;
+}
+
+/* Under the switch, each view names what it holds the same way: "Pages  3–5", "Plugin  Study". */
+.tray-view.is-pages {
+  gap: 12px;
+}
+
+.tray-picked.is-empty {
+  color: var(--soft);
+}
+
+/* The hint keeps to one line; a long list of picked pages gives way to it (see .tray-picked). */
+.tray-view.is-pages .popover-caption {
+  flex: none;
+  margin-left: auto;
+  padding-left: 12px;
+  white-space: nowrap;
+}
+
+/* The / picker's rows, pulled out by their own padding so their text lines up with the pages'.
+   A plain scrolling list with crisp edges, as the / menu was before it joined the tray. */
 .tray-skills {
-  --fade-before: #000;
-  --fade-after: #000;
-  max-height: 272px;
+  height: var(--tray-h, 272px);
   margin: 0 -8px;
+  padding-bottom: 8px;
   overflow-y: auto;
   scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(to bottom, var(--fade-before), #000 28px, #000 calc(100% - 28px), var(--fade-after));
-  mask-image: linear-gradient(to bottom, var(--fade-before), #000 28px, #000 calc(100% - 28px), var(--fade-after));
 }
 
-.tray-skills.has-before {
-  --fade-before: transparent;
-}
-
-.tray-skills.has-after {
-  --fade-after: transparent;
-}
-
+/* Each group's heading stays at the top while its rows scroll under it, so the reader always sees
+   which group they are in. Solid, so the rows don't show through it. */
 .tray-skills .popover-head {
+  position: sticky;
+  z-index: 1;
+  top: 0;
   padding: 4px 8px 6px;
+  background: var(--surface-raised);
 }
 
 .tray-skills .popover-head ~ .popover-head {
@@ -1813,41 +1817,251 @@ svg {
   padding: 18px 0 20px;
 }
 
-/* Opened by typing /, the tray starts on its skills without sliding there. */
-#aiAttachMenu.is-instant .popover-tabs::before,
-#aiAttachMenu.is-instant .tray-head-pages,
-#aiAttachMenu.is-instant .tray-views,
-#aiAttachMenu.is-instant .tray-view {
+/* ---------- The plugin carousel ---------- */
+/* The plugins view: the plugins as cards turning in 3D, the middle one chosen, and under them a bar
+   of all six where a drop of the plugin's colour flows to the pick. Black and white like the rest
+   of the tray; only the glyphs, the chosen name and the drop carry the plugins' colours. */
+
+.tray-plugins {
+  display: grid;
+  gap: 10px;
+}
+
+
+.tray-plugins .popover-caption {
+  margin-left: auto;
+}
+
+
+.plugin-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The row bleeds to the tray's edges and fades out there, so the cards beside the chosen one slip
+   away rather than being cut off. */
+.plugin-flow {
+  position: relative;
+  height: 150px;
+  margin: 0 -16px;
+  overflow: hidden;
+  perspective: 900px;
+  outline: none;
+  touch-action: pan-y;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 16%, #000 84%, transparent);
+}
+
+.plugin-flow:focus-visible .plugin-card.is-on {
+  box-shadow: 0 0 0 1px var(--line-strong), 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* `.menu button` is written for rows (space-between, a 16px gap); the card and the slots undo it,
+   or their content sits off-centre. */
+#aiAttachMenu .plugin-card {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  display: grid;
+  justify-content: center;
+  justify-items: center;
+  align-content: center;
+  gap: 5px;
+  width: 136px;
+  height: 138px;
+  margin-left: -68px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: var(--surface-raised);
+  box-shadow: 0 0 0 1px var(--line);
+  text-align: center;
+  white-space: normal;
+  transition: transform 560ms var(--ease-out), opacity 420ms var(--ease-out), box-shadow 300ms ease;
+}
+
+#aiAttachMenu .plugin-card:hover:not(:disabled) {
+  background: var(--surface-raised);
+}
+
+#aiAttachMenu .plugin-card.is-jumping {
   transition: none;
 }
 
-/* The selected text, when there is some: two lines of it behind a rule, and a pill to quote it. */
-.tray-quote {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 2px 0 2px 10px;
-  border-left: 2px solid var(--line-strong);
+#aiAttachMenu .plugin-card.is-on {
+  box-shadow: 0 0 0 1px var(--line-strong);
 }
 
-.tray-quote-text {
-  display: -webkit-box;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
+#aiAttachMenu .plugin-card.is-none:not(.is-on) {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.plugin-card-glyph {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  color: var(--c);
+  transition: transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 300ms ease, filter 300ms ease;
+}
+
+.plugin-card-glyph svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--picker-icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  width: 28px;
+  height: 28px;
+}
+
+.plugin-card:not(.is-on) .plugin-card-glyph {
+  opacity: 0.5;
+  filter: saturate(0.45);
+}
+
+.plugin-card.is-on .plugin-card-glyph {
+  transform: translateY(-1px) scale(1.06);
+}
+
+.plugin-card strong {
   color: var(--muted);
-  font-size: 12.5px;
-  line-height: 1.5;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  font-size: var(--picker-text-size);
+  font-weight: 600;
+  transition: color 300ms ease;
 }
 
-.menu .tray-quote .popover-pill {
-  margin-left: 0;
+.plugin-card.is-on strong {
+  color: var(--c);
 }
 
-.menu .tray-quote .popover-pill[aria-checked="true"] {
-  pointer-events: none;
+/* The chosen card also says what the plugin is for and shows its first skills. */
+.plugin-card-blurb,
+.plugin-card .plugin-skills {
+  max-height: 0;
+  opacity: 0;
+  transition: opacity 250ms ease, max-height 300ms var(--ease-out);
+}
+
+.plugin-card-blurb {
+  color: var(--soft);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.plugin-card .plugin-skills {
+  justify-content: center;
+}
+
+.plugin-card .plugin-skill svg {
+  width: 13px;
+  height: 13px;
+}
+
+.plugin-card .plugin-skills em {
+  margin-left: 3px;
+  color: var(--soft);
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.plugin-card.is-on .plugin-card-blurb {
+  max-height: 30px;
+  opacity: 1;
+  transition-delay: 120ms;
+}
+
+.plugin-card.is-on .plugin-skills {
+  max-height: 16px;
+  opacity: 1;
+  transition-delay: 140ms;
+}
+
+/* The bar under the cards: a grey track, the six glyphs, and a knob in the plugin's colour that
+   glides onto the pick with the effort slider's timing. Only the glyphs take a press (see
+   renderTrayPlugins), so the knob never stops between two of them. None shrinks the knob to a grey
+   bead on its ring. */
+.plugin-bar {
+  position: relative;
+  height: 40px;
+  touch-action: none;
+  user-select: none;
+}
+
+.plugin-bar-track {
+  position: absolute;
+  inset: 2px 0;
+  border-radius: 18px;
+  background: var(--sidebar-selected);
+}
+
+.plugin-knob {
+  position: absolute;
+  top: 2px;
+  width: 36px;
+  height: 36px;
+  margin-left: -18px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transition: left 280ms var(--ease-out), scale 280ms var(--ease-out), background 200ms ease;
+}
+
+.plugin-bar.is-instant .plugin-knob {
+  transition: none;
+}
+
+.plugin-bar.is-none .plugin-knob {
+  scale: 0.4;
+  box-shadow: none;
+}
+
+.plugin-slot {
+  position: absolute;
+  top: 2px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-left: -18px;
+  color: var(--c);
+  cursor: pointer;
+}
+
+.plugin-slot svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--picker-icon-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.5;
+  filter: saturate(0.4);
+  transition: opacity 200ms ease, filter 200ms ease;
+}
+
+.plugin-slot:hover svg,
+.plugin-slot.is-on svg {
+  opacity: 1;
+  filter: none;
+}
+
+.plugin-slot.is-on {
+  color: #ffffff;
+}
+
+.plugin-slot.is-none.is-on {
+  color: transparent;
+}
+
+/* Opened by typing /, the tray starts on its skills without sliding there. */
+#aiAttachMenu.is-instant .popover-tabs::before,
+#aiAttachMenu.is-instant .tray-view {
+  transition: none;
 }
 
 .menu button:hover:not(:disabled) {

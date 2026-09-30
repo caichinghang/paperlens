@@ -142,7 +142,6 @@ let toastTimer = 0;
 let popoverSelection = null;
 let pointerStartedInPages = false;
 let dragDepth = 0;
-let lastSelectedText = "";
 let contentRevision = 0;
 const formEdits = new Map();
 const fieldIndex = new Map();
@@ -186,7 +185,6 @@ const markup = createMarkup({
 });
 
 const assistant = createAssistant({
-  getSelectedText: () => lastSelectedText,
   toast,
   onClose: () => workspace.close(),
   // Everything the assistant can see or change goes through this host (see "AI agent host" below).
@@ -195,7 +193,9 @@ const assistant = createAssistant({
       key: state.docKey,
       name: state.fileName,
       pageCount: state.pages.length,
-      currentPage: state.currentPage
+      currentPage: state.currentPage,
+      // Each page's width and height, for thumbnails drawn in the page's own shape.
+      pageSizes: state.pages.map(page => [page.width, page.height])
     }),
     getRevision: () => contentRevision,
     renderPageImage: agentRenderPageImage,
@@ -1963,7 +1963,6 @@ function showPopover({ range, text }) {
   }
 
   popoverSelection = { range: range.cloneRange(), text };
-  lastSelectedText = text;
   const popover = elements.selectionPopover;
   // Marks the selection already has show as on; choosing one again takes it off.
   const marked = new Set(markup.markupTypesAt(range));
